@@ -1,0 +1,3470 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bal Tracking 3.0 - Cloud (FIX 6 - Hal/Buku List Detail Edit)</title>
+
+  <!-- QR Generator untuk label -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <!-- QR Scanner pakai kamera HP -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-dark: #1e3a8a;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --danger: #dc2626;
+      --success: #059669;
+      --warning: #d97706;
+      --purple: #7c3aed;
+      --pink: #db2777;
+      --shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    button, input, select, textarea { font: inherit; }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .08s, opacity .12s;
+    }
+    button:hover { opacity: .92; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    input, select, textarea {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: white;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+
+    .field-error { border-color: var(--danger) !important; background: #fff5f5 !important; box-shadow: 0 0 0 3px rgba(220,38,38,.10) !important; }
+    .field-error-label { color: var(--danger) !important; }
+    .edit-badge { display:inline-block; margin-left:6px; padding:2px 7px; border-radius:6px; background:#fee2e2; color:#991b1b; font-weight:900; font-size:11px; }
+    .focus-list { margin-top:12px; display:grid; gap:8px; }
+    .focus-item { background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .worker-row { display:grid; grid-template-columns: 1.4fr .8fr auto; gap:8px; align-items:end; margin-bottom:8px; }
+    label { display: block; font-size: 12px; color: #374151; font-weight: 700; margin-bottom: 5px; }
+    .required { color: var(--danger); }
+    .hidden { display: none !important; }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-warning { background: var(--warning); color: white; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-outline { background: white; color: var(--primary); border: 1px solid var(--primary); }
+    .btn-light { background: #eef2ff; color: #1e3a8a; }
+    .btn-sm { padding: 6px 9px; font-size: 12px; border-radius: 6px; }
+    .btn-block { width: 100%; }
+    .muted { color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    /* LOGIN */
+    .login-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: linear-gradient(135deg, #1e40af, #0f172a);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 430px;
+      background: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    }
+    .login-title { font-size: 24px; font-weight: 800; color: #1e3a8a; margin-bottom: 4px; }
+    .login-sub { color: var(--muted); margin-bottom: 18px; }
+    .login-demo {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 12px;
+      color: #475569;
+      margin-top: 14px;
+    }
+
+    /* APP */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--primary);
+      color: white;
+      box-shadow: var(--shadow);
+    }
+    .topbar {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+    }
+    .brand { font-size: 16px; font-weight: 800; }
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      background: rgba(255,255,255,.13);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 999px;
+      padding: 7px 10px;
+    }
+    .nav-tabs {
+      background: white;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .nav-inner { max-width: 1280px; margin: 0 auto; display: flex; gap: 2px; padding: 0 12px; }
+    .tab-btn {
+      background: transparent;
+      color: #64748b;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      padding: 12px 14px;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .container { max-width: 1280px; margin: 0 auto; padding: 16px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(226,232,240,.8);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .section-title { font-size: 16px; font-weight: 800; margin-bottom: 12px; color: #1f2937; }
+    .sub-note { color: var(--muted); font-size: 12px; margin-top: -6px; margin-bottom: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .form-group { margin-bottom: 12px; }
+
+    /* DASHBOARD */
+    .stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+    .stat-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+    .stat-value { font-size: 24px; font-weight: 900; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--muted); }
+
+    /* FOTO */
+    .photo-picker {
+      display: block;
+      border: 2px dashed #cbd5e1;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .photo-picker:hover { border-color: var(--primary); background: white; }
+    .photo-preview { max-width: 100%; max-height: 260px; border-radius: 10px; object-fit: cover; display: none; margin: 8px auto 0; }
+    .photo-warning { color: var(--danger); font-size: 12px; margin-top: 7px; display: none; }
+
+    /* TABLE & CARDS */
+    .filter-bar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; }
+    .table-wrap { overflow-x: auto; background: white; border-radius: 12px; border: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1120px; }
+    th { background: #f8fafc; color: #334155; text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr:hover { background: #fafafa; }
+    .thumb { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; background: #e5e7eb; cursor: pointer; }
+    .mobile-cards { display: none; }
+    .bal-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; gap: 10px; }
+    .bal-card img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e5e7eb; }
+    .bal-card-body { min-width: 0; flex: 1; }
+    .bal-title { font-weight: 900; margin: 3px 0; }
+    .small { font-size: 12px; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+
+    /* BADGES */
+    .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; white-space: nowrap; }
+    .st-SELESAI_MESIN { background: #fef3c7; color: #92400e; }
+    .st-QTY_TERVERIFIKASI { background: #dbeafe; color: #1e40af; }
+    .st-MULAI_OBRAS { background: #ede9fe; color: #5b21b6; }
+    .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
+    .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
+    .st-SELESAI_SETTING { background: #fbcfe8; color: #831843; }
+    .st-SELESAI_PACKING { background: #d1fae5; color: #065f46; }
+    .st-DIPECAH { background: #fee2e2; color: #991b1b; }
+    .tag { background: #e0e7ff; color: #3730a3; }
+
+    /* MODAL */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.68); z-index: 1000; padding: 18px; overflow-y: auto; }
+    .modal.show { display: flex; align-items: flex-start; justify-content: center; }
+    .modal-content { width: 100%; max-width: 760px; background: white; border-radius: 16px; padding: 18px; margin: auto 0; }
+    .modal-sm { max-width: 500px; }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
+    .close-btn { background: transparent; color: #64748b; font-size: 24px; padding: 2px 8px; }
+    .detail-photo { width: 100%; max-height: 330px; object-fit: cover; border-radius: 12px; background: #e5e7eb; margin-bottom: 12px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kv { background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #eef2f7; }
+    .kv label { color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+    .kv strong { font-size: 13px; }
+    .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
+
+    /* LABEL BAL FINAL 100 x 50 mm */
+    .label-area {
+      width: 100mm;
+      height: 50mm;
+      max-width: none;
+      margin: 0 auto;
+      background: white;
+      border: 1.3px solid #111;
+      padding: 2mm;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000;
+      overflow: hidden;
+    }
+
+    .label-final-title {
+      height: 6mm;
+      line-height: 5.2mm;
+      text-align: center;
+      font-size: 8.8pt;
+      font-weight: 800;
+      border-bottom: 1px solid #111;
+      margin-bottom: 1.2mm;
+    }
+
+    .label-final-grid {
+      display: grid;
+      grid-template-columns: 60mm 34mm;
+      gap: 1.5mm;
+      height: 39mm;
+    }
+
+    .label-main {
+      border-right: 1px solid #aaa;
+      padding-right: 1.5mm;
+    }
+
+    .label-main-row {
+      display: grid;
+      grid-template-columns: 17mm 1fr;
+      align-items: start;
+      font-size: 7pt;
+      line-height: 1.12;
+      margin-bottom: 1.65mm;
+    }
+
+    .label-main-row .k {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .label-main-row .v {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .label-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .label-qr {
+      text-align: center;
+      margin-top: 0.5mm;
+    }
+
+    .label-qr #qrLabel canvas,
+    .label-qr #qrLabel img {
+      width: 18.5mm !important;
+      height: 18.5mm !important;
+    }
+
+    .label-qr-id {
+      font-size: 4.1pt;
+      line-height: 1;
+      margin-top: 0.5mm;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .label-workers {
+      width: 100%;
+      border: 1px solid #111;
+      border-radius: 2mm;
+      margin-top: 1.8mm;
+      padding: 1.2mm;
+      font-size: 5.4pt;
+      line-height: 1.12;
+    }
+
+    .label-workers-title {
+      text-align: center;
+      font-size: 5.8pt;
+      font-weight: 800;
+      padding-bottom: 0.8mm;
+      margin-bottom: 0.8mm;
+      border-bottom: 1px solid #111;
+    }
+
+    .label-worker-row {
+      display: grid;
+      grid-template-columns: 11.5mm 1fr;
+      gap: 0.8mm;
+      margin-bottom: 0.85mm;
+    }
+
+    .label-worker-row .k {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .label-worker-row .v {
+      text-align: right;
+      word-break: break-word;
+    }
+
+    .label-worker-row.setting .v {
+      font-size: 4.9pt;
+      line-height: 1.05;
+      white-space: normal;
+    }
+
+    /* TIKET PACKING FINAL 100 x 50 mm */
+    .ticket-label-area {
+      width: 100mm;
+      height: 50mm;
+      max-width: none;
+      margin: 0 auto;
+      background: white;
+      border: 1.3px solid #111;
+      padding: 2mm;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000;
+      overflow: hidden;
+    }
+
+    .ticket-title {
+      height: 6mm;
+      line-height: 5.2mm;
+      text-align: center;
+      font-size: 8.8pt;
+      font-weight: 800;
+      border-bottom: 1px solid #111;
+      margin-bottom: 1.2mm;
+    }
+
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: 57mm 37mm;
+      gap: 1.5mm;
+      height: 39mm;
+    }
+
+    .ticket-main {
+      border-right: 1px solid #aaa;
+      padding-right: 1.5mm;
+    }
+
+    .ticket-row {
+      display: grid;
+      grid-template-columns: 16mm 1fr;
+      align-items: start;
+      font-size: 6.1pt;
+      line-height: 1.08;
+      margin-bottom: 1.22mm;
+    }
+
+    .ticket-row .k {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .ticket-row .v {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ticket-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .ticket-qr {
+      text-align: center;
+      margin-top: 0.5mm;
+    }
+
+    .ticket-qr #qrLabel canvas,
+    .ticket-qr #qrLabel img {
+      width: 16mm !important;
+      height: 16mm !important;
+    }
+
+    .ticket-qr-id {
+      font-size: 3.4pt;
+      line-height: 1;
+      margin-top: 0.35mm;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .ticket-workers {
+      width: 100%;
+      border: 1px solid #111;
+      border-radius: 2mm;
+      margin-top: 1.2mm;
+      padding: 0.9mm;
+      font-size: 4.8pt;
+      line-height: 1.08;
+    }
+
+    .ticket-workers-title {
+      text-align: center;
+      font-size: 5.3pt;
+      font-weight: 800;
+      padding-bottom: 0.6mm;
+      margin-bottom: 0.6mm;
+      border-bottom: 1px solid #111;
+    }
+
+    .ticket-worker-line {
+      font-size: 5.2pt;
+      line-height: 1.1;
+      margin-bottom: 0.8mm;
+      word-break: break-word;
+    }
+
+    .ticket-worker-row {
+      display: grid;
+      grid-template-columns: 11mm 1fr;
+      gap: 0.8mm;
+      font-size: 4.8pt;
+      line-height: 1.08;
+      margin-bottom: 0.55mm;
+    }
+
+    .ticket-worker-row .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 800;
+    }
+
+    .ticket-worker-row .qty {
+      font-weight: 700;
+      text-align: right;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    .ticket-worker-row.setting-line .qty {
+      font-size: 4.35pt;
+      line-height: 1.02;
+    }
+
+
+
+    #scanner-area { margin: 12px 0; border-radius: 12px; overflow: hidden; }
+    .alert { padding: 10px 12px; border-radius: 10px; margin: 10px 0; font-size: 13px; }
+    .alert-info { background: #dbeafe; color: #1e3a8a; }
+    .alert-warn { background: #fef3c7; color: #92400e; }
+    .alert-danger { background: #fee2e2; color: #991b1b; }
+    .alert-success { background: #d1fae5; color: #065f46; }
+    .empty { padding: 35px 14px; text-align: center; color: var(--muted); }
+
+    @media print {
+      @page {
+        size: 100mm 50mm;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 100mm !important;
+        height: 50mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        overflow: hidden !important;
+      }
+
+      body > * {
+        display: none !important;
+      }
+
+      #labelModal {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100mm !important;
+        height: 50mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        overflow: hidden !important;
+      }
+
+      #labelModal .modal-content {
+        display: block !important;
+        width: 100mm !important;
+        height: 50mm !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+      }
+
+      #labelModal .modal-head,
+      #labelModal .actions {
+        display: none !important;
+      }
+
+      #labelContent {
+        display: block !important;
+        width: 100mm !important;
+        height: 50mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+
+      .label-area,
+      .ticket-label-area {
+        display: block !important;
+        position: relative !important;
+        width: 100mm !important;
+        height: 50mm !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 2mm !important;
+        border: 1.3px solid #111 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        page-break-before: avoid !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .user-pill { width: 100%; justify-content: space-between; border-radius: 10px; }
+      .container { padding: 10px; }
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .filter-bar { grid-template-columns: 1fr 1fr; }
+      .table-wrap { display: none; }
+      .mobile-cards { display: block; }
+      .detail-grid { grid-template-columns: 1fr; }
+      button { min-height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN -->
+  <section id="loginPage" class="login-page">
+    <div class="login-card">
+      <div class="login-title">Bal Tracking 2.0</div>
+      <div class="login-sub">Sistem produksi kaos kaki berbasis QR</div>
+      <div class="form-group">
+        <label>Username / Kode</label>
+        <input id="loginUsername" autocomplete="username" placeholder="Ketik username Anda" />
+      </div>
+      <div class="form-group">
+        <label>Password / PIN</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Ketik password Anda" onkeydown="if(event.key==='Enter') doLogin()" />
+      </div>
+      <button class="btn-primary btn-block" onclick="doLogin()">Masuk</button>
+      <div class="login-demo">
+        <strong>Bal Tracking — Cloud Edition</strong><br>
+        Data tersimpan di Google Sheets via Apps Script. Login pakai username + PIN.
+      </div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="appPage" class="hidden">
+    <header class="app-header">
+      <div class="topbar">
+        <div class="brand">📦 Bal Tracking Produksi Kaos Kaki 2.0</div>
+        <div class="user-pill">
+          <span id="userInfo">Login sebagai: -</span>
+          <button class="btn-light btn-sm" onclick="logout()">Logout</button>
+        </div>
+      </div>
+      <nav class="nav-tabs">
+        <div class="nav-inner" id="navTabs">
+          <button data-tab="dashboard" class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+          <button data-tab="input" class="tab-btn" onclick="switchTab('input')">➕ Input Bal</button>
+          <button data-tab="list" class="tab-btn" onclick="switchTab('list')">📋 Daftar Bal</button>
+          <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
+          <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
+          <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
+          <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container">
+      <!-- DASHBOARD -->
+      <div id="tab-dashboard" class="tab-content active">
+        <div class="section-title">Dashboard Ringkas</div>
+        <div id="dashboardStats" class="stat-grid"></div>
+      </div>
+
+      <!-- INPUT -->
+      <div id="tab-input" class="tab-content">
+        <div class="card">
+          <div class="section-title">Input Bal Baru</div>
+          <p class="sub-note">Foto wajib. Status awal otomatis: SELESAI_MESIN.</p>
+
+          <div class="form-group">
+            <label>Nomor PO / Artikel <span class="required">*</span></label>
+            <input id="f_po_id" />
+          </div>
+          <div class="grid-3">
+            <div class="form-group"><label>Nomor Bal <span class="required">*</span></label><input id="f_nomor_bal" type="number" /></div>
+            <div class="form-group"><label>Halaman Buku <span class="required">*</span></label><input id="f_halaman_buku" type="number" inputmode="numeric" placeholder="Contoh: 3" /></div>
+            <div class="form-group"><label>Buku A <span class="required">*</span></label><input id="f_buku_nomor" type="number" inputmode="numeric" placeholder="Contoh: 23" /></div>
+            <div class="form-group"><label>Line <span class="required">*</span></label><input id="f_line" /></div>
+            <div class="form-group"><label>Nomor Mesin / MC <span class="required">*</span></label><input id="f_no_mesin" type="number" /></div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group"><label>Operator Mesin / Pembuat Bal <span class="required">*</span></label><input id="f_operator_mesin"></div>
+            <div class="form-group">
+              <label>Jenis Barang <span class="required">*</span></label>
+              <select id="f_jenis_barang" onchange="onJenisChange(this, 'f_jenis_barang_lain')">
+                <option value="">-- Pilih Jenis --</option>
+              </select>
+              <input id="f_jenis_barang_lain" class="hidden" style="margin-top:6px">
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="form-group"><label>Warna <span class="required">*</span></label><input id="f_warna" /></div>
+            <div class="form-group"><label>Size <span class="required">*</span></label><input id="f_size" /></div>
+            <div class="form-group"><label>Satuan <span class="required">*</span></label><select id="f_satuan"><option value="lusin">lusin</option><option value="pasang">pasang</option><option value="pcs">pcs</option></select></div>
+          </div>
+          <div class="form-group"><label>Jumlah <span class="required">*</span></label><input id="f_jumlah" type="number" step="any" /></div>
+          <div class="form-group"><label>Catatan <span class="required">*</span></label><textarea id="f_catatan"></textarea></div>
+
+          <div class="form-group">
+            <label>Foto Bal <span class="required">* WAJIB</span></label>
+            <input type="file" id="f_foto" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoSelect(event)">
+            <label for="f_foto" class="photo-picker">
+              <div id="photoPlaceholder">
+                <div style="font-size:36px">📷</div>
+                <strong>Klik untuk ambil foto bal</strong><br>
+                <span class="small">kamera HP / galeri, max 10MB</span>
+              </div>
+              <img id="photoPreview" class="photo-preview" alt="Preview foto bal">
+            </label>
+            <div id="photoWarning" class="photo-warning">⚠ Foto wajib diisi</div>
+            <button id="btnResetPhoto" class="btn-secondary btn-sm hidden" onclick="resetPhoto()" type="button">🗑 Hapus Foto</button>
+          </div>
+
+          <button class="btn-primary btn-block" onclick="submitBal()">💾 Simpan Bal & Cetak Label</button>
+        </div>
+      </div>
+
+      <!-- LIST -->
+      <div id="tab-list" class="tab-content">
+        <div class="card">
+          <div class="section-title">Daftar Bal</div>
+          <div class="filter-bar">
+            <input id="filterSearch" placeholder="🔍 Cari ID/PO/operator/mesin..." oninput="renderList()">
+            <input id="filterDate" type="text" placeholder="📅 Filter tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderList()">
+            <input id="filterLine" placeholder="Filter Line (A/B/1...)" oninput="renderList()">
+            <select id="filterStatus" onchange="renderList()"><option value="">Semua Status</option></select>
+            <select id="filterSort" onchange="renderList()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
+          </div>
+          <div class="small" id="listCount" style="margin-top:8px"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Foto</th><th>ID Bal</th><th>PO / No Bal</th><th>Tanggal</th><th>Line / MC</th><th>Operator</th><th>Jenis/Warna/Size</th><th>Qty</th><th>Status</th><th>Hal/Buku</th><th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="balTableBody"></tbody>
+          </table>
+        </div>
+        <div id="mobileCards" class="mobile-cards"></div>
+      </div>
+
+      <!-- SCAN -->
+      <div id="tab-scan" class="tab-content">
+        <div class="card">
+          <div class="section-title">Scan QR Bal</div>
+          <p class="sub-note">Scan hanya membuka detail. Status berubah setelah klik tombol tindakan.</p>
+          <button id="btnStartScan" class="btn-primary btn-block" onclick="startScan()">📷 Mulai Scan</button>
+          <button id="btnStopScan" class="btn-secondary btn-block hidden" onclick="stopScan()">⏹ Stop Scan</button>
+          <div id="scanner-area"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Input Manual ID Bal</div>
+          <div class="grid-2">
+            <input id="manualBalId" placeholder="Ketik ID Bal / Ticket lengkap...">
+            <button class="btn-primary" onclick="openManualBal()">Buka Detail</button>
+          </div>
+          <div id="scanMessage"></div>
+        </div>
+      </div>
+
+      <!-- HISTORY -->
+      <div id="tab-history" class="tab-content">
+        <div class="card">
+          <div class="section-title">History Aktivitas</div>
+          <div id="globalHistory"></div>
+        </div>
+      </div>
+
+      <!-- HR BORONGAN SETTING - OWNER ONLY -->
+      <div id="tab-hr" class="tab-content">
+        <div class="card">
+          <div class="section-title">HR Borongan</div>
+          <p class="sub-note">Rekap upah borongan otomatis dari aktivitas produksi. Record dibuat saat bal mencapai status SELESAI_PACKING. Owner mengisi tarif sekali per kombinasi tahap+jenis, sistem ingat untuk record berikutnya.</p>
+          <div class="grid-2" style="margin-top:8px">
+            <button class="tab-btn ${''}" id="hrSubObrasBtn" data-sub="obras" onclick="switchHrSub('obras')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">🧵 Rekap Obras</button>
+            <button class="tab-btn" id="hrSubSettingBtn" data-sub="setting" onclick="switchHrSub('setting')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">⚙️ Rekap Setting</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Filter</div>
+          <div class="filter-bar">
+            <select id="hrFilterWorker" onchange="renderBorongan()"><option value="">Semua Pegawai</option></select>
+            <input id="hrFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderBorongan()">
+            <input id="hrFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderBorongan()">
+            <input id="hrFilterJenis" placeholder="Filter jenis barang..." oninput="renderBorongan()">
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn-outline btn-sm" onclick="exportBoronganCSV()">📥 Export CSV</button>
+            <button class="btn-outline btn-sm" onclick="renderBorongan()">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div id="hrSummary" class="stat-grid"></div>
+
+        <div class="card">
+          <div class="section-title">Rekap per Pegawai</div>
+          <div id="hrRekapPegawai"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Daftar Pekerjaan</div>
+          <p class="sub-note">Klik kolom tarif untuk isi/edit. Tarif disimpan per kombinasi tahap+jenis dan auto-fill di pekerjaan berikutnya.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Pegawai</th>
+                  <th>Foto</th>
+                  <th>Bal / PO</th>
+                  <th>Jenis</th>
+                  <th>Warna/Size</th>
+                  <th>Qty</th>
+                  <th>Tarif</th>
+                  <th>Total</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="hrRows"></tbody>
+            </table>
+          </div>
+          <div id="hrMobile" class="mobile-cards"></div>
+        </div>
+      </div>
+
+      <!-- SISTEM / MAINTENANCE - OWNER ONLY -->
+      <div id="tab-system" class="tab-content">
+        <div class="card">
+          <div class="section-title">🛠 Sistem / Maintenance (Cloud)</div>
+          <p class="sub-note">Khusus Owner. Data tersimpan di Google Sheets via Apps Script. Tab ini untuk cek rekap data, kelola user, dan backup.</p>
+          <div class="actions" style="flex-wrap:wrap; gap:8px">
+            <button class="btn-primary" onclick="ownerRunHealthCheck()">🔎 Cek Data</button>
+            <button class="btn-primary" onclick="openUserManagement()">👥 Kelola User</button>
+            <button class="btn-outline" onclick="ownerExportBackupJSON()">📥 Export Backup JSON</button>
+            <button class="btn-warning" onclick="document.getElementById('ownerImportBackupInput').click()">📤 Import Backup JSON</button>
+            <input id="ownerImportBackupInput" type="file" accept="application/json,.json" class="hidden" onchange="ownerImportBackupJSON(event)">
+          </div>
+          <div class="alert alert-info" style="margin-top:10px">
+            <strong>Info:</strong> Health check di mode cloud hanya menampilkan rekap dari server. Repair lokal tidak relevan karena data sudah di Google Sheets. Untuk perubahan struktural data, edit langsung di Spreadsheet atau via Apps Script.
+          </div>
+        </div>
+        <div id="ownerHealthPanel"></div>
+      </div>
+    </main>
+  </section>
+
+  <!-- MODALS -->
+  <div class="modal" id="detailModal"><div class="modal-content"><div class="modal-head"><strong>Detail Bal</strong><button class="close-btn" onclick="closeModal('detailModal')">×</button></div><div id="detailContent"></div></div></div>
+  <div class="modal" id="labelModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="labelModalTitle">Label Bal</strong><button class="close-btn" onclick="closeModal('labelModal')">×</button></div><div id="labelContent"></div><div class="actions"><button class="btn-success btn-block" onclick="window.print()">🖨 Print / Save PDF</button></div></div></div>
+  <div class="modal" id="actionModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="actionTitle">Konfirmasi</strong><button class="close-btn" onclick="closeModal('actionModal')">×</button></div><div id="actionContent"></div></div></div>
+  <div class="modal" id="editModal"><div class="modal-content"><div class="modal-head"><strong>Edit Bal 1x</strong><button class="close-btn" onclick="closeModal('editModal')">×</button></div><div id="editContent"></div></div></div>
+  <div class="modal" id="outputModal"><div class="modal-content"><div class="modal-head"><strong>Label Plastik Baru / Output Setting</strong><button class="close-btn" onclick="closeModal('outputModal')">×</button></div><div id="outputContent"></div></div></div>
+  <div class="modal" id="splitModal"><div class="modal-content"><div class="modal-head"><strong>Pecah Bal Fisik</strong><button class="close-btn" onclick="closeModal('splitModal')">×</button></div><div id="splitContent"></div></div></div>
+  <div class="modal" id="ownerOverrideModal"><div class="modal-content"><div class="modal-head"><strong>🔧 Owner Override</strong><button class="close-btn" onclick="closeModal('ownerOverrideModal')">×</button></div><div id="ownerOverrideContent"></div></div></div>
+
+  <script>
+    /* ============================================================
+       CONFIG CLOUD — WAJIB ISI DULU API_URL
+       ============================================================ */
+
+    // Tempel di sini Web App URL dari Apps Script Deploy.
+    // Contoh: "https://script.google.com/macros/s/AKfycby.../exec"
+    const API_URL = "https://script.google.com/macros/s/AKfycbyv2vVEV3Z-rKYKfGO35IvlnNpdiCopW8W0MiorKIHQtC359m_LPxkHYqTsNwJC8IcT/exec";
+
+    // Timeout per request (ms). Apps Script bisa lambat, kasih cukup waktu.
+    const API_TIMEOUT_MS = 30000;
+
+    // Retry kalau request gagal karena network (bukan karena error business).
+    const API_MAX_RETRIES = 2;
+
+    // Cache TTL untuk listBals/listHistory dll (ms). Set 0 = no cache.
+    const API_CACHE_TTL_MS = 60000;
+
+    const STORAGE_KEY = "bal_tracking_v3_cache";
+    const SESSION_KEY = "bal_tracking_v3_user";
+    let currentUser = null;
+    let currentTab = "dashboard";
+    let currentHrSub = "obras";  // 'obras' atau 'setting'
+    let scanner = null;
+    let pendingPhotoBase64 = "";
+    let currentDetailBalId = "";
+
+    const STATUS_ORDER = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+    const STATUS_LABEL = {
+      SELESAI_MESIN: "Selesai Mesin",
+      QTY_TERVERIFIKASI: "Qty Terverifikasi",
+      MULAI_OBRAS: "Mulai Obras",
+      SELESAI_OBRAS: "Selesai Obras",
+      MULAI_SETTING: "Mulai Setting",
+      SELESAI_SETTING: "Selesai Setting",
+      SELESAI_PACKING: "Selesai Packing",
+      DIPECAH: "Dipecah"
+    };
+
+    const JENIS_BARANG_LIST = [
+      "Jempol", "Wudhu", "Bola", "Mensock", "Oldschool",
+      "Mata Kaki", "Dekker / Manset", "Bayi", "Anak", "Sekolah / Pramuka"
+    ];
+
+    const ACTION_RULES = [
+      { action: "VERIFIKASI_QTY",  label: "Verifikasi Qty",  from: "SELESAI_MESIN",     to: "QTY_TERVERIFIKASI", roles: ["Checker / QC", "Admin Produksi", "Owner"] },
+      { action: "MULAI_OBRAS",     label: "Mulai Obras",     from: "QTY_TERVERIFIKASI", to: "MULAI_OBRAS",       roles: ["Obras", "Admin Produksi", "Owner"] },
+      { action: "SELESAI_OBRAS",   label: "Selesai Obras",   from: "MULAI_OBRAS",       to: "SELESAI_OBRAS",     roles: ["Obras", "Admin Produksi", "Owner"] },
+      { action: "MULAI_SETTING",   label: "Mulai Setting",   from: "SELESAI_OBRAS",     to: "MULAI_SETTING",     roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
+      { action: "SELESAI_SETTING", label: "Selesai Setting", from: "MULAI_SETTING",     to: "SELESAI_SETTING",   roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
+      { action: "SELESAI_PACKING", label: "Selesai Packing", from: "SELESAI_SETTING",   to: "SELESAI_PACKING",   roles: ["Packing", "Admin Produksi", "Owner"] }
+    ];
+
+    /* ============================================================
+       CLOUD REQUEST CORE
+       - Selalu POST (lebih reliable dengan body JSON).
+       - Auto-attach username + pin di setiap request.
+       - Retry 2x untuk network error.
+       - Timeout 30 detik.
+       - Cache ringan untuk endpoint read-only.
+       ============================================================ */
+
+    const _apiCache = new Map(); // key: action+args hash, value: { data, expiresAt }
+
+    function isCloudConfigured() {
+      return API_URL && API_URL.length > 0 && !API_URL.startsWith("GANTI");
+    }
+
+    async function api(action, payload = {}, options = {}) {
+      if (!isCloudConfigured()) {
+        throw new Error("API_URL belum dikonfigurasi. Edit konstanta API_URL di kode HTML.");
+      }
+      const cacheable = options.cache !== false && API_CACHE_TTL_MS > 0 && options.cache === true;
+      const cacheKey = cacheable ? `${action}::${JSON.stringify(payload)}` : null;
+
+      if (cacheKey) {
+        const cached = _apiCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+          return cached.data;
+        }
+      }
+
+      const body = Object.assign({}, payload, { action });
+      // Attach auth kalau sudah login dan ini bukan action publik
+      if (currentUser && action !== "login" && action !== "ping") {
+        body.username = currentUser.username;
+        body.pin = currentUser.pin;  // PIN kita simpan di session (lihat catatan keamanan)
+      }
+
+      let lastErr = null;
+      for (let attempt = 0; attempt <= API_MAX_RETRIES; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+          const res = await fetch(API_URL, {
+            method: "POST",
+            // Pakai text/plain supaya tidak trigger CORS preflight (Apps Script tidak support OPTIONS)
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+            redirect: "follow"
+          });
+          clearTimeout(timer);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          if (json.ok === false) throw new Error(json.error || "API error");
+          if (cacheKey) _apiCache.set(cacheKey, { data: json.data, expiresAt: Date.now() + API_CACHE_TTL_MS });
+          return json.data;
+        } catch (err) {
+          lastErr = err;
+          // Network / abort error → retry. Business error (ok:false) sudah di-throw tanpa retry path.
+          if (err.name === "AbortError" || /HTTP \d|Failed to fetch|NetworkError/i.test(err.message)) {
+            if (attempt < API_MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
+      throw lastErr;
+    }
+
+    function clearApiCache(prefix) {
+      if (!prefix) { _apiCache.clear(); return; }
+      for (const k of _apiCache.keys()) {
+        if (k.startsWith(prefix)) _apiCache.delete(k);
+      }
+    }
+
+    /* ============================================================
+       TOAST NOTIFICATION (untuk error/info, biar tidak spam alert())
+       ============================================================ */
+
+    function toast(message, type = "info", durationMs = 3500) {
+      const wrap = document.getElementById("toastWrap") || (() => {
+        const el = document.createElement("div");
+        el.id = "toastWrap";
+        el.style.cssText = "position:fixed; top:12px; right:12px; z-index:10000; display:flex; flex-direction:column; gap:8px; max-width:90vw;";
+        document.body.appendChild(el);
+        return el;
+      })();
+      const colors = {
+        info:    { bg: "#dbeafe", color: "#1e40af", border: "#3b82f6" },
+        success: { bg: "#dcfce7", color: "#166534", border: "#22c55e" },
+        warn:    { bg: "#fef3c7", color: "#92400e", border: "#f59e0b" },
+        error:   { bg: "#fee2e2", color: "#991b1b", border: "#ef4444" }
+      };
+      const c = colors[type] || colors.info;
+      const t = document.createElement("div");
+      t.style.cssText = `background:${c.bg}; color:${c.color}; border-left:4px solid ${c.border}; padding:10px 14px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); font-size:13px; min-width:260px; max-width:420px; word-wrap:break-word;`;
+      t.textContent = message;
+      wrap.appendChild(t);
+      setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(() => t.remove(), 300); }, durationMs);
+    }
+
+    /* ============================================================
+       LOADING OVERLAY (full screen saat operasi penting)
+       ============================================================ */
+
+    let _loadingCount = 0;
+    function showLoading(message = "Memuat...") {
+      _loadingCount++;
+      let el = document.getElementById("globalLoading");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "globalLoading";
+        el.style.cssText = "position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:9999; color:white; font-size:14px; flex-direction:column; gap:12px;";
+        el.innerHTML = `<div style="width:48px; height:48px; border:4px solid rgba(255,255,255,.3); border-top-color:white; border-radius:50%; animation:spin 1s linear infinite;"></div><div id="globalLoadingText"></div>`;
+        document.body.appendChild(el);
+        const style = document.createElement("style");
+        style.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
+        document.head.appendChild(style);
+      }
+      document.getElementById("globalLoadingText").textContent = message;
+      el.style.display = "flex";
+    }
+    function hideLoading() {
+      _loadingCount = Math.max(0, _loadingCount - 1);
+      if (_loadingCount === 0) {
+        const el = document.getElementById("globalLoading");
+        if (el) el.style.display = "none";
+      }
+    }
+
+    // Helper: wrap operasi async dengan loading + error toast otomatis
+    async function withLoading(message, fn) {
+      showLoading(message);
+      try {
+        return await fn();
+      } catch (err) {
+        toast(err.message || "Terjadi kesalahan", "error", 5000);
+        throw err;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    /* ============================================================
+       API WRAPPER FUNCTIONS — dipakai semua UI di bawah.
+       Semua fungsi ini THIN — cuma forward ke api() dengan action name.
+       ============================================================ */
+
+    function _hydrateBal(b) {
+      if (!b) return b;
+      // Server menyimpan output_labels sebagai JSON string di kolom output_labels_json.
+      // Client expects b.output_labels sebagai array. Parse di sini.
+      if (b.output_labels_json && !b.output_labels) {
+        try { b.output_labels = JSON.parse(b.output_labels_json); } catch (_) { b.output_labels = []; }
+      }
+      if (!Array.isArray(b.output_labels)) b.output_labels = [];
+      // Edit history juga JSON
+      if (b.edit_history_json && !b.edit_history) {
+        try { b.edit_history = JSON.parse(b.edit_history_json); } catch (_) { b.edit_history = []; }
+      }
+      return b;
+    }
+
+    async function apiLogin(username, pin) {
+      return await api("login", { username, pin });
+    }
+
+    async function apiListBals() {
+      const list = await api("listBals", {}, { cache: true });
+      return (list || []).map(_hydrateBal);
+    }
+
+    async function apiGetBal(bal_id) {
+      const b = await api("getBal", { bal_id });
+      return _hydrateBal(b);
+    }
+
+    async function apiCreateBal(bal) {
+      clearApiCache("listBals");
+      return await api("createBal", { data: bal });
+    }
+
+    async function apiUpdateStatus(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      // Server-side expects action_type, payload has 'action' currently
+      const body = Object.assign({}, payload);
+      body.action_type = payload.action;
+      delete body.action; // jangan bentrok dengan envelope action
+      return await api("updateStatus", body);
+    }
+
+    async function apiEditBal(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+
+      const {
+        bal_id,
+        edit_note,
+        po_id,
+        nomor_bal,
+        halaman_buku,
+        buku_nomor,
+        line,
+        no_mesin,
+        operator_mesin,
+        jenis_barang,
+        warna,
+        size,
+        jumlah,
+        satuan,
+        catatan
+      } = payload || {};
+
+      return await api("editBal", {
+        bal_id,
+        edit_note,
+        updates: {
+          po_id,
+          nomor_bal,
+          halaman_buku,
+          buku_nomor,
+          line,
+          no_mesin,
+          operator_mesin,
+          jenis_barang,
+          warna,
+          size,
+          jumlah,
+          satuan,
+          catatan
+        }
+      });
+    }
+
+    async function apiCreateOutputLabel(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      clearApiCache("listBorongan");
+
+      const result = await api("createOutputLabel", {
+        bal_id: payload.bal_id,
+        mode: payload.mode || "REUSE_MAIN_QR",
+        qty: payload.qty,
+        workers: payload.workers || payload.worker_lines || [],
+        catatan: payload.catatan || payload.note || ""
+      });
+
+      return result?.output || result;
+    }
+
+    async function apiManualSelesaiSetting(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("manualSelesaiSetting", payload);
+    }
+
+    async function apiSplitBal(payload) {
+      clearApiCache("listBals");
+      return await api("splitBal", payload);
+    }
+
+    async function apiDeleteBal(payload) {
+      clearApiCache("listBals");
+      return await api("deleteBal", payload);
+    }
+
+    async function apiGetHistory(bal_id = "") {
+      const all = await api("listHistory", bal_id ? { bal_id } : {}, { cache: !bal_id });
+      return all;
+    }
+
+    async function apiOwnerOverride(payload) {
+      clearApiCache(); // owner override bisa pengaruhi banyak hal
+      return await api("ownerOverride", payload);
+    }
+
+    async function apiListBorongan() {
+      return await api("listBorongan", {}, { cache: true });
+    }
+
+    async function apiUpdateBoronganTarif(id, tarif) {
+      clearApiCache("listBorongan");
+      return await api("updateBoronganTarif", { id, tarif });
+    }
+
+    async function apiDeleteBoronganRow(id) {
+      clearApiCache("listBorongan");
+      return await api("deleteBoronganRow", { id });
+    }
+
+    async function apiListUsers() {
+      return await api("listUsers", {}, { cache: true });
+    }
+
+    async function apiCreateUser(payload) {
+      clearApiCache("listUsers");
+      return await api("createUser", payload);
+    }
+
+    async function apiUpdateUser(payload) {
+      clearApiCache("listUsers");
+      return await api("updateUser", payload);
+    }
+
+    async function apiResetUserPin(username, new_pin) {
+      clearApiCache("listUsers");
+      return await api("resetUserPin", { username, new_pin });
+    }
+
+    async function apiSetUserActive(username, active) {
+      clearApiCache("listUsers");
+      return await api("setUserActive", { username, active });
+    }
+
+    async function apiUploadFoto(base64, bal_id = "") {
+      return await api("uploadFoto", { base64, bal_id });
+    }
+
+    /* ============================================================
+       LOGIN
+       ============================================================ */
+
+    async function doLogin() {
+      const username = document.getElementById("loginUsername").value.trim();
+      const pin = document.getElementById("loginPassword").value;
+      if (!username || !pin) { toast("Username dan PIN wajib diisi.", "warn"); return; }
+      try {
+        showLoading("Login...");
+        const user = await apiLogin(username, pin);
+        // Simpan PIN di session supaya request berikutnya bisa attach auth.
+        // Catatan keamanan: PIN tersimpan di sessionStorage, hilang saat tab ditutup.
+        // Tidak permanen di localStorage. Sama tingkat keamanan dengan cookie session standar.
+        currentUser = Object.assign({}, user, { pin });
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+        hideLoading();
+        showApp();
+        toast(`Selamat datang, ${user.nama}!`, "success");
+      } catch (e) {
+        hideLoading();
+        toast(e.message || "Login gagal", "error", 5000);
+      }
+    }
+
+    function logout() {
+      stopScan();
+      currentUser = null;
+      sessionStorage.removeItem(SESSION_KEY);
+      clearApiCache(); // bersihkan cache supaya user berikutnya tidak lihat data cached
+      document.getElementById("loginPage").classList.remove("hidden");
+      document.getElementById("appPage").classList.add("hidden");
+      document.getElementById("loginPassword").value = "";
+    }
+
+    function showApp() {
+      document.getElementById("loginPage").classList.add("hidden");
+      document.getElementById("appPage").classList.remove("hidden");
+      document.getElementById("userInfo").textContent = `Login sebagai: ${currentUser.nama} - ${currentUser.role}`;
+      setupNavByRole();
+      setupStatusFilter();
+      populateJenisSelect(document.getElementById("f_jenis_barang"));
+      switchTab(defaultTabForRole());
+      refreshAll();
+    }
+
+    function defaultTabForRole() {
+      if (["Operator Mesin", "Admin Produksi", "Owner"].includes(currentUser.role)) return "dashboard";
+      return "scan";
+    }
+
+    function canAccess(tab) {
+      const r = currentUser?.role;
+      if (!r) return false;
+      if (r === "Owner") return true;
+      if (tab === "dashboard") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
+      if (tab === "input") return ["Admin Produksi", "Operator Mesin"].includes(r);
+      if (tab === "list") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
+      if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
+      if (tab === "history") return ["Admin Produksi"].includes(r);
+      if (tab === "hr") return r === "Owner";
+      if (tab === "system") return r === "Owner";
+      return false;
+    }
+
+    function setupNavByRole() {
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.toggle("hidden", !canAccess(btn.dataset.tab));
+      });
+    }
+
+    /* ============================================================
+       UTIL
+       ============================================================ */
+
+    function generateBalId() {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mi = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const ms = String(now.getMilliseconds()).padStart(3, "0");
+      return `BAL-${yy}${mm}${dd}-${hh}${mi}${ss}${ms}`;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    }
+
+    function fmtDateShort(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    }
+
+    function statusText(status) { return STATUS_LABEL[status] || String(status || "-").replaceAll("_", " "); }
+    function statusBadge(status) { return `<span class="badge st-${status}">${statusText(status)}</span>`; }
+    function safe(v) { return String(v ?? "").replace(/[&<>"]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s])); }
+
+    function roleFocusStatuses(role = currentUser?.role) {
+      if (["Owner", "Admin Produksi"].includes(role)) return null;
+      if (role === "Operator Mesin") return ["SELESAI_MESIN"];
+      if (role === "Checker / QC") return ["SELESAI_MESIN"];
+      if (role === "Obras") return ["QTY_TERVERIFIKASI", "MULAI_OBRAS"];
+      if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING"];
+      if (role === "Packing") return ["SELESAI_SETTING", "SELESAI_PACKING"];
+      return null;
+    }
+
+    function focusBalsForRole(bals) {
+      const statuses = roleFocusStatuses();
+      if (!statuses) return bals;
+      return bals.filter(b => statuses.includes(b.status));
+    }
+
+    function clearFieldErrors(scope = document) {
+      scope.querySelectorAll(".field-error").forEach(el => el.classList.remove("field-error"));
+    }
+
+    function markRequired(ids) {
+      let ok = true;
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const empty = el.type === "number" ? (el.value === "" || Number(el.value) <= 0) : !String(el.value || "").trim();
+        el.classList.toggle("field-error", empty);
+        if (empty) ok = false;
+      });
+      return ok;
+    }
+
+    function rupiah(n) { return "Rp" + Number(n || 0).toLocaleString("id-ID"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+
+    /**
+     * Qty resmi bal = qty hasil verifikasi checker (kalau sudah diverifikasi),
+     * fallback ke qty operator (untuk bal yang belum / tidak melalui verifikasi).
+     * Dipakai untuk: hitung sisa setting, total bal di label cetak ulang,
+     * borongan, dan semua perhitungan operasional lainnya.
+     * Qty operator (bal.jumlah) tetap disimpan untuk audit/history.
+     */
+    function officialQty(b) {
+      return Number((b && b.qty_verifikasi) || (b && b.jumlah) || 0);
+    }
+
+    /**
+     * Populate select element with JENIS_BARANG_LIST + "Lainnya" option.
+     * If selected value is not in list (legacy bal data), preserve it as a custom option.
+     */
+    function populateJenisSelect(selectEl, currentValue = "") {
+      if (!selectEl) return;
+      const inList = JENIS_BARANG_LIST.includes(currentValue);
+      const opts = [`<option value="">-- Pilih Jenis --</option>`];
+      JENIS_BARANG_LIST.forEach(j => {
+        const sel = j === currentValue ? "selected" : "";
+        opts.push(`<option value="${safe(j)}" ${sel}>${safe(j)}</option>`);
+      });
+      // Kalau value lama tidak ada di list (legacy data), tampilkan sebagai pilihan custom
+      if (currentValue && !inList) {
+        opts.push(`<option value="${safe(currentValue)}" selected>${safe(currentValue)} (lama)</option>`);
+      }
+      opts.push(`<option value="__OTHER__">Lainnya... (ketik manual)</option>`);
+      selectEl.innerHTML = opts.join("");
+    }
+
+    /**
+     * Handler saat dropdown jenis berubah. Kalau "Lainnya..." dipilih,
+     * reveal input freetype di bawahnya.
+     */
+    function onJenisChange(selectEl, freetypeId) {
+      const free = document.getElementById(freetypeId);
+      if (!free) return;
+      if (selectEl.value === "__OTHER__") {
+        free.classList.remove("hidden");
+        free.focus();
+      } else {
+        free.classList.add("hidden");
+        free.value = "";
+      }
+    }
+
+    /**
+     * Resolve final jenis value from select + freetype input pair.
+     * Returns trimmed string or "" if invalid.
+     */
+    function resolveJenisValue(selectId, freetypeId) {
+      const sel = document.getElementById(selectId);
+      const free = document.getElementById(freetypeId);
+      if (!sel) return "";
+      if (sel.value === "__OTHER__") return String(free?.value || "").trim();
+      return String(sel.value || "").trim();
+    }
+
+    function normalizeQrText(text) {
+      const t = String(text || "").trim();
+      try {
+        if (t.startsWith("http")) {
+          const u = new URL(t);
+          const q = u.searchParams.get("bal_id") || u.searchParams.get("id");
+          if (q) return q;
+          const parts = u.pathname.split("/").filter(Boolean);
+          return parts[parts.length - 1] || t;
+        }
+      } catch (_) {}
+      return t;
+    }
+
+    /* ============================================================
+       TABS & RENDER
+       ============================================================ */
+
+    function switchTab(tab) {
+      if (!canAccess(tab)) {
+        alert("Akun Anda tidak memiliki akses ke menu ini.");
+        return;
+      }
+      currentTab = tab;
+      stopScan();
+      document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+      document.getElementById(`tab-${tab}`).classList.add("active");
+      document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+      refreshAll();
+    }
+
+    async function refreshAll() {
+  if (currentTab === "dashboard") {
+    await renderDashboard();
+    return;
+  }
+
+  if (currentTab === "list") {
+    await renderList();
+    return;
+  }
+
+  if (currentTab === "history") {
+    await renderGlobalHistory();
+    return;
+  }
+
+  if (currentTab === "hr") {
+    await switchHrSub(currentHrSub);
+    return;
+  }
+
+  if (currentTab === "system") {
+    await renderOwnerHealthPanel();
+    return;
+  }
+}
+
+    function setupStatusFilter() {
+      const s = document.getElementById("filterStatus");
+      s.innerHTML = `<option value="">Semua Status</option>` + [...STATUS_ORDER, "DIPECAH"].map(st => `<option value="${st}">${statusText(st)}</option>`).join("");
+    }
+
+    async function renderDashboard() {
+      const allBals = await apiListBals();
+      const bals = focusBalsForRole(allBals);
+      const count = st => bals.filter(b => b.status === st).length;
+      const role = currentUser?.role || "";
+      let title = "Dashboard Ringkas";
+      let note = "";
+      if (role === "Checker / QC") { title = "Dashboard QC / Checker"; note = "Fokus hanya bal yang menunggu verifikasi qty."; }
+      else if (role === "Obras") { title = "Dashboard Obras"; note = "Fokus hanya bal yang sudah diverifikasi dan sedang proses obras."; }
+      else if (role === "Setting / Steam") { title = "Dashboard Setting / Steam"; note = "Fokus hanya bal yang siap setting, sedang setting, dan selesai setting."; }
+      else if (role === "Packing") { title = "Dashboard Packing"; note = "Fokus hanya bal yang siap packing / sudah selesai packing."; }
+      else if (role === "Operator Mesin") { title = "Dashboard Operator Mesin"; note = "Fokus input bal dan bal yang baru selesai mesin."; }
+      else { title = "Dashboard Owner / Admin"; note = "Melihat semua tahap produksi."; }
+
+      const inObras = bals.filter(b => b.status === "MULAI_OBRAS").length;
+      const inSetting = bals.filter(b => b.status === "MULAI_SETTING").length;
+      const dipecah = bals.filter(b => b.status === "DIPECAH" || b.is_parent_split).length;
+      const stats = [
+        ["Total Fokus", bals.length],
+        ["Selesai Mesin", count("SELESAI_MESIN")],
+        ["Siap Obras", count("QTY_TERVERIFIKASI")],
+        ["Dalam Obras", inObras],
+        ["Dalam Setting", inSetting],
+        ["Selesai Packing", count("SELESAI_PACKING")]
+      ];
+      document.querySelector("#tab-dashboard .section-title").textContent = title;
+      document.getElementById("dashboardStats").innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+      const target = bals.slice().sort((a,b)=>new Date(b.last_update_at||b.tanggal_buat)-new Date(a.last_update_at||a.tanggal_buat)).slice(0, 8);
+      const old = document.getElementById("roleFocusBox"); if (old) old.remove();
+      document.getElementById("dashboardStats").insertAdjacentHTML("afterend", `<div id="roleFocusBox" class="card"><div class="section-title">Barang yang perlu diperhatikan</div><p class="sub-note">${safe(note)}</p><div class="focus-list">${target.length ? target.map(b=>`<div class="focus-item"><div><strong>${safe(b.po_id)}</strong><br><span class="small mono">${safe(b.bal_id)}</span><br><span class="small">MC ${safe(b.no_mesin||'-')} · ${officialQty(b)} ${safe(b.satuan)}</span></div><div>${statusBadge(b.status)}<br><button class="btn-outline btn-sm" style="margin-top:6px" onclick="openDetail('${b.bal_id}')">Detail</button></div></div>`).join("") : `<div class="empty">Tidak ada bal untuk tahap akun ini.</div>`}</div></div>`);
+
+    }
+
+    /* ============================================================
+       FOTO
+       ============================================================ */
+
+    function handlePhotoSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        alert("File harus gambar.");
+        event.target.value = "";
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Foto terlalu besar. Maksimal 10MB.");
+        event.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => alert("Gagal membaca foto. Coba ambil ulang.");
+      reader.onload = e => {
+        const img = new Image();
+        img.onerror = () => alert("File rusak atau bukan gambar valid. Coba ambil ulang.");
+        img.onload = () => {
+          try {
+            const MAX = 600;
+            let w = img.width, h = img.height;
+            if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+            else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            pendingPhotoBase64 = canvas.toDataURL("image/jpeg", 0.6);
+            document.getElementById("photoPlaceholder").style.display = "none";
+            const preview = document.getElementById("photoPreview");
+            preview.src = pendingPhotoBase64;
+            preview.style.display = "block";
+            document.getElementById("photoWarning").style.display = "none";
+            document.getElementById("btnResetPhoto").classList.remove("hidden");
+            console.log("Foto setelah kompres:", Math.round(pendingPhotoBase64.length / 1024), "KB");
+          } catch (err) {
+            alert("Gagal proses foto: " + err.message);
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetPhoto() {
+      pendingPhotoBase64 = "";
+      document.getElementById("f_foto").value = "";
+      document.getElementById("photoPlaceholder").style.display = "block";
+      document.getElementById("photoPreview").style.display = "none";
+      document.getElementById("photoPreview").src = "";
+      document.getElementById("btnResetPhoto").classList.add("hidden");
+    }
+
+    /* ============================================================
+       INPUT BAL
+       ============================================================ */
+
+    async function submitBal() {
+      if (!currentUser) return alert("Silakan login dulu.");
+      if (!["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) return alert("Role Anda tidak boleh input bal.");
+      const po_id = document.getElementById("f_po_id").value.trim();
+      const nomor_bal = document.getElementById("f_nomor_bal").value.trim();
+      const halaman_buku = document.getElementById("f_halaman_buku").value.trim();
+      const buku_nomor = document.getElementById("f_buku_nomor").value.trim();
+      const line = document.getElementById("f_line").value.trim();
+      const no_mesin = document.getElementById("f_no_mesin").value.trim();
+      const operator_mesin = document.getElementById("f_operator_mesin").value.trim();
+      const jenis_barang = resolveJenisValue("f_jenis_barang", "f_jenis_barang_lain");
+      const warna = document.getElementById("f_warna").value.trim();
+      const size = document.getElementById("f_size").value.trim();
+      const jumlah = Number(document.getElementById("f_jumlah").value);
+      const satuan = document.getElementById("f_satuan").value;
+      const catatan = document.getElementById("f_catatan").value.trim();
+
+      clearFieldErrors(document.getElementById("tab-input"));
+      const requiredOk = markRequired(["f_po_id","f_nomor_bal","f_halaman_buku","f_buku_nomor","f_line","f_no_mesin","f_operator_mesin","f_jenis_barang","f_warna","f_size","f_jumlah","f_satuan","f_catatan"]);
+      if (!requiredOk) return alert("Semua kotak wajib diisi. Kotak merah adalah data yang masih kosong/salah.");
+      // Validasi jenis: kalau pilih "Lainnya..." maka freetype harus diisi
+      if (!jenis_barang) {
+        const sel = document.getElementById("f_jenis_barang");
+        const free = document.getElementById("f_jenis_barang_lain");
+        if (sel.value === "__OTHER__") { free.classList.add("field-error"); return alert("Jenis barang baru wajib diketik."); }
+        sel.classList.add("field-error"); return alert("Jenis barang wajib dipilih.");
+      }
+      if (!pendingPhotoBase64) {
+        document.getElementById("photoWarning").style.display = "block";
+        return alert("Foto bal wajib diisi.");
+      }
+      // Cek dup di server side (case sensitive check)
+      let existing = [];
+      try { existing = await apiListBals(); } catch (e) { toast("Tidak bisa cek duplikat: " + e.message, "warn"); }
+      const today = new Date().toISOString().slice(0, 10);
+      const dup = (existing || []).find(b => b.po_id === po_id && String(b.nomor_bal) === nomor_bal && String(b.no_mesin) === no_mesin && String(b.tanggal_buat || "").slice(0, 10) === today);
+      if (dup && !confirm(`Peringatan: PO + No Bal + Mesin sudah ada hari ini (${dup.bal_id}). Tetap simpan?`)) return;
+
+      try {
+        // STEP 1: upload foto ke Drive dulu, dapat URL
+        let fotoUrl = "";
+        await withLoading("Upload foto...", async () => {
+          const balIdPreview = generateBalId();
+          const res = await apiUploadFoto(pendingPhotoBase64, balIdPreview);
+          fotoUrl = res.foto_url;
+        });
+
+        // STEP 2: kirim data bal ke server (tanpa base64, hanya URL)
+        const bal = {
+          bal_id: generateBalId(),
+          po_id, nomor_bal, halaman_buku, buku_nomor, line, no_mesin, operator_mesin, jenis_barang, warna, size,
+          jumlah, satuan, catatan,
+          foto_url: fotoUrl
+        };
+        await withLoading("Menyimpan bal...", async () => {
+          await apiCreateBal(bal);
+        });
+        toast(`Bal ${bal.bal_id} berhasil disimpan.`, "success");
+        clearApiCache();
+        resetForm();
+        switchTab("list");
+        // Tampilkan label modal (perlu fetch fresh bal dari server karena ada qty_verifikasi dll)
+        const fullBal = await apiGetBal(bal.bal_id);
+        showLabel(fullBal);
+      } catch (e) {
+        toast(e.message || "Gagal simpan bal", "error", 6000);
+      }
+    }
+
+    function resetForm() {
+      ["f_po_id","f_nomor_bal","f_halaman_buku","f_buku_nomor","f_line","f_no_mesin","f_operator_mesin","f_warna","f_size","f_jumlah","f_catatan","f_jenis_barang_lain"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("f_satuan").value = "lusin";
+      document.getElementById("f_jenis_barang").value = "";
+      document.getElementById("f_jenis_barang_lain").classList.add("hidden");
+      resetPhoto();
+    }
+
+    /* ============================================================
+       LIST
+       ============================================================ */
+
+    async function filteredBals() {
+      let bals = focusBalsForRole(await apiListBals());
+      const q = document.getElementById("filterSearch")?.value.toLowerCase().trim() || "";
+      const d = document.getElementById("filterDate")?.value || "";
+      const l = document.getElementById("filterLine")?.value.toLowerCase().trim() || "";
+      const st = document.getElementById("filterStatus")?.value || "";
+      const sort = document.getElementById("filterSort")?.value || "newest";
+      if (q) bals = bals.filter(b => [b.bal_id,b.po_id,b.nomor_bal,b.halaman_buku,b.buku_nomor,b.no_mesin,b.operator_mesin,b.jenis_barang,b.warna,b.size].some(v => String(v || "").toLowerCase().includes(q)));
+      if (d) bals = bals.filter(b => String(b.tanggal_buat || "").slice(0,10) === d);
+      if (l) bals = bals.filter(b => String(b.line || "").toLowerCase().includes(l));
+      if (st) bals = bals.filter(b => b.status === st);
+      bals.sort((a,b) => sort === "oldest" ? new Date(a.tanggal_buat) - new Date(b.tanggal_buat) : new Date(b.tanggal_buat) - new Date(a.tanggal_buat));
+      return bals;
+    }
+
+    async function renderList() {
+      const bals = await filteredBals();
+      const all = await apiListBals();
+      document.getElementById("listCount").textContent = `${bals.length} bal ditampilkan dari total ${all.length} bal`;
+      const tbody = document.getElementById("balTableBody");
+      const cards = document.getElementById("mobileCards");
+      if (!bals.length) {
+        tbody.innerHTML = `<tr><td colspan="11"><div class="empty">Belum ada bal</div></td></tr>`;
+        cards.innerHTML = `<div class="empty">Belum ada bal</div>`;
+        return;
+      }
+      tbody.innerHTML = bals.map(b => `
+        <tr>
+          <td>${photoThumb(b)}</td>
+          <td><span class="mono">${safe(b.bal_id)}</span><br>${splitBadges(b)}</td>
+          <td><strong>${safe(b.po_id)}</strong><br><span class="small">Bal #${safe(b.nomor_bal)}</span></td>
+          <td>${fmtDateShort(b.tanggal_buat)}</td>
+          <td>${safe(b.line || "-")}<br><span class="small">MC ${safe(b.no_mesin || "-")}</span></td>
+          <td>${safe(b.operator_mesin || "-")}</td>
+          <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
+          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan)}${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? `<br><span class="small" style="color:var(--muted)">op:${safe(b.jumlah)}</span>` : ""}</td>
+          <td>${statusBadge(b.status)}</td>
+          <td><strong>${safe(labelBukuText(b))}</strong></td>
+          <td>${actionButtons(b)}</td>
+        </tr>
+      `).join("");
+      cards.innerHTML = bals.map(b => `
+        <div class="bal-card">
+          ${photoImg(b)}
+          <div class="bal-card-body">
+            <div class="small mono">${safe(b.bal_id)}</div>
+            <div class="bal-title">${safe(b.po_id)} ${splitBadges(b)}</div>
+            <div class="small">Bal #${safe(b.nomor_bal)} · ${safe(b.line || "-")} · MC ${safe(b.no_mesin || "-")} · ${safe(b.operator_mesin || "-")}</div>
+            <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan)}</strong>${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? ` <span style="color:var(--muted)">(op:${safe(b.jumlah)})</span>` : ""}</div>
+            <div style="margin-top:5px">${statusBadge(b.status)} <span class="small">${safe(labelBukuText(b))}</span></div>
+            <div class="actions">${actionButtons(b)}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function photoSrc(b) { return b.foto_url || b.foto_bal_url || b.foto_bal_base64_demo || ""; }
+    function photoImg(b) { return photoSrc(b) ? `<img src="${photoSrc(b)}" onclick="openPhoto('${b.bal_id}')">` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center">📷</div>`; }
+    function photoThumb(b) { return photoSrc(b) ? `<img src="${photoSrc(b)}" class="thumb" onclick="openPhoto('${b.bal_id}')">` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center">📷</div>`; }
+    function splitBadges(b) {
+      let html = "";
+      if (b.is_parent_split) html += `<span class="badge tag">INDUK DIPECAH</span>`;
+      if (b.is_child_bal) html += `<span class="badge tag">ANAK BAL</span>`;
+      return html;
+    }
+    function actionButtons(b) {
+      let html = `<button class="btn-outline btn-sm" onclick="openDetail('${b.bal_id}')">Detail</button><button class="btn-primary btn-sm" onclick="labelById('${b.bal_id}')">Label</button>`;
+      if (["Owner", "Admin Produksi"].includes(currentUser.role)) html += `<button class="btn-danger btn-sm" onclick="deleteBal('${b.bal_id}')">Hapus</button>`;
+      return html;
+    }
+
+    async function deleteBal(bal_id) {
+      const reason = prompt(`Alasan hapus bal ${bal_id}?`);
+      if (!reason) return;
+      try {
+        await apiDeleteBal({ bal_id, delete_reason: reason });
+        renderList(); renderDashboard(); renderGlobalHistory();
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openPhoto(bal_id) {
+      const b = await apiGetBal(bal_id);
+      if (!photoSrc(b)) return;
+      const w = window.open("", "_blank");
+      w.document.write(`<title>${b.bal_id}</title><img src="${photoSrc(b)}" style="max-width:100%;height:auto">`);
+    }
+
+    /* ============================================================
+       DETAIL & STATUS ACTION
+       ============================================================ */
+
+    async function openDetail(bal_id) {
+      try {
+        const b = await apiGetBal(bal_id);
+        currentDetailBalId = bal_id;
+        const history = await apiGetHistory(bal_id);
+        const childIds = String(b.children_ids || "").split(",").filter(Boolean);
+        let splitInfo = "";
+        if (b.is_parent_split || b.status === "DIPECAH") {
+          splitInfo = `<div class="alert alert-warn"><strong>Bal ini sudah dipecah.</strong><br>${childIds.map(id => `<button class="btn-outline btn-sm" onclick="openDetail('${id}')">${id}</button>`).join(" ") || "Belum ada anak terdata"}</div>`;
+        }
+        if (b.is_child_bal && b.parent_bal_id) splitInfo += `<div class="alert alert-info">Bal anak dari <button class="btn-outline btn-sm" onclick="openDetail('${b.parent_bal_id}')">${b.parent_bal_id}</button></div>`;
+        document.getElementById("detailContent").innerHTML = `
+          ${splitInfo}
+          ${photoSrc(b) ? `<img src="${photoSrc(b)}" class="detail-photo">` : ""}
+          <div class="detail-grid">
+            ${kv("ID Bal", `<span class="mono">${safe(b.bal_id)}</span>${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}`)}
+            ${kv("Status", statusBadge(b.status))}
+            ${kv("PO / Artikel", safe(b.po_id))}
+            ${kv("No Bal", safe(b.nomor_bal))}
+            ${kv("Hal/Buku", safe(labelBukuText(b)))}
+            ${kv("Tanggal", fmtDate(b.tanggal_buat))}
+            ${kv("Line / MC", `${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}`)}
+            ${kv("Operator Mesin", safe(b.operator_mesin || "-"))}
+            ${b.obras_by ? kv("Pekerja Obras", safe(b.obras_by)) : ""}
+            ${getSettingWorkersText(b) ? kv("Pekerja Setting", getSettingWorkersText(b)) : ""}
+            ${kv("Jenis", safe(b.jenis_barang || "-"))}
+            ${kv("Warna / Size", `${safe(b.warna || "-")} / ${safe(b.size || "-")}`)}
+            ${kv("Jumlah Operator", `<strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>`)}
+            ${b.qty_verifikasi ? kv("Qty Verifikasi", `<strong>${safe(b.qty_verifikasi)} ${safe(b.satuan)}</strong><br><span class="badge tag">${safe(b.qty_verifikasi_status)}</span><br><span class="small" style="color:var(--muted)">Qty resmi yang dipakai untuk sisa setting & borongan.</span>`) : ""}
+            ${kv("Dibuat Oleh", `${safe(b.created_by || "-")} (${safe(b.created_role || "-")})`)}
+          </div>
+          ${b.catatan ? `<div class="alert alert-info"><strong>Catatan:</strong> ${safe(b.catatan)}</div>` : ""}
+          ${b.edit_count ? `<div class="alert alert-warn"><strong>EDIT 1</strong><br>Diedit oleh ${safe(b.edited_by || "-")} pada ${fmtDate(b.edited_at)}<br>Alasan: ${safe(b.edit_note || "-")}</div>` : ""}
+          ${outputLabelsHtml(b)}
+          <div id="detailActions" style="margin-top:12px">${detailActions(b)}</div>
+          <div class="card" style="margin-top:12px">
+            <div class="section-title">Riwayat Bal</div>
+            ${history.length ? history.slice().reverse().map(h => historyHtml(h)).join("") : `<div class="empty">Belum ada history</div>`}
+          </div>
+        `;
+        document.getElementById("detailModal").classList.add("show");
+      } catch (e) { alert(e.message); }
+    }
+
+    function kv(label, value) { return `<div class="kv"><label>${label}</label><strong>${value}</strong></div>`; }
+
+    /**
+     * Ambil daftar pekerja setting dari semua output_labels bal.
+     * Return HTML string (multi-line untuk multi-pekerja) atau "" kalau belum ada setting.
+     * Untuk Case A (1 worker): "Iko"
+     * Untuk Case B (3 worker, 1 plastik): "Iko 10, Adrian 10, Alan 10"
+     * Untuk Case C (3 ticket terpisah): "Iko 10, Adrian 10, Alan 10" (gabungan dari 3 ticket)
+     */
+    function getSettingWorkersText(b) {
+      const outs = b.output_labels || [];
+      if (!outs.length) return "";
+      // Gabung semua worker dari semua output, sum qty per nama
+      const map = new Map();
+      for (const o of outs) {
+        for (const w of (o.workers || [])) {
+          const name = String(w.name || "").trim();
+          if (!name) continue;
+          const qty = Number(w.qty || 0);
+          map.set(name, (map.get(name) || 0) + qty);
+        }
+      }
+      if (!map.size) return "";
+      const satuan = b.satuan || "";
+      // Kalau cuma 1 nama dan qty cocok dengan total bal, tampilkan tanpa qty (lebih bersih)
+      if (map.size === 1) {
+        const [name, qty] = [...map.entries()][0];
+        if (Math.abs(qty - officialQty(b)) < 0.001) return safe(name);
+        return `${safe(name)} ${qty} ${safe(satuan)}`;
+      }
+      // Multi-pekerja: tampilkan list dengan qty
+      return [...map.entries()].map(([n, q]) => `${safe(n)} ${q}`).join(", ");
+    }
+
+    function detailActions(b) {
+      if (b.status === "DIPECAH" || b.is_parent_split) {
+        let html = `<div class="alert alert-warn">Bal induk sudah dipecah dan tidak bisa diproses lagi.</div>`;
+        // Owner masih bisa override (untuk koreksi/rollback split kalau perlu)
+        if (currentUser.role === "Owner") {
+          html += ownerOverrideButton(b);
+        }
+        return html;
+      }
+      let html = "";
+      if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
+        html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
+      }
+      if (b.status === "SELESAI_PACKING") {
+        html += `<div class="alert alert-success">✓ Bal sudah selesai packing.</div>`;
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+      const rule = ACTION_RULES.find(r => r.from === b.status);
+      if (rule) {
+        const isAutoCompletedAction = rule.action === "SELESAI_SETTING";
+        if (!isAutoCompletedAction) {
+          if (rule.roles.includes(currentUser.role)) {
+            html += `<button class="btn-success btn-block" onclick="openActionConfirm('${b.bal_id}','${rule.action}')">✓ ${rule.label}</button>`;
+          } else {
+            html += `<div class="alert alert-danger">Akun Anda tidak memiliki akses untuk tindakan tahap ini. ${roleHint(b.status)}</div>`;
+          }
+        }
+      } else {
+        html += `<div class="alert alert-warn">Bal ini belum masuk tahap kerja Anda.</div>`;
+      }
+      if (["MULAI_SETTING", "SELESAI_SETTING"].includes(b.status) && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+        html += `<button class="btn-primary btn-block" style="margin-top:8px" onclick="openOutputSetting('${b.bal_id}')">🏷 Buat Label Plastik Baru / Output Setting</button>`;
+      }
+      if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(b.status) && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+        html += `<button class="btn-warning btn-block" style="margin-top:8px" onclick="openSplit('${b.bal_id}')">✂️ Pecah Bal Fisik</button>`;
+      }
+      if (b.status === "MULAI_SETTING" && ["Owner", "Admin Produksi"].includes(currentUser.role)) {
+        html += `<button class="btn-secondary btn-block" style="margin-top:8px; background: #6b7280" onclick="openManualSelesaiSetting('${b.bal_id}')">🔓 Selesai Setting Manual (Owner/Admin)</button>`;
+      }
+      // Tombol Owner Override — paling bawah, hanya Owner.
+      if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+      return html;
+    }
+
+    function ownerOverrideButton(b) {
+      return `<button class="btn-block" style="margin-top:14px; background:#7c3aed; color:white; border:none; padding:10px; border-radius:8px; font-weight:600" onclick="openOwnerOverride('${b.bal_id}')">🔧 Owner Override (Edit/Rollback/Koreksi)</button>`;
+    }
+
+    function roleHint(status) {
+      if (status === "SELESAI_MESIN") return "Tahap ini untuk Checker / QC.";
+      if (["QTY_TERVERIFIKASI", "MULAI_OBRAS"].includes(status)) return "Tahap ini untuk Obras.";
+      if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(status)) return "Tahap ini untuk Setting / Steam.";
+      if (status === "SELESAI_SETTING") return "Tahap ini untuk Packing.";
+      return "";
+    }
+
+    async function openActionConfirm(bal_id, action) {
+      const rule = ACTION_RULES.find(r => r.action === action);
+      const bal = await apiGetBal(bal_id);
+      document.getElementById("actionTitle").textContent = rule.label;
+      const needReason = ["Owner", "Admin Produksi"].includes(currentUser.role);
+      let qtyHtml = "";
+      if (action === "VERIFIKASI_QTY") {
+        qtyHtml = `
+          <div class="alert alert-info">Qty menurut operator: <strong>${safe(bal.jumlah)} ${safe(bal.satuan)}</strong></div>
+          <div class="form-group"><label>Qty Aktual Hasil Verifikasi <span class="required">*</span></label><input id="verifyQtyActual" type="number" step="any" value="${safe(bal.jumlah)}" oninput="previewVerifyQty('${bal.bal_id}')"></div>
+          <div id="verifyQtyPreview" class="alert alert-success">Qty sesuai dengan jumlah operator.</div>
+          <div class="form-group"><label>Catatan Selisih / Verifikasi</label><textarea id="verifyQtyNote"></textarea></div>
+        `;
+      }
+      // Field nama pekerja obras: hanya tampil untuk akun Obras.
+      // Owner/Admin tidak perlu isi (mereka supervisor, bukan yang ngerjain).
+      let obrasHtml = "";
+      if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
+        // SELESAI_OBRAS: input dikosongkan supaya operator harus aktif mengetik kalau orangnya beda.
+        // Kalau dibiarkan kosong → nama dari MULAI_OBRAS dipertahankan.
+        const hint = action === "SELESAI_OBRAS" && bal.obras_by
+          ? `Sudah tercatat dimulai oleh <strong>${safe(bal.obras_by)}</strong>. Kosongkan jika orangnya sama, isi jika beda (ganti shift).`
+          : `Nama tukang obras yang ngerjain bal ini.`;
+        obrasHtml = `
+          <div class="form-group">
+            <label>Nama Pekerja Obras ${action === "MULAI_OBRAS" ? '<span class="required">*</span>' : '(opsional)'}</label>
+            <input id="obrasWorkerName" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}">
+            <div class="small" style="margin-top:4px; color:var(--muted)">${hint}</div>
+          </div>
+        `;
+      }
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">Status akan berubah: <strong>${statusText(rule.from)}</strong> → <strong>${statusText(rule.to)}</strong></div>
+        ${qtyHtml}
+        ${obrasHtml}
+        <div class="form-group"><label>Catatan ${needReason ? '<span class="required">* wajib untuk Owner/Admin</span>' : '(opsional)'}</label><textarea id="actionNote"></textarea></div>
+        <button class="btn-success btn-block" onclick="confirmUpdateStatus('${bal_id}','${action}')">Konfirmasi</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+      if (action === "VERIFIKASI_QTY") previewVerifyQty(bal_id);
+    }
+
+    async function previewVerifyQty(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      const qty = Number(document.getElementById("verifyQtyActual")?.value || 0);
+      const op = Number(bal.jumlah || 0);
+      const box = document.getElementById("verifyQtyPreview");
+      if (!box) return;
+      if (!qty || qty <= 0) { box.className = "alert alert-danger"; box.textContent = "Qty aktual wajib diisi."; return; }
+      if (qty === op) { box.className = "alert alert-success"; box.textContent = "Qty sesuai dengan jumlah operator."; }
+      else if (qty > op) { box.className = "alert alert-warn"; box.textContent = `Qty lebih ${qty - op} ${bal.satuan} dari jumlah operator.`; }
+      else { box.className = "alert alert-danger"; box.textContent = `Qty kurang ${op - qty} ${bal.satuan} dari jumlah operator.`; }
+    }
+
+    async function confirmUpdateStatus(bal_id, action) {
+      const note = document.getElementById("actionNote").value.trim();
+      if (["Owner", "Admin Produksi"].includes(currentUser.role) && !note) return alert("Owner/Admin wajib isi alasan/catatan.");
+      try {
+        const payload = { bal_id, action, catatan: note };
+        if (action === "VERIFIKASI_QTY") {
+          const qtyEl = document.getElementById("verifyQtyActual");
+          const qtyAktual = Number(qtyEl?.value || 0);
+          if (!qtyAktual || qtyAktual <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty aktual verifikasi wajib diisi."); }
+          payload.qty_aktual = qtyAktual;
+          payload.qty_note = document.getElementById("verifyQtyNote")?.value.trim() || "";
+        }
+        // Nama pekerja obras (khusus akun Obras)
+        if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
+          const wEl = document.getElementById("obrasWorkerName");
+          const wName = wEl?.value.trim() || "";
+          if (action === "MULAI_OBRAS" && !wName) {
+            wEl?.classList.add("field-error");
+            return alert("Nama pekerja obras wajib diisi saat MULAI OBRAS.");
+          }
+          if (wName) payload.worker_name = wName;
+        }
+        await apiUpdateStatus(payload);
+        closeModal("actionModal");
+        closeModal("detailModal");
+        renderList(); renderDashboard(); renderGlobalHistory();
+        openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       MANUAL SELESAI SETTING (Owner / Admin only)
+       Untuk skenario maklon ke vendor luar atau bal yang tidak butuh proses setting normal.
+       Tidak membuat output_label. Status langsung dari MULAI_SETTING ke SELESAI_SETTING.
+       ============================================================ */
+
+    async function openManualSelesaiSetting(bal_id) {
+      if (!["Owner", "Admin Produksi"].includes(currentUser.role)) return alert("Hanya Owner / Admin Produksi yang boleh aksi ini.");
+      const b = await apiGetBal(bal_id);
+      if (b.status !== "MULAI_SETTING") return alert("Manual Selesai Setting hanya bisa saat status MULAI_SETTING.");
+      const totalOut = (b.output_labels || []).reduce((s,o)=>s + Number(o.qty||0), 0);
+      const qtyOfficial = officialQty(b);
+      const sisaInfo = totalOut > 0
+        ? `<div class="alert alert-warn">Sudah ada ${totalOut} ${safe(b.satuan)} dengan label setting. Sisa ${qtyOfficial-totalOut} ${safe(b.satuan)} akan ditandai selesai tanpa label.</div>`
+        : `<div class="alert alert-warn">Belum ada label setting sama sekali. Seluruh ${qtyOfficial} ${safe(b.satuan)} akan ditandai selesai tanpa proses setting.</div>`;
+      document.getElementById("actionTitle").textContent = "Selesai Setting MANUAL";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-danger"><strong>⚠ Aksi khusus Owner / Admin.</strong><br>
+        Bal akan ditandai SELESAI_SETTING tanpa membuat label plastik / output setting normal.<br>
+        Aksi ini tercatat di history dan dapat dilihat owner.</div>
+        ${sisaInfo}
+        <div class="form-group">
+          <label>Alasan <span class="required">* (minimal 10 karakter)</span></label>
+          <textarea id="manualSettingReason" placeholder="contoh: Dimaklon ke vendor ABC, kembali estimasi 2 hari" rows="4"></textarea>
+        </div>
+        <button class="btn-warning btn-block" onclick="confirmManualSelesaiSetting('${bal_id}')">🔓 Konfirmasi Selesai Setting Manual</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmManualSelesaiSetting(bal_id) {
+      const reason = document.getElementById("manualSettingReason").value.trim();
+      if (reason.length < 10) {
+        document.getElementById("manualSettingReason").classList.add("field-error");
+        return alert("Alasan wajib diisi, minimal 10 karakter. Tuliskan jelas (contoh: dimaklon ke vendor X).");
+      }
+      try {
+        await apiManualSelesaiSetting({ bal_id, reason });
+        closeModal("actionModal");
+        closeModal("detailModal");
+        renderList(); renderDashboard(); renderGlobalHistory();
+        openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       OWNER OVERRIDE
+       Akses: Owner saja (bukan Admin Produksi).
+       4 tab: Edit Data Bal, Override Qty Verifikasi, Rollback Status, Edit Pekerja.
+       Semua aksi wajib alasan minimal 10 karakter dan tercatat di history
+       dengan label OWNER_OVERRIDE_*.
+       Rollback bersifat soft: output_labels & record borongan TIDAK dihapus otomatis.
+       ============================================================ */
+
+    let ownerOverrideActiveBalId = "";
+    let ownerOverrideActiveTab = "data";
+
+    async function openOwnerOverride(bal_id) {
+      if (currentUser.role !== "Owner") return alert("Owner Override hanya untuk akun Owner.");
+      ownerOverrideActiveBalId = bal_id;
+      ownerOverrideActiveTab = "data";
+      await renderOwnerOverride();
+      document.getElementById("ownerOverrideModal").classList.add("show");
+    }
+
+    async function renderOwnerOverride() {
+      const b = await apiGetBal(ownerOverrideActiveBalId);
+      const tabs = [
+        { id: "data", label: "📝 Edit Data Bal" },
+        { id: "qty", label: "⚖️ Override Qty Verifikasi" },
+        { id: "status", label: "⏮ Rollback Status" },
+        { id: "pekerja", label: "👥 Edit Pekerja" }
+      ];
+      const tabBar = tabs.map(t => `
+        <button class="tab-btn ${ownerOverrideActiveTab === t.id ? 'active' : ''}"
+                onclick="switchOwnerOverrideTab('${t.id}')"
+                style="border-radius:8px; border:1px solid var(--line); padding:8px 12px; ${ownerOverrideActiveTab === t.id ? 'background:#7c3aed; color:white;' : ''}">${t.label}</button>
+      `).join("");
+
+      let body = "";
+      if (ownerOverrideActiveTab === "data") body = renderOOTabData(b);
+      else if (ownerOverrideActiveTab === "qty") body = renderOOTabQty(b);
+      else if (ownerOverrideActiveTab === "status") body = renderOOTabStatus(b);
+      else if (ownerOverrideActiveTab === "pekerja") body = renderOOTabPekerja(b);
+
+      document.getElementById("ownerOverrideContent").innerHTML = `
+        <div class="alert" style="background:#f3e8ff; color:#5b21b6">
+          <strong>🔧 Owner Override</strong> — Bal <span class="mono">${safe(b.bal_id)}</span> · Status: ${statusBadge(b.status)}<br>
+          <span class="small">Semua perubahan tercatat di history dengan label OWNER_OVERRIDE. Alasan wajib minimal 10 karakter.</span>
+        </div>
+        <div class="grid-2" style="grid-template-columns:repeat(4,1fr); gap:6px; margin:8px 0">${tabBar}</div>
+        <div style="margin-top:12px">${body}</div>
+      `;
+
+      // Lanjutkan init untuk dropdown jenis kalau di tab data
+      if (ownerOverrideActiveTab === "data") {
+        const sel = document.getElementById("oo_jenis_barang");
+        if (sel) populateJenisSelect(sel, b.jenis_barang || "");
+      }
+    }
+
+    function switchOwnerOverrideTab(tab) {
+      ownerOverrideActiveTab = tab;
+      renderOwnerOverride();
+    }
+
+    /* ----- Tab 1: Edit Data Bal ----- */
+    function renderOOTabData(b) {
+      return `
+        <div class="alert alert-info"><strong>Edit Data Bal</strong> — ubah field-field utama bal. Tidak akan ubah qty verifikasi, status, atau pekerja.</div>
+        <div class="grid-2">
+          <div class="form-group"><label>PO / Artikel</label><input id="oo_po_id" value="${safe(b.po_id || "")}"></div>
+          <div class="form-group"><label>Nomor Bal</label><input id="oo_nomor_bal" type="number" value="${safe(b.nomor_bal || "")}"></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Halaman Buku</label><input id="oo_halaman_buku" type="number" inputmode="numeric" value="${safe(b.halaman_buku || "")}"></div>
+          <div class="form-group"><label>Buku A</label><input id="oo_buku_nomor" type="number" inputmode="numeric" value="${safe(b.buku_nomor || "")}"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label>Line</label><input id="oo_line" value="${safe(b.line || "")}"></div>
+          <div class="form-group"><label>Nomor Mesin</label><input id="oo_no_mesin" type="number" value="${safe(b.no_mesin || "")}"></div>
+          <div class="form-group"><label>Operator Mesin</label><input id="oo_operator_mesin" value="${safe(b.operator_mesin || "")}"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label>Jenis Barang</label>
+            <select id="oo_jenis_barang" onchange="onJenisChange(this, 'oo_jenis_barang_lain')"></select>
+            <input id="oo_jenis_barang_lain" class="hidden" style="margin-top:6px">
+          </div>
+          <div class="form-group"><label>Warna</label><input id="oo_warna" value="${safe(b.warna || "")}"></div>
+          <div class="form-group"><label>Size</label><input id="oo_size" value="${safe(b.size || "")}"></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Jumlah (operator)</label><input id="oo_jumlah" type="number" step="any" value="${safe(b.jumlah || "")}"></div>
+          <div class="form-group"><label>Satuan</label>
+            <select id="oo_satuan">
+              <option value="lusin" ${b.satuan === "lusin" ? "selected" : ""}>lusin</option>
+              <option value="pasang" ${b.satuan === "pasang" ? "selected" : ""}>pasang</option>
+              <option value="pcs" ${b.satuan === "pcs" ? "selected" : ""}>pcs</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Catatan</label><textarea id="oo_catatan">${safe(b.catatan || "")}</textarea></div>
+        <div class="form-group"><label>Alasan Override <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_data_reason" rows="2"></textarea></div>
+        <button class="btn-success btn-block" onclick="confirmOOEditData()">💾 Simpan Perubahan</button>
+      `;
+    }
+
+    async function confirmOOEditData() {
+      const reason = (document.getElementById("oo_data_reason")?.value || "").trim();
+      if (reason.length < 10) return alert("Alasan wajib diisi minimal 10 karakter.");
+      const updates = {
+        po_id: document.getElementById("oo_po_id").value.trim(),
+        nomor_bal: document.getElementById("oo_nomor_bal").value.trim(),
+        halaman_buku: document.getElementById("oo_halaman_buku").value.trim(),
+        buku_nomor: document.getElementById("oo_buku_nomor").value.trim(),
+        line: document.getElementById("oo_line").value.trim(),
+        no_mesin: document.getElementById("oo_no_mesin").value.trim(),
+        operator_mesin: document.getElementById("oo_operator_mesin").value.trim(),
+        jenis_barang: resolveJenisValue("oo_jenis_barang", "oo_jenis_barang_lain"),
+        warna: document.getElementById("oo_warna").value.trim(),
+        size: document.getElementById("oo_size").value.trim(),
+        jumlah: Number(document.getElementById("oo_jumlah").value || 0),
+        satuan: document.getElementById("oo_satuan").value,
+        catatan: document.getElementById("oo_catatan").value.trim()
+      };
+      if (!updates.po_id || !updates.nomor_bal || !updates.halaman_buku || !updates.buku_nomor || !updates.jenis_barang || !updates.jumlah) {
+        return alert("PO, Nomor Bal, Halaman Buku, Buku A, Jenis Barang, dan Jumlah wajib diisi.");
+      }
+      try {
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "EDIT_DATA", reason, updates });
+        alert("Data bal berhasil di-update.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ----- Tab 2: Override Qty Verifikasi ----- */
+    function renderOOTabQty(b) {
+      const punyaVerifikasi = !!b.qty_verifikasi;
+      return `
+        <div class="alert ${punyaVerifikasi ? "alert-info" : "alert-warn"}">
+          ${punyaVerifikasi
+            ? `Qty verifikasi sekarang: <strong>${safe(b.qty_verifikasi)} ${safe(b.satuan)}</strong> (${safe(b.qty_verifikasi_status || "-")})<br>Diverifikasi oleh: ${safe(b.qty_verifikasi_by || "-")} pada ${fmtDate(b.qty_verifikasi_at)}`
+            : `Bal ini belum diverifikasi qty-nya. Status sekarang: ${statusText(b.status)}`}
+        </div>
+        <div class="alert alert-info"><strong>Catatan:</strong> Qty operator (data asli yang dilaporkan): <strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>. Qty resmi yang dipakai operasional saat ini: <strong>${officialQty(b)} ${safe(b.satuan)}</strong>.</div>
+        <div class="grid-2">
+          <div class="form-group"><label>Qty Verifikasi Baru</label><input id="oo_qty_new" type="number" step="any" value="${safe(b.qty_verifikasi || b.jumlah || "")}"></div>
+          <div class="form-group"><label>Status Verifikasi</label>
+            <select id="oo_qty_status">
+              <option value="SESUAI" ${b.qty_verifikasi_status === "SESUAI" ? "selected" : ""}>SESUAI</option>
+              <option value="LEBIH" ${b.qty_verifikasi_status === "LEBIH" ? "selected" : ""}>LEBIH</option>
+              <option value="KURANG" ${b.qty_verifikasi_status === "KURANG" ? "selected" : ""}>KURANG</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Alasan Override <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_qty_reason" rows="2"></textarea></div>
+        <button class="btn-success btn-block" onclick="confirmOOSetQty()">💾 Simpan Qty Override</button>
+        ${punyaVerifikasi ? `
+          <hr style="margin:16px 0">
+          <div class="alert alert-danger">
+            <strong>⚠ Reset / Batalkan Verifikasi</strong><br>
+            Hapus data qty verifikasi dan kembalikan bal ke status SELESAI_MESIN agar bisa diverifikasi ulang oleh checker.<br>
+            <span class="small">Output_labels dan record borongan TIDAK dihapus — kalau bal sudah lewat tahap setting/packing, owner perlu rollback dulu lewat tab Status.</span>
+          </div>
+          <div class="form-group"><label>Alasan Reset Verifikasi <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_qty_reset_reason" rows="2"></textarea></div>
+          <button class="btn-danger btn-block" onclick="confirmOOResetQty()">🔄 Reset / Batalkan Verifikasi</button>
+        ` : ""}
+      `;
+    }
+
+    async function confirmOOSetQty() {
+      const reason = (document.getElementById("oo_qty_reason")?.value || "").trim();
+      if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
+      const qty = Number(document.getElementById("oo_qty_new").value || 0);
+      if (!qty || qty <= 0) return alert("Qty harus lebih dari 0.");
+      const status = document.getElementById("oo_qty_status").value;
+      try {
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "SET_QTY", reason, qty, status });
+        alert("Qty verifikasi berhasil di-update.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function confirmOOResetQty() {
+      const reason = (document.getElementById("oo_qty_reset_reason")?.value || "").trim();
+      if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
+      if (!confirm("Yakin reset verifikasi? Bal akan kembali ke status SELESAI_MESIN.")) return;
+      try {
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "RESET_QTY", reason });
+        alert("Verifikasi berhasil direset. Bal kembali ke SELESAI_MESIN.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ----- Tab 3: Rollback Status ----- */
+    function renderOOTabStatus(b) {
+      // Daftar status valid sebagai target rollback (lebih rendah dari status sekarang)
+      const flowOrder = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+      const currentIdx = flowOrder.indexOf(b.status);
+      const targets = currentIdx > 0 ? flowOrder.slice(0, currentIdx) : [];
+      const targetOpts = targets.map(s => `<option value="${s}">${statusText(s)}</option>`).join("");
+      return `
+        <div class="alert alert-info">
+          Status sekarang: <strong>${statusText(b.status)}</strong><br>
+          <span class="small">Rollback bersifat <strong>SOFT</strong>: status berubah, tapi output_labels dan record borongan tidak dihapus otomatis. Owner harus hapus manual kalau perlu.</span>
+        </div>
+        ${targets.length === 0
+          ? `<div class="alert alert-warn">Tidak ada status yang lebih rendah untuk rollback. Bal ini sudah di status awal.</div>`
+          : `
+          <div class="form-group"><label>Rollback ke Status</label><select id="oo_status_target">${targetOpts}</select></div>
+          <div class="form-group"><label>Alasan Rollback <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_status_reason" rows="2"></textarea></div>
+          <button class="btn-warning btn-block" onclick="confirmOORollbackStatus()">⏮ Rollback Status</button>
+          `}
+      `;
+    }
+
+    async function confirmOORollbackStatus() {
+      const reason = (document.getElementById("oo_status_reason")?.value || "").trim();
+      if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
+      const target = document.getElementById("oo_status_target").value;
+      if (!target) return alert("Status target wajib dipilih.");
+      if (!confirm(`Yakin rollback status ke ${statusText(target)}? Output_labels dan record borongan tidak dihapus otomatis.`)) return;
+      try {
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "ROLLBACK_STATUS", reason, target });
+        alert("Status berhasil di-rollback.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ----- Tab 4: Edit Pekerja ----- */
+    function renderOOTabPekerja(b) {
+      let html = `<div class="alert alert-info">Edit nama pekerja yang terlibat di bal ini. Saat nama diubah, sistem otomatis sync ke record borongan terkait.</div>`;
+
+      // Operator Mesin
+      html += `
+        <div class="card" style="margin-bottom:10px">
+          <div class="section-title">Operator Mesin</div>
+          <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
+            <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_op_mesin" value="${safe(b.operator_mesin || "")}"></div>
+            <button class="btn-outline" onclick="confirmOOEditPekerja('op_mesin')">Simpan</button>
+          </div>
+        </div>
+      `;
+
+      // Pekerja Obras
+      html += `
+        <div class="card" style="margin-bottom:10px">
+          <div class="section-title">Pekerja Obras</div>
+          ${b.obras_by ? `
+            <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
+              <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" value="${safe(b.obras_by)}"></div>
+              <button class="btn-outline" onclick="confirmOOEditPekerja('obras')">Simpan</button>
+            </div>
+            <div class="small" style="color:var(--muted); margin-top:4px">Saat nama diubah, record borongan Obras dengan nama lama akan di-sync ke nama baru.</div>
+          ` : `<div class="empty">Belum ada data pekerja obras.</div>`}
+        </div>
+      `;
+
+      // Pekerja Setting per output_label
+      html += `<div class="card"><div class="section-title">Pekerja Setting (per Output Label)</div>`;
+      const outs = b.output_labels || [];
+      if (!outs.length) {
+        html += `<div class="empty">Belum ada output setting.</div>`;
+      } else {
+        outs.forEach((out, oi) => {
+          const ticketLabel = out.mode === "REUSE_MAIN_QR" ? "QR BAL UTAMA" : safe(out.ticket_id);
+          html += `<div style="border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px">
+            <div class="small mono" style="margin-bottom:6px"><strong>${ticketLabel}</strong> · ${safe(out.qty)} ${safe(out.satuan)}</div>`;
+          (out.workers || []).forEach((w, wi) => {
+            html += `
+              <div class="grid-2" style="grid-template-columns:1fr 80px auto; gap:8px; align-items:end; margin-bottom:6px">
+                <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_set_${oi}_${wi}_name" value="${safe(w.name || "")}"></div>
+                <div class="form-group" style="margin:0"><label>Qty</label><input id="oo_pkj_set_${oi}_${wi}_qty" type="number" step="any" value="${safe(w.qty || 0)}"></div>
+                <button class="btn-outline btn-sm" onclick="confirmOOEditPekerja('setting','${out.output_id}',${wi})">Simpan</button>
+              </div>
+            `;
+          });
+          html += `</div>`;
+        });
+      }
+      html += `</div>`;
+
+      return html;
+    }
+
+    async function confirmOOEditPekerja(target, output_id, worker_idx) {
+      const reason = prompt("Alasan edit pekerja (min 10 karakter):", "");
+      if (reason === null) return;
+      if (String(reason).trim().length < 10) return alert("Alasan wajib minimal 10 karakter.");
+
+      const payload = { bal_id: ownerOverrideActiveBalId, type: "EDIT_PEKERJA", reason: String(reason).trim(), target };
+      if (target === "op_mesin") {
+        payload.new_name = document.getElementById("oo_pkj_op_mesin").value.trim();
+      } else if (target === "obras") {
+        payload.new_name = document.getElementById("oo_pkj_obras").value.trim();
+      } else if (target === "setting") {
+        payload.output_id = output_id;
+        payload.worker_idx = worker_idx;
+        const oi = (await apiGetBal(ownerOverrideActiveBalId)).output_labels.findIndex(o => o.output_id === output_id);
+        payload.new_name = document.getElementById(`oo_pkj_set_${oi}_${worker_idx}_name`).value.trim();
+        payload.new_qty = Number(document.getElementById(`oo_pkj_set_${oi}_${worker_idx}_qty`).value || 0);
+      }
+
+      // Confirmation popup with sync warning
+      try {
+        const b = await apiGetBal(ownerOverrideActiveBalId);
+        let oldName = "";
+        if (target === "op_mesin") oldName = b.operator_mesin;
+        else if (target === "obras") oldName = b.obras_by;
+        else if (target === "setting") {
+          const out = (b.output_labels || []).find(o => o.output_id === output_id);
+          oldName = out?.workers?.[worker_idx]?.name || "";
+        }
+        if (!payload.new_name) return alert("Nama baru tidak boleh kosong.");
+        if (oldName === payload.new_name && target !== "setting") return alert("Nama tidak berubah.");
+
+        // Hitung dampak ke record borongan (server akan handle sync, tapi kita kasih preview ke user)
+        let affected = 0;
+        try {
+          const allBorongan = await apiListBorongan();
+          if (target === "obras") {
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Obras" && r.pegawai === oldName).length;
+          } else if (target === "setting") {
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Setting" && r.output_id === output_id && r.pegawai === oldName).length;
+          }
+        } catch (_) { /* preview hitungan saja, kalau gagal abaikan */ }
+        const syncMsg = affected > 0
+          ? `\n\n${affected} record borongan dengan nama "${oldName}" untuk bal ini juga akan di-update ke "${payload.new_name}".`
+          : "\n\n(Tidak ada record borongan terkait yang perlu di-sync.)";
+        if (!confirm(`Ganti nama dari "${oldName}" menjadi "${payload.new_name}"?${syncMsg}\n\nLanjutkan?`)) return;
+
+        await apiOwnerOverride(payload);
+        alert("Nama pekerja berhasil di-update.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+
+    function outputLabelsHtml(b) {
+      const outs = b.output_labels || [];
+      if (!outs.length && !["MULAI_SETTING", "SELESAI_SETTING"].includes(b.status)) return "";
+      const totalOut = outs.reduce((s,o)=>s + Number(o.qty||0), 0);
+      const qtyOfficial = officialQty(b);
+      const sisa = qtyOfficial - totalOut;
+      return `<div class="card" style="margin-top:12px">
+        <div class="section-title">Output Setting / Plastik Baru</div>
+        <div class="detail-grid">
+          ${kv("Total Bal (resmi)", `<strong>${qtyOfficial} ${safe(b.satuan)}</strong>${b.qty_verifikasi ? `<br><span class="small" style="color:var(--muted)">Dari verifikasi checker</span>` : ""}`)}
+          ${kv("Sudah Label Plastik", `<strong>${totalOut} ${safe(b.satuan)}</strong>`)}
+          ${kv("Sisa Belum Label", `<strong>${sisa} ${safe(b.satuan)}</strong>`)}
+          ${kv("Jumlah Label", `<strong>${outs.length}</strong>`)}
+        </div>
+        ${outs.length ? outs.map(o=>`<div class="history-item"><strong>${safe(o.mode === "REUSE_MAIN_QR" ? "QR BAL UTAMA" : o.ticket_id)}</strong> · ${safe(o.qty)} ${safe(o.satuan)}<br><span class="small">${safe((o.workers||[]).map(w=>w.name+" "+w.qty).join(", "))}</span><br><span class="small">${safe(o.mode === "REUSE_MAIN_QR" ? "Pakai ulang/cetak ulang QR utama ke plastik baru. QR di plastik lama wajib dicopot/dicoret/dibuang." : "QR tiket packing untuk plastik baru.")}</span><div class="actions"><button class="btn-primary btn-sm" onclick="printOutputLabel('${b.bal_id}','${o.output_id}')">Cetak Tiket</button></div></div>`).join("") : `<div class="empty">Belum ada output setting / label plastik baru.</div>`}
+      </div>`;
+    }
+
+    async function openEditBal(bal_id) {
+      const b = await apiGetBal(bal_id);
+
+      if (b.status !== "SELESAI_MESIN") {
+        return alert("Edit hanya boleh sebelum verifikasi.");
+      }
+
+      if (Number(b.edit_count || 0) >= 1) {
+        return alert("Bal ini sudah pernah diedit 1x.");
+      }
+
+      document.getElementById("editContent").innerHTML = `
+        <div class="alert alert-warn">
+          <strong>Kesempatan edit hanya 1x.</strong><br>
+          Setelah verifikasi, data tidak bisa diedit lagi. Label/detail akan diberi tanda besar <strong>EDIT 1</strong>.
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nomor PO / Artikel <span class="required">*</span></label>
+            <input id="e_po_id" value="${safe(b.po_id)}">
+          </div>
+
+          <div class="form-group">
+            <label>Nomor Bal <span class="required">*</span></label>
+            <input id="e_nomor_bal" type="number" value="${safe(b.nomor_bal)}">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Halaman Buku <span class="required">*</span></label>
+            <input id="e_halaman_buku" type="number" inputmode="numeric" value="${safe(b.halaman_buku || "")}">
+          </div>
+
+          <div class="form-group">
+            <label>Buku A <span class="required">*</span></label>
+            <input id="e_buku_nomor" type="number" inputmode="numeric" value="${safe(b.buku_nomor || "")}">
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label>Line <span class="required">*</span></label>
+            <input id="e_line" value="${safe(b.line)}">
+          </div>
+
+          <div class="form-group">
+            <label>Nomor Mesin / MC <span class="required">*</span></label>
+            <input id="e_no_mesin" type="number" value="${safe(b.no_mesin)}">
+          </div>
+
+          <div class="form-group">
+            <label>Operator Mesin <span class="required">*</span></label>
+            <input id="e_operator_mesin" value="${safe(b.operator_mesin)}">
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label>Jenis Barang <span class="required">*</span></label>
+            <select id="e_jenis_barang" onchange="onJenisChange(this, 'e_jenis_barang_lain')"></select>
+            <input id="e_jenis_barang_lain" class="hidden" style="margin-top:6px">
+          </div>
+
+          <div class="form-group">
+            <label>Warna <span class="required">*</span></label>
+            <input id="e_warna" value="${safe(b.warna)}">
+          </div>
+
+          <div class="form-group">
+            <label>Size <span class="required">*</span></label>
+            <input id="e_size" value="${safe(b.size)}">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Jumlah <span class="required">*</span></label>
+            <input id="e_jumlah" type="number" step="any" value="${safe(b.jumlah)}">
+          </div>
+
+          <div class="form-group">
+            <label>Satuan <span class="required">*</span></label>
+            <select id="e_satuan">
+              <option value="lusin">lusin</option>
+              <option value="pasang">pasang</option>
+              <option value="pcs">pcs</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Catatan</label>
+          <textarea id="e_catatan">${safe(b.catatan)}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Alasan Edit <span class="required">*</span></label>
+          <textarea id="e_edit_note"></textarea>
+        </div>
+
+        <button class="btn-success btn-block" onclick="confirmEditBal('${b.bal_id}')">
+          Simpan Edit 1x
+        </button>
+      `;
+
+      document.getElementById("e_satuan").value = b.satuan || "lusin";
+      populateJenisSelect(document.getElementById("e_jenis_barang"), b.jenis_barang || "");
+      document.getElementById("editModal").classList.add("show");
+    }
+
+    async function confirmEditBal(bal_id) {
+      const ids = [
+        "e_po_id",
+        "e_nomor_bal",
+        "e_halaman_buku",
+        "e_buku_nomor",
+        "e_line",
+        "e_no_mesin",
+        "e_operator_mesin",
+        "e_jenis_barang",
+        "e_warna",
+        "e_size",
+        "e_jumlah",
+        "e_satuan",
+        "e_edit_note"
+      ];
+
+      clearFieldErrors(document.getElementById("editModal"));
+
+      const ok = ids.every(id => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+
+        const empty = el.type === "number"
+          ? (el.value === "" || Number(el.value) <= 0)
+          : !String(el.value || "").trim();
+
+        el.classList.toggle("field-error", empty);
+        return !empty;
+      });
+
+      if (!ok) {
+        return alert("Kotak merah wajib diisi.");
+      }
+
+      const jenis_barang = resolveJenisValue("e_jenis_barang", "e_jenis_barang_lain");
+
+      if (!jenis_barang) {
+        return alert("Jenis barang wajib diisi.");
+      }
+
+      try {
+        await apiEditBal({
+          bal_id,
+          po_id: document.getElementById("e_po_id").value.trim(),
+          nomor_bal: document.getElementById("e_nomor_bal").value.trim(),
+          halaman_buku: document.getElementById("e_halaman_buku").value.trim(),
+          buku_nomor: document.getElementById("e_buku_nomor").value.trim(),
+          line: document.getElementById("e_line").value.trim(),
+          no_mesin: document.getElementById("e_no_mesin").value.trim(),
+          operator_mesin: document.getElementById("e_operator_mesin").value.trim(),
+          jenis_barang,
+          warna: document.getElementById("e_warna").value.trim(),
+          size: document.getElementById("e_size").value.trim(),
+          jumlah: document.getElementById("e_jumlah").value,
+          satuan: document.getElementById("e_satuan").value,
+          catatan: document.getElementById("e_catatan").value.trim(),
+          edit_note: document.getElementById("e_edit_note").value.trim()
+        });
+
+        closeModal("editModal");
+        closeModal("detailModal");
+
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        await openDetail(bal_id);
+
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function openOutputSetting(bal_id) {
+      const b = await apiGetBal(bal_id);
+      const outs = b.output_labels || [];
+      const totalOut = outs.reduce((s,o)=>s+Number(o.qty||0),0);
+      // Sisa = qty resmi (verifikasi atau jumlah) dikurangi yang sudah dilabel.
+      const qtyOfficial = officialQty(b);
+      const remaining = qtyOfficial - totalOut;
+      // Untuk REUSE_MAIN_QR qty resmi sama dengan qtyOfficial.
+      const qtyVerified = qtyOfficial;
+      // REUSE_MAIN_QR hanya boleh kalau belum ada output sama sekali. Sekali ada ticket, semua harus ticket.
+      const canReuse = outs.length === 0;
+      const modeOptions = canReuse
+        ? `<option value="REUSE_MAIN_QR">Pakai Ulang / Cetak Ulang QR Bal Utama (1 plastik penuh)</option>
+           <option value="TICKET">Buat QR Tiket Packing Baru (beberapa plastik / bertahap)</option>`
+        : `<option value="TICKET">Buat QR Tiket Packing Baru</option>`;
+      const reuseInfo = canReuse
+        ? `<div class="alert alert-info">⚙️ Mode <strong>Pakai Ulang QR</strong>: qty otomatis = ${qtyVerified} ${safe(b.satuan)} (qty hasil verifikasi). Tidak bisa diubah karena QR utama mewakili seluruh isi bal.</div>`
+        : `<div class="alert alert-warn">Sudah ada label sebelumnya. Sesuai SOP, semua plastik baru wajib pakai <strong>Tiket Packing</strong>. Mode "Pakai Ulang QR" hanya boleh kalau belum ada label sama sekali.</div>`;
+      document.getElementById("outputContent").innerHTML = `
+        <div class="alert alert-info"><strong>SOP QR:</strong><br>
+        Jika seluruh sisa bal masuk <strong>1 plastik baru</strong>, pilih <strong>Pakai ulang QR Bal Utama</strong>, lalu cetak ulang label BAL dan tempel di plastik baru. QR di plastik lama wajib dicopot/dicoret/dibuang.<br><br>
+        Jika barang masuk <strong>beberapa plastik / bertahap</strong>, pilih <strong>Buat QR Tiket Packing</strong> untuk setiap plastik baru.</div>
+        ${reuseInfo}
+        <div class="detail-grid">
+          ${kv("Total Bal (operator)", `<strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>`)}
+          ${b.qty_verifikasi ? kv("Qty Verifikasi Checker", `<strong>${safe(b.qty_verifikasi)} ${safe(b.satuan)}</strong>`) : ""}
+          ${kv("Sudah Dibuat Label", `<strong>${totalOut} ${safe(b.satuan)}</strong>`)}
+          ${kv("Sisa", `<strong>${remaining} ${safe(b.satuan)}</strong>`)}
+          ${kv("Status", statusBadge(b.status))}
+        </div>
+        <div class="form-group"><label>Jenis Label Plastik Baru</label>
+          <select id="outMode" onchange="onOutputModeChange()">${modeOptions}</select>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Qty Plastik Baru <span class="required">*</span></label>
+            <input id="outQty" type="number" step="any" value="${canReuse ? qtyVerified : (remaining > 0 ? remaining : '')}" ${canReuse ? 'readonly' : ''} oninput="updateOutputWorkerTotal()">
+          </div>
+          <div class="form-group"><label>Satuan</label><input value="${safe(b.satuan)}" disabled></div>
+        </div>
+        <div class="section-title">Pekerja Setting</div>
+        <div id="outWorkers">${outputWorkerRow("","")}</div>
+        <button class="btn-outline btn-sm" onclick="addOutputWorker()">+ Tambah Pekerja</button>
+        <div id="outWorkerTotal" class="alert alert-info" style="margin-top:8px">Total pekerja: 0</div>
+        <div class="form-group"><label>Catatan</label><textarea id="outNote"></textarea></div>
+        <button class="btn-success btn-block" onclick="confirmOutputSetting('${b.bal_id}')">Simpan & Cetak Label</button>
+      `;
+      document.getElementById("outputModal").classList.add("show");
+      updateOutputWorkerTotal();
+    }
+
+    /**
+     * Saat user ganti mode di dropdown:
+     * - REUSE_MAIN_QR: qty di-lock ke qty verifikasi (atau jumlah)
+     * - TICKET: qty bisa di-edit, default ke remaining
+     */
+    function onOutputModeChange() {
+      const modeEl = document.getElementById("outMode");
+      const qtyEl = document.getElementById("outQty");
+      if (!modeEl || !qtyEl) return;
+      // Cari bal yang sedang dilihat — currentDetailBalId masih ter-set.
+      apiGetBal(currentDetailBalId).then(b => {
+        const outs = b.output_labels || [];
+        const totalOut = outs.reduce((s,o)=>s+Number(o.qty||0),0);
+        const qtyOfficial = officialQty(b);
+        const remaining = qtyOfficial - totalOut;
+        const qtyVerified = qtyOfficial;
+        if (modeEl.value === "REUSE_MAIN_QR") {
+          qtyEl.value = qtyVerified;
+          qtyEl.setAttribute("readonly", "true");
+        } else {
+          qtyEl.removeAttribute("readonly");
+          qtyEl.value = remaining > 0 ? remaining : "";
+        }
+        updateOutputWorkerTotal();
+      });
+    }
+
+    function outputWorkerRow(name, qty) { return `<div class="worker-row"><div class="form-group"><label>Nama Pekerja <span class="required">*</span></label><input class="outWorkerName" value="${safe(name)}" placeholder="Nama pekerja setting"></div><div class="form-group"><label>Qty <span class="required">*</span></label><input class="outWorkerQty" type="number" step="any" value="${safe(qty)}" placeholder="Qty pekerja ini" oninput="updateOutputWorkerTotal()"></div><button class="btn-danger btn-sm" type="button" onclick="this.closest('.worker-row').remove();updateOutputWorkerTotal()">×</button></div>`; }
+    function addOutputWorker() { document.getElementById("outWorkers").insertAdjacentHTML("beforeend", outputWorkerRow("","")); }
+    function updateOutputWorkerTotal() {
+      const total = [...document.querySelectorAll(".outWorkerQty")].reduce((s,el)=>s+Number(el.value||0),0);
+      const qty = Number(document.getElementById("outQty")?.value || 0);
+      const box = document.getElementById("outWorkerTotal"); if (!box) return;
+      box.textContent = `Total qty pekerja: ${total} / Qty plastik: ${qty}`;
+      box.className = `alert ${Math.abs(total-qty)<.0001 && qty>0 ? 'alert-success' : 'alert-warn'}`;
+    }
+
+    async function confirmOutputSetting(bal_id) {
+      clearFieldErrors(document.getElementById("outputModal"));
+      const qtyEl = document.getElementById("outQty");
+      const qty = Number(qtyEl.value || 0);
+      if (!qty || qty <= 0) { qtyEl.classList.add("field-error"); return alert("Qty plastik baru wajib diisi."); }
+      const names = [...document.querySelectorAll(".outWorkerName")];
+      const qtys = [...document.querySelectorAll(".outWorkerQty")];
+      const workers = names.map((el,i)=>({ name: el.value.trim(), qty: Number(qtys[i].value || 0) }));
+      let ok = true;
+      workers.forEach((w,i)=>{ if(!w.name){names[i].classList.add("field-error");ok=false;} if(!w.qty||w.qty<=0){qtys[i].classList.add("field-error");ok=false;} });
+      if (!ok) return alert("Nama dan qty pekerja wajib diisi.");
+      const sum = workers.reduce((s,w)=>s+w.qty,0);
+      if (Math.abs(sum-qty)>.0001) return alert("Total qty pekerja harus sama dengan qty plastik baru.");
+      try {
+        const bal = await apiGetBal(bal_id);
+        const out = await apiCreateOutputLabel({ bal_id, status_lama: bal.status, mode: document.getElementById("outMode").value, qty, worker_lines: workers, note: document.getElementById("outNote").value.trim() });
+        closeModal("outputModal"); closeModal("detailModal"); renderList(); renderDashboard(); renderGlobalHistory();
+        if (out.mode === "REUSE_MAIN_QR") labelById(bal_id); else printOutputLabel(bal_id, out.output_id);
+      } catch(e) { alert(e.message); }
+    }
+
+    async function printOutputLabel(bal_id, output_id) {
+      const b = await apiGetBal(bal_id);
+      const outs = b.output_labels || [];
+      const out = outs.find(o => o.output_id === output_id);
+
+      if (!out) return alert("Output tidak ditemukan");
+      if (out.mode === "REUSE_MAIN_QR") return showLabel(b);
+
+      const satuan = out.satuan || b.satuan || "";
+      const outIndex = Math.max(0, outs.findIndex(o => o.output_id === output_id));
+      const ticketNoFromId = String(out.ticket_id || "").match(/-(\d+)$/);
+      const ticketNo = outIndex >= 0 ? outIndex + 1 : (ticketNoFromId ? Number(ticketNoFromId[1]) : 1);
+      const cumulativeQty = outs
+        .slice(0, outIndex + 1)
+        .reduce((sum, o) => sum + Number(o.qty || 0), 0);
+      const sisaQty = Math.max(0, officialQty(b) - cumulativeQty);
+      const qtyText = `${out.qty} ${satuan} / Bal ${ticketNo} / Sisa ${sisaQty}`;
+
+      const settingText = (out.workers || [])
+        .map(w => `${safe(w.name || "-")} ${safe(w.qty || "-")}`)
+        .join(", ");
+
+      const bukuText = labelBukuText(b);
+
+      const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
+      if (titleEl) titleEl.textContent = "Tiket Packing";
+
+      document.getElementById("labelContent").innerHTML = `
+        <div class="ticket-label-area" id="printLabelArea">
+          <div class="ticket-title">TIKET PACKING</div>
+
+          <div class="ticket-grid">
+            <div class="ticket-main">
+              <div class="ticket-row"><div class="k">Ticket</div><div class="v">${safe(out.ticket_id)}</div></div>
+              <div class="ticket-row"><div class="k">Bal</div><div class="v">${safe(b.bal_id)}</div></div>
+              <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Qty</div><div class="v"><b>${safe(qtyText)}</b></div></div>
+            </div>
+
+            <div class="ticket-right">
+              <div class="ticket-qr">
+                <div id="qrLabel"></div>
+                <div class="ticket-qr-id">${safe(out.ticket_id)}</div>
+              </div>
+
+              <div class="ticket-workers">
+                <div class="ticket-workers-title">PEKERJA</div>
+                <div class="ticket-worker-row">
+                  <div class="name">Op Mesin</div>
+                  <div class="qty">${safe(b.operator_mesin || "-")}</div>
+                </div>
+                <div class="ticket-worker-row">
+                  <div class="name">P Obras</div>
+                  <div class="qty">${safe(b.obras_by || "-")}</div>
+                </div>
+                <div class="ticket-worker-row setting-line">
+                  <div class="name">Setting</div>
+                  <div class="qty">${settingText || "-"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const qr = document.getElementById("qrLabel");
+      qr.innerHTML = "";
+      new QRCode(qr, { text: out.ticket_id, width: 96, height: 96 });
+      document.getElementById("labelModal").classList.add("show");
+    }
+
+    /* ============================================================
+       PECAH BAL
+       ============================================================ */
+
+    async function openSplit(bal_id) {
+      const b = await apiGetBal(bal_id);
+      const qtyResmi = officialQty(b);
+      document.getElementById("splitContent").innerHTML = `
+        <div class="alert alert-warn"><strong>Bal Induk:</strong> ${b.bal_id}<br><strong>Qty:</strong> ${qtyResmi} ${b.satuan}<br><strong>Status:</strong> ${statusText(b.status)}</div>
+        <div id="splitRows">
+          ${splitRow("A", "")}
+          ${splitRow("B", "")}
+        </div>
+        <button class="btn-outline btn-sm" onclick="addSplitRow()">+ Tambah Anak</button>
+        <div class="alert alert-info" id="splitTotal">Total anak: 0 / ${qtyResmi} ${b.satuan}</div>
+        <div class="form-group"><label>Alasan Pecah <span class="required">*</span></label><textarea id="splitReason"></textarea></div>
+        <button class="btn-warning btn-block" onclick="confirmSplit('${b.bal_id}')">✂️ Eksekusi Pecah Bal Fisik</button>
+      `;
+      document.getElementById("splitModal").dataset.targetQty = qtyResmi;
+      document.getElementById("splitModal").classList.add("show");
+      updateSplitTotal();
+    }
+
+    function splitRow(suffix, qty) {
+      return `<div class="grid-2 split-row"><div class="form-group"><label>Suffix Anak</label><input class="splitSuffix" value="${suffix}"></div><div class="form-group"><label>Qty</label><input class="splitQty" type="number" step="any" value="${qty}" oninput="updateSplitTotal()"></div></div>`;
+    }
+    function addSplitRow() {
+      const count = document.querySelectorAll(".split-row").length;
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      document.getElementById("splitRows").insertAdjacentHTML("beforeend", splitRow(letters[count] || "X", ""));
+    }
+    function updateSplitTotal() {
+      const target = Number(document.getElementById("splitModal").dataset.targetQty || 0);
+      const total = [...document.querySelectorAll(".splitQty")].reduce((s, el) => s + Number(el.value || 0), 0);
+      document.getElementById("splitTotal").textContent = `Total anak: ${total} / ${target}`;
+      document.getElementById("splitTotal").className = `alert ${Math.abs(total-target) < .0001 ? 'alert-success' : 'alert-info'}`;
+    }
+    async function confirmSplit(parent_bal_id) {
+      const suffixes = [...document.querySelectorAll(".splitSuffix")].map(el => el.value.trim().toUpperCase());
+      const qtys = [...document.querySelectorAll(".splitQty")].map(el => Number(el.value));
+      const reason = document.getElementById("splitReason").value.trim();
+      if (!reason) return alert("Alasan pecah wajib diisi.");
+      if (suffixes.some(s => !s)) return alert("Suffix anak tidak boleh kosong.");
+      if (new Set(suffixes).size !== suffixes.length) return alert("Suffix anak tidak boleh duplikat.");
+      if (qtys.some(q => !q || q <= 0)) return alert("Qty anak harus lebih dari 0.");
+      try {
+        const parent = await apiGetBal(parent_bal_id);
+        await apiSplitBal({ parent_bal_id, status_lama: parent.status, alasan_pecah: reason, children: suffixes.map((suffix, i) => ({ suffix, jumlah: qtys[i] })) });
+        closeModal("splitModal"); closeModal("detailModal");
+        renderList(); renderDashboard(); renderGlobalHistory();
+        openDetail(parent_bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       LABEL
+       ============================================================ */
+
+    async function labelById(bal_id) {
+      showLabel(await apiGetBal(bal_id));
+    }
+
+    function labelSettingWorkersText(b) {
+      const outs = b.output_labels || [];
+      const map = new Map();
+
+      for (const out of outs) {
+        for (const w of (out.workers || [])) {
+          const name = String(w.name || "").trim();
+          if (!name) continue;
+          const qty = Number(w.qty || 0);
+          map.set(name, (map.get(name) || 0) + qty);
+        }
+      }
+
+      if (!map.size) return "";
+      return [...map.entries()].map(([name, qty]) => `${name} ${qty}`).join(", ");
+    }
+
+    function labelBukuText(b) {
+      const halaman = String(b.halaman_buku || "").trim();
+      const nomorRaw = String(b.buku_nomor || "").trim();
+
+      let nomor = "-";
+      if (nomorRaw) {
+        nomor = nomorRaw.toUpperCase().startsWith("A")
+          ? nomorRaw.toUpperCase()
+          : `A${nomorRaw}`;
+      }
+
+      return `Hal ${halaman || "-"} / ${nomor}`;
+    }
+
+    function labelJumlahText(b) {
+      const satuan = b.satuan || "";
+      const qtyOperator = Number(b.jumlah || 0);
+      const qtyResmi = Number(b.qty_verifikasi || b.jumlah || 0);
+
+      if (
+        b.qty_verifikasi !== "" &&
+        b.qty_verifikasi !== undefined &&
+        b.qty_verifikasi !== null
+      ) {
+        return `${qtyResmi} ${satuan} (op:${qtyOperator})`;
+      }
+
+      return `${qtyOperator} ${satuan}`;
+    }
+
+    function showLabel(b) {
+      const settingText = labelSettingWorkersText(b);
+      const bukuText = labelBukuText(b);
+      const jumlahText = labelJumlahText(b);
+
+      const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
+      if (titleEl) titleEl.textContent = "Label Bal";
+
+      document.getElementById("labelContent").innerHTML = `
+        <div class="label-area" id="printLabelArea">
+          <div class="label-final-title">
+            LABEL BAL ${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}
+          </div>
+
+          <div class="label-final-grid">
+            <div class="label-main">
+              <div class="label-main-row"><div class="k">ID</div><div class="v">${safe(b.bal_id)}</div></div>
+              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
+              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
+            </div>
+
+            <div class="label-right">
+              <div class="label-qr">
+                <div id="qrLabel"></div>
+                <div class="label-qr-id">${safe(b.bal_id)}</div>
+              </div>
+
+              <div class="label-workers">
+                <div class="label-workers-title">PEKERJA</div>
+                <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
+                <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
+                <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const qr = document.getElementById("qrLabel");
+      qr.innerHTML = "";
+      new QRCode(qr, { text: b.bal_id, width: 120, height: 120 });
+      document.getElementById("labelModal").classList.add("show");
+    }
+
+    async function findTicket(ticket_id) {
+      const bals = await apiListBals();
+      for (const b of bals) {
+        const out = (b.output_labels || []).find(o => o.ticket_id === ticket_id);
+        if (out) return { bal: b, ticket: out };
+      }
+      return null;
+    }
+
+    async function openTicketDetail(ticket_id) {
+      const found = await findTicket(ticket_id);
+      if (!found) return alert("Tiket packing tidak ditemukan");
+      const { bal, ticket } = found;
+      document.getElementById("detailContent").innerHTML = `
+        <div class="alert alert-info"><strong>Detail Tiket Packing / Plastik Baru</strong><br>QR ini mewakili plastik baru hasil setting, bukan bal induk baru.</div>
+        <div class="detail-grid">
+          ${kv("Ticket ID", `<span class="mono">${safe(ticket.ticket_id)}</span>`)}
+          ${kv("Parent Bal", `<button class="btn-outline btn-sm" onclick="openDetail('${bal.bal_id}')">${safe(bal.bal_id)}</button>`)}
+          ${kv("PO / Artikel", safe(bal.po_id))}
+          ${kv("Qty", `<strong>${safe(ticket.qty)} ${safe(ticket.satuan)}</strong>`)}
+          ${kv("Status Tiket", safe(ticket.status))}
+          ${kv("Dibuat", fmtDate(ticket.created_at))}
+        </div>
+        <div class="card"><div class="section-title">Pekerja Setting</div>${(ticket.workers||[]).map(w=>`<div class="history-item"><strong>${safe(w.name)}</strong> · ${safe(w.qty)} ${safe(ticket.satuan)}</div>`).join("")}</div>
+        <div class="actions"><button class="btn-primary btn-block" onclick="printOutputLabel('${bal.bal_id}','${ticket.output_id}')">Cetak Tiket Packing</button></div>
+      `;
+      document.getElementById("detailModal").classList.add("show");
+    }
+
+    /* ============================================================
+       SCANNER
+       ============================================================ */
+
+    function startScan() {
+      if (!currentUser) return alert("Login dulu.");
+      document.getElementById("btnStartScan").classList.add("hidden");
+      document.getElementById("btnStopScan").classList.remove("hidden");
+      document.getElementById("scanMessage").innerHTML = "";
+      scanner = new Html5Qrcode("scanner-area");
+      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 260 } }, onScanSuccess, () => {})
+        .catch(err => { alert("Gagal buka kamera: " + err); stopScan(); });
+    }
+    function stopScan() {
+      if (scanner) scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(() => {});
+      document.getElementById("btnStartScan")?.classList.remove("hidden");
+      document.getElementById("btnStopScan")?.classList.add("hidden");
+      const area = document.getElementById("scanner-area"); if (area) area.innerHTML = "";
+    }
+    async function onScanSuccess(decodedText) {
+      stopScan();
+      const id = normalizeQrText(decodedText);
+      try {
+        await apiGetBal(id);
+        document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Bal ditemukan: <span class="mono">${safe(id)}</span></div>`;
+        openDetail(id);
+      } catch (e) {
+        const ticket = await findTicket(id);
+        if (ticket) {
+          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Tiket ditemukan: <span class="mono">${safe(id)}</span></div>`;
+          openTicketDetail(id);
+        } else {
+          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-danger">QR tidak ditemukan: <span class="mono">${safe(id)}</span></div>`;
+        }
+      }
+    }
+    async function openManualBal() {
+      const id = normalizeQrText(document.getElementById("manualBalId").value);
+      if (!id) return alert("Isi ID Bal / Ticket dulu.");
+      try { await apiGetBal(id); openDetail(id); }
+      catch (e) { const t = await findTicket(id); if (t) openTicketDetail(id); else alert(e.message); }
+    }
+
+    /* ============================================================
+       HISTORY
+       ============================================================ */
+
+    async function renderGlobalHistory() {
+      const h = (await apiGetHistory()).slice().reverse().slice(0, 100);
+      document.getElementById("globalHistory").innerHTML = h.length ? h.map(historyHtml).join("") : `<div class="empty">Belum ada history</div>`;
+    }
+    function historyHtml(h) {
+      return `<div class="history-item"><strong>${safe(h.action)}</strong> · <span class="mono">${safe(h.bal_id)}</span><br>${h.status_lama ? `${statusText(h.status_lama)} → ` : ""}<strong>${statusText(h.status_baru)}</strong><br><span class="small">${safe(h.user_name)} (${safe(h.user_role)}) · ${fmtDate(h.timestamp)}</span>${h.catatan ? `<br><span class="small">📝 ${safe(h.catatan)}</span>` : ""}</div>`;
+    }
+
+    /* ============================================================
+       HR BORONGAN
+       Otomatis generate record saat bal mencapai SELESAI_PACKING.
+       Owner mengisi tarif sekali per kombinasi tahap+jenis,
+       sistem ingat untuk record berikutnya.
+       Tidak generate untuk Mesin (gaji harian) atau Packing (menyusul).
+       ============================================================ */
+
+    /* ============================================================
+       HR BORONGAN (CLOUD)
+       Data borongan otomatis di-generate server saat bal SELESAI_PACKING.
+       Tarif tersimpan di sheet 'tarif' di server, lookup otomatis.
+       Owner edit tarif via tabel di tab HR → API auto-propagate.
+       ============================================================ */
+
+    function switchHrSub(sub) {
+      currentHrSub = sub;
+      ["obras", "setting"].forEach(s => {
+        const btn = document.getElementById(`hrSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
+        if (!btn) return;
+        if (s === sub) {
+          btn.style.background = "var(--primary)";
+          btn.style.color = "white";
+          btn.classList.add("active");
+        } else {
+          btn.style.background = "white";
+          btn.style.color = "var(--text)";
+          btn.classList.remove("active");
+        }
+      });
+      renderBorongan();
+    }
+
+    async function getFilteredBorongan() {
+      const all = await apiListBorongan();
+      let rows = (all || []).filter(r => String(r.tahap).toLowerCase() === currentHrSub.toLowerCase());
+      const w = document.getElementById("hrFilterWorker")?.value || "";
+      const s = document.getElementById("hrFilterStart")?.value || "";
+      const e = document.getElementById("hrFilterEnd")?.value || "";
+      const j = (document.getElementById("hrFilterJenis")?.value || "").toLowerCase().trim();
+      if (w) rows = rows.filter(r => r.pegawai === w);
+      if (s) rows = rows.filter(r => String(r.tanggal) >= s);
+      if (e) rows = rows.filter(r => String(r.tanggal) <= e);
+      if (j) rows = rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
+      rows.sort((a,b) => String(b.tanggal + (b.created_at || "")).localeCompare(String(a.tanggal + (a.created_at || ""))));
+      return rows;
+    }
+
+    async function refreshHrWorkerFilter() {
+      const all = await apiListBorongan();
+      const rows = (all || []).filter(r => String(r.tahap).toLowerCase() === currentHrSub.toLowerCase());
+      const workers = [...new Set(rows.map(r => r.pegawai).filter(Boolean))].sort();
+      const sel = document.getElementById("hrFilterWorker");
+      if (!sel) return;
+      const current = sel.value;
+      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${current === n ? "selected" : ""}>${safe(n)}</option>`).join("");
+    }
+
+    async function renderBorongan() {
+      try {
+        await refreshHrWorkerFilter();
+        const rows = await getFilteredBorongan();
+        const totalQty = rows.reduce((s,r)=>s + Number(r.qty||0), 0);
+        const totalRp = rows.reduce((s,r)=>s + Number(r.total||0), 0);
+        const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
+        const uniqueWorkers = new Set(rows.map(r => r.pegawai)).size;
+
+        const summary = document.getElementById("hrSummary");
+        if (summary) {
+          summary.innerHTML = [
+            ["Pekerjaan", rows.length],
+            ["Pegawai", uniqueWorkers],
+            ["Total Qty", totalQty],
+            ["Total Borongan", rupiah(totalRp)],
+            ["Belum Ada Tarif", totalUntarif]
+          ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+        }
+
+        const rekapMap = new Map();
+        for (const r of rows) {
+          const k = r.pegawai;
+          if (!rekapMap.has(k)) rekapMap.set(k, { pegawai: k, qty: 0, total: 0, count: 0 });
+          const e = rekapMap.get(k);
+          e.qty += Number(r.qty || 0);
+          e.total += Number(r.total || 0);
+          e.count += 1;
+        }
+        const rekapArr = [...rekapMap.values()].sort((a,b) => b.total - a.total);
+        const rekapEl = document.getElementById("hrRekapPegawai");
+        if (rekapEl) {
+          rekapEl.innerHTML = rekapArr.length
+            ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th><th>Total Borongan</th></tr></thead><tbody>${rekapArr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td><td><strong>${rupiah(r.total)}</strong></td></tr>`).join("")}</tbody></table></div>`
+            : `<div class="empty">Belum ada data borongan untuk ${currentHrSub === "obras" ? "Obras" : "Setting"}.</div>`;
+        }
+
+        const tbody = document.getElementById("hrRows");
+        const mobile = document.getElementById("hrMobile");
+        if (!rows.length) {
+          if (tbody) tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Belum ada pekerjaan ${currentHrSub === "obras" ? "Obras" : "Setting"}. Data otomatis muncul saat bal mencapai SELESAI_PACKING.</div></td></tr>`;
+          if (mobile) mobile.innerHTML = `<div class="empty">Belum ada pekerjaan ${currentHrSub === "obras" ? "Obras" : "Setting"}.</div>`;
+          return;
+        }
+        const fotoCell = (foto, balId) => foto
+          ? `<img src="${foto}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')">`
+          : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
+
+        if (tbody) {
+          tbody.innerHTML = rows.map(r => `
+            <tr>
+              <td>${safe(r.tanggal)}</td>
+              <td><strong>${safe(r.pegawai)}</strong></td>
+              <td>${fotoCell(r.foto_url || r.foto, r.bal_id)}</td>
+              <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
+              <td>${safe(r.jenis || "-")}</td>
+              <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
+              <td>${safe(r.qty)} ${safe(r.satuan)}</td>
+              <td>
+                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:90px; min-height:32px; padding:4px 6px">
+              </td>
+              <td><strong>${rupiah(r.total)}</strong></td>
+              <td><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button></td>
+            </tr>
+          `).join("");
+        }
+        if (mobile) {
+          mobile.innerHTML = rows.map(r => `
+            <div class="bal-card">
+              ${fotoCell(r.foto_url || r.foto, r.bal_id)}
+              <div class="bal-card-body">
+                <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
+                <div class="bal-title">${safe(r.pegawai)}</div>
+                <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
+                <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
+                <div style="margin-top:6px">
+                  <label class="small">Tarif/${safe(r.satuan)}</label>
+                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:120px; min-height:32px; padding:4px 6px">
+                </div>
+                <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
+                <div class="actions"><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button></div>
+              </div>
+            </div>
+          `).join("");
+        }
+      } catch (e) {
+        toast("Gagal load HR Borongan: " + e.message, "error");
+      }
+    }
+
+    async function updateBoronganTarif(inputEl) {
+      const id = inputEl.getAttribute("data-bor-id");
+      const newTarif = Number(inputEl.value || 0);
+      try {
+        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif));
+        if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain.`, "success");
+        else toast("Tarif disimpan.", "success");
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function deleteBoronganRow(id) {
+      if (!confirm("Hapus record borongan ini?")) return;
+      try {
+        await withLoading("Hapus record...", async () => await apiDeleteBoronganRow(id));
+        toast("Record borongan dihapus.", "success");
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function exportBoronganCSV() {
+      try {
+        const rows = await getFilteredBorongan();
+        if (!rows.length) { toast("Tidak ada data untuk di-export.", "warn"); return; }
+        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Tarif","Total"];
+        const escapeCsv = v => {
+          const s = String(v ?? "");
+          if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+          return s;
+        };
+        const lines = [header.join(",")];
+        for (const r of rows) {
+          lines.push([
+            r.tanggal, r.tahap, r.pegawai, r.bal_id, r.po_id, r.jenis,
+            r.warna, r.size, r.qty, r.satuan, r.tarif, r.total
+          ].map(escapeCsv).join(","));
+        }
+        const csv = "\uFEFF" + lines.join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `borongan_${currentHrSub}_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast("CSV berhasil di-download.", "success");
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+
+
+
+    let lastOwnerHealthReport = null;
+
+    /* ============================================================
+       OWNER MAINTENANCE — CLOUD VERSION
+       - Tidak ada lagi repair localStorage (karena data di server).
+       - Health check sekarang: list rekap data + cek konsistensi via API.
+       - User management: tambah/edit/reset PIN/aktivasi user.
+       ============================================================ */
+
+    async function renderOwnerHealthPanel() {
+      if (currentUser?.role !== "Owner") return;
+      const panel = document.getElementById("ownerHealthPanel");
+      if (!panel) return;
+      panel.innerHTML = `<div class="empty">Klik "🔎 Cek Data" untuk lihat ringkasan, atau buka tab di bawah.</div>`;
+    }
+
+    async function ownerRunHealthCheck() {
+      if (currentUser?.role !== "Owner") return;
+      try {
+        await withLoading("Mengecek data dari server...", async () => {
+          const [bals, history, borongan, users] = await Promise.all([
+            apiListBals(),
+            apiGetHistory(),
+            apiListBorongan(),
+            apiListUsers()
+          ]);
+          const balsActive = (bals || []).filter(b => !b.deleted);
+          const balsByStatus = {};
+          balsActive.forEach(b => { balsByStatus[b.status] = (balsByStatus[b.status] || 0) + 1; });
+          const usersActive = (users || []).filter(u => u.active);
+
+          const panel = document.getElementById("ownerHealthPanel");
+          if (!panel) return;
+          panel.innerHTML = `
+            <div class="card">
+              <div class="section-title">📊 Rekap Data Cloud</div>
+              <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:10px">
+                <div class="stat-card"><div class="stat-value">${balsActive.length}</div><div class="stat-label">Bal Aktif</div></div>
+                <div class="stat-card"><div class="stat-value">${(history || []).length}</div><div class="stat-label">History</div></div>
+                <div class="stat-card"><div class="stat-value">${(borongan || []).length}</div><div class="stat-label">Borongan</div></div>
+                <div class="stat-card"><div class="stat-value">${usersActive.length}</div><div class="stat-label">User Aktif</div></div>
+              </div>
+              <div class="section-title">Distribusi Status Bal</div>
+              <div class="grid-3">
+                ${Object.entries(balsByStatus).map(([st, n]) => `<div class="alert alert-info"><strong>${statusText(st)}</strong>: ${n}</div>`).join("") || `<div class="empty">Belum ada bal.</div>`}
+              </div>
+            </div>
+          `;
+        });
+      } catch (e) {
+        toast("Gagal cek data: " + e.message, "error");
+      }
+    }
+
+    /* ----- Export Backup ----- */
+    async function ownerExportBackupJSON() {
+      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
+      try {
+        await withLoading("Mengambil semua data dari server...", async () => {
+          const [bals, history, borongan, tarif, users] = await Promise.all([
+            api("listBals", { includeDeleted: true }),
+            apiGetHistory(),
+            apiListBorongan(),
+            api("listTarif"),
+            apiListUsers()
+          ]);
+          const backup = {
+            schema_version: "3.0.0-cloud",
+            exported_at: new Date().toISOString(),
+            exported_by: currentUser.nama,
+            bals, history, borongan, tarif, users
+          };
+          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `backup_cloud_bal_tracking_${new Date().toISOString().slice(0,10)}.json`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+        toast("Backup JSON berhasil di-download.", "success");
+      } catch (e) {
+        toast("Export gagal: " + e.message, "error");
+      }
+    }
+
+    /* ----- Import Backup: di cloud mode, restore = bahaya, jadi cuma kasih warning ----- */
+    function ownerImportBackupJSON(event) {
+      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
+      const file = event.target.files && event.target.files[0];
+      event.target.value = "";
+      if (!file) return;
+      toast("Restore otomatis ke cloud belum di-implementasi (terlalu beresiko overwrite). Backup file tersimpan, hubungi developer untuk restore manual via Apps Script.", "warn", 7000);
+    }
+
+    /* ============================================================
+       USER MANAGEMENT UI (Owner only)
+       ============================================================ */
+
+    async function openUserManagement() {
+      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
+      try {
+        await withLoading("Memuat daftar user...", async () => {
+          const users = await apiListUsers();
+          renderUserManagementPanel(users);
+        });
+      } catch (e) {
+        toast("Gagal load user: " + e.message, "error");
+      }
+    }
+
+    function renderUserManagementPanel(users) {
+      const panel = document.getElementById("ownerHealthPanel");
+      if (!panel) return;
+      const rows = (users || []).map(u => `
+        <tr>
+          <td><strong>${safe(u.username)}</strong></td>
+          <td>${safe(u.nama)}</td>
+          <td>${safe(u.role)}</td>
+          <td>${u.active ? '<span class="badge tag" style="background:#dcfce7; color:#166534">AKTIF</span>' : '<span class="badge tag" style="background:#fee2e2; color:#991b1b">NONAKTIF</span>'}</td>
+          <td>
+            <button class="btn-outline btn-sm" onclick="openEditUserForm('${safe(u.username)}')">Edit</button>
+            <button class="btn-outline btn-sm" onclick="openResetPinForm('${safe(u.username)}')">Reset PIN</button>
+            ${u.role !== "Owner" ? `<button class="btn-outline btn-sm" onclick="toggleUserActive('${safe(u.username)}', ${!u.active})">${u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>` : ""}
+          </td>
+        </tr>
+      `).join("");
+
+      panel.innerHTML = `
+        <div class="card">
+          <div class="section-title">👥 Kelola User</div>
+          <p class="sub-note">Khusus Owner. Tambah user baru, edit nama/role, reset PIN, atau aktif/nonaktifkan user.</p>
+          <button class="btn-primary" onclick="openCreateUserForm()">+ Tambah User Baru</button>
+          <div class="table-wrap" style="margin-top:12px">
+            <table>
+              <thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan="5"><div class="empty">Belum ada user.</div></td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function openCreateUserForm() {
+      const html = `
+        <div class="alert alert-info">Buat user baru. PIN akan di-hash di server, tidak tersimpan plain.</div>
+        <div class="form-group"><label>Username <span class="required">*</span></label><input id="nu_username" placeholder="huruf kecil, angka, underscore"></div>
+        <div class="form-group"><label>Nama Tampilan <span class="required">*</span></label><input id="nu_nama"></div>
+        <div class="form-group"><label>Role <span class="required">*</span></label>
+          <select id="nu_role">
+            <option value="">-- Pilih Role --</option>
+            <option value="Admin Produksi">Admin Produksi</option>
+            <option value="Operator Mesin">Operator Mesin</option>
+            <option value="Checker / QC">Checker / QC</option>
+            <option value="Obras">Obras</option>
+            <option value="Setting / Steam">Setting / Steam</option>
+            <option value="Packing">Packing</option>
+          </select>
+        </div>
+        <div class="form-group"><label>PIN <span class="required">*</span> (min 4 karakter)</label><input id="nu_pin" type="text"></div>
+        <button class="btn-success btn-block" onclick="confirmCreateUser()">💾 Buat User</button>
+      `;
+      openSimpleModal("Tambah User Baru", html);
+    }
+
+    async function confirmCreateUser() {
+      const username = document.getElementById("nu_username").value.trim().toLowerCase();
+      const nama = document.getElementById("nu_nama").value.trim();
+      const role = document.getElementById("nu_role").value;
+      const pin = document.getElementById("nu_pin").value;
+      if (!username || !nama || !role || !pin) return toast("Semua field wajib.", "warn");
+      try {
+        await withLoading("Membuat user...", async () => {
+          await apiCreateUser({ username, nama, role, pin });
+        });
+        toast(`User '${username}' (${nama}) berhasil dibuat. PIN: ${pin}`, "success", 6000);
+        closeSimpleModal();
+        openUserManagement();
+      } catch (e) {
+        toast(e.message, "error", 5000);
+      }
+    }
+
+    async function openEditUserForm(username) {
+      try {
+        const users = await apiListUsers();
+        const u = users.find(x => x.username === username);
+        if (!u) return toast("User tidak ditemukan.", "error");
+        const html = `
+          <div class="alert alert-info">Edit user <strong>${safe(username)}</strong>. PIN dan status aktif tidak di-edit di sini.</div>
+          <div class="form-group"><label>Nama Tampilan</label><input id="eu_nama" value="${safe(u.nama)}"></div>
+          <div class="form-group"><label>Role</label>
+            <select id="eu_role" ${u.role === "Owner" ? "disabled" : ""}>
+              ${u.role === "Owner" ? '<option>Owner</option>' : `
+                <option value="Admin Produksi" ${u.role === "Admin Produksi" ? "selected" : ""}>Admin Produksi</option>
+                <option value="Operator Mesin" ${u.role === "Operator Mesin" ? "selected" : ""}>Operator Mesin</option>
+                <option value="Checker / QC" ${u.role === "Checker / QC" ? "selected" : ""}>Checker / QC</option>
+                <option value="Obras" ${u.role === "Obras" ? "selected" : ""}>Obras</option>
+                <option value="Setting / Steam" ${u.role === "Setting / Steam" ? "selected" : ""}>Setting / Steam</option>
+                <option value="Packing" ${u.role === "Packing" ? "selected" : ""}>Packing</option>
+              `}
+            </select>
+            ${u.role === "Owner" ? '<div class="small" style="color:var(--muted); margin-top:4px">Role Owner tidak bisa diubah.</div>' : ""}
+          </div>
+          <button class="btn-success btn-block" onclick="confirmEditUser('${safe(username)}')">💾 Simpan</button>
+        `;
+        openSimpleModal("Edit User", html);
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function confirmEditUser(username) {
+      const nama = document.getElementById("eu_nama").value.trim();
+      const roleEl = document.getElementById("eu_role");
+      const role = roleEl.disabled ? null : roleEl.value;
+      const updates = { nama };
+      if (role) updates.role = role;
+      try {
+        await withLoading("Menyimpan...", async () => {
+          await apiUpdateUser({ username, updates });
+        });
+        toast(`User '${username}' berhasil di-update.`, "success");
+        closeSimpleModal();
+        openUserManagement();
+      } catch (e) { toast(e.message, "error", 5000); }
+    }
+
+    function openResetPinForm(username) {
+      const html = `
+        <div class="alert alert-warn">Reset PIN untuk user <strong>${safe(username)}</strong>. User wajib login dengan PIN baru setelah ini.</div>
+        <div class="form-group"><label>PIN Baru <span class="required">*</span> (min 4 karakter)</label><input id="rp_pin" type="text"></div>
+        <button class="btn-success btn-block" onclick="confirmResetPin('${safe(username)}')">🔑 Reset PIN</button>
+      `;
+      openSimpleModal("Reset PIN", html);
+    }
+
+    async function confirmResetPin(username) {
+      const newPin = document.getElementById("rp_pin").value;
+      if (!newPin || newPin.length < 4) return toast("PIN minimal 4 karakter.", "warn");
+      try {
+        await withLoading("Reset PIN...", async () => {
+          await apiResetUserPin(username, newPin);
+        });
+        toast(`PIN '${username}' direset ke: ${newPin} (kasih tahu user via WhatsApp)`, "success", 7000);
+        closeSimpleModal();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function toggleUserActive(username, newActive) {
+      if (!confirm(`Yakin ${newActive ? 'aktifkan' : 'nonaktifkan'} user '${username}'?`)) return;
+      try {
+        await withLoading("Update status user...", async () => {
+          await apiSetUserActive(username, newActive);
+        });
+        toast(`User '${username}' di-${newActive ? 'aktifkan' : 'nonaktifkan'}.`, "success");
+        openUserManagement();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    /* Modal helper (re-pakai actionModal kosongan) */
+    function openSimpleModal(title, html) {
+      document.getElementById("actionTitle").textContent = title;
+      document.getElementById("actionContent").innerHTML = html;
+      document.getElementById("actionModal").classList.add("show");
+    }
+    function closeSimpleModal() {
+      closeModal("actionModal");
+    }
+
+
+    /* ============================================================
+       INIT
+       ============================================================ */
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        try { currentUser = JSON.parse(saved); showApp(); } catch (_) { logout(); }
+      }
+      setupStatusFilter();
+    });
+  </script>
+</body>
+</html>
