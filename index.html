@@ -1726,13 +1726,36 @@
     }
 
     async function deleteBal(bal_id) {
-      const reason = prompt(`Alasan hapus bal ${bal_id}?`);
-      if (!reason) return;
-      try {
-        await apiDeleteBal({ bal_id, delete_reason: reason });
-        renderList(); renderDashboard(); renderGlobalHistory();
-      } catch (e) { alert(e.message); }
-    }
+  const reason = prompt(`Alasan hapus bal ${bal_id}? Minimal 10 karakter.`);
+  if (reason === null) return;
+
+  const cleanReason = String(reason || "").trim();
+
+  if (cleanReason.length < 10) {
+    return alert("Alasan hapus wajib minimal 10 karakter.");
+  }
+
+  if (!confirm(`Yakin hapus bal ${bal_id}?\n\nAlasan: ${cleanReason}`)) return;
+
+  try {
+    await apiDeleteBal({
+      bal_id,
+      reason: cleanReason
+    });
+
+    clearApiCache();
+    await renderList();
+    await renderDashboard();
+
+    try {
+      await renderGlobalHistory();
+    } catch (_) {}
+
+    toast("Bal berhasil dihapus.", "success");
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
     async function openPhoto(bal_id) {
       const b = await apiGetBal(bal_id);
