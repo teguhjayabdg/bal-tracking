@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (FIX 6 - Hal/Buku List Detail Edit)</title>
+  <title>Bal Tracking 3.0 - Cloud (FIX 7 - Phase A Packing Multi Pekerja)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -756,9 +756,10 @@
         <div class="card">
           <div class="section-title">HR Borongan</div>
           <p class="sub-note">Rekap upah borongan otomatis dari aktivitas produksi. Record dibuat saat bal mencapai status SELESAI_PACKING. Owner mengisi tarif sekali per kombinasi tahap+jenis, sistem ingat untuk record berikutnya.</p>
-          <div class="grid-2" style="margin-top:8px">
+          <div class="grid-3" style="margin-top:8px">
             <button class="tab-btn ${''}" id="hrSubObrasBtn" data-sub="obras" onclick="switchHrSub('obras')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">🧵 Rekap Obras</button>
             <button class="tab-btn" id="hrSubSettingBtn" data-sub="setting" onclick="switchHrSub('setting')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">⚙️ Rekap Setting</button>
+            <button class="tab-btn" id="hrSubPackingBtn" data-sub="packing" onclick="switchHrSub('packing')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">📦 Rekap Packing</button>
           </div>
         </div>
 
@@ -861,7 +862,7 @@
     const SESSION_KEY = "bal_tracking_v3_user";
     let currentUser = null;
     let currentTab = "dashboard";
-    let currentHrSub = "obras";  // 'obras' atau 'setting'
+    let currentHrSub = "obras";  // 'obras', 'setting', atau 'packing'
     let scanner = null;
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
@@ -1050,6 +1051,11 @@
         try { b.output_labels = JSON.parse(b.output_labels_json); } catch (_) { b.output_labels = []; }
       }
       if (!Array.isArray(b.output_labels)) b.output_labels = [];
+      // Packing workers juga JSON
+      if (b.packing_workers_json && !b.packing_workers) {
+        try { b.packing_workers = JSON.parse(b.packing_workers_json); } catch (_) { b.packing_workers = []; }
+      }
+      if (!Array.isArray(b.packing_workers)) b.packing_workers = [];
       // Edit history juga JSON
       if (b.edit_history_json && !b.edit_history) {
         try { b.edit_history = JSON.parse(b.edit_history_json); } catch (_) { b.edit_history = []; }
@@ -1726,36 +1732,24 @@
     }
 
     async function deleteBal(bal_id) {
-  const reason = prompt(`Alasan hapus bal ${bal_id}? Minimal 10 karakter.`);
-  if (reason === null) return;
+      const reason = prompt(`Alasan hapus bal ${bal_id}? Minimal 10 karakter.`);
+      if (reason === null) return;
 
-  const cleanReason = String(reason || "").trim();
+      const cleanReason = String(reason || "").trim();
+      if (cleanReason.length < 10) return alert("Alasan hapus wajib minimal 10 karakter.");
+      if (!confirm(`Yakin hapus bal ${bal_id}?
 
-  if (cleanReason.length < 10) {
-    return alert("Alasan hapus wajib minimal 10 karakter.");
-  }
+Alasan: ${cleanReason}`)) return;
 
-  if (!confirm(`Yakin hapus bal ${bal_id}?\n\nAlasan: ${cleanReason}`)) return;
-
-  try {
-    await apiDeleteBal({
-      bal_id,
-      reason: cleanReason
-    });
-
-    clearApiCache();
-    await renderList();
-    await renderDashboard();
-
-    try {
-      await renderGlobalHistory();
-    } catch (_) {}
-
-    toast("Bal berhasil dihapus.", "success");
-  } catch (e) {
-    alert(e.message);
-  }
-}
+      try {
+        await apiDeleteBal({ bal_id, reason: cleanReason });
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        toast("Bal berhasil dihapus.", "success");
+      } catch (e) { alert(e.message); }
+    }
 
     async function openPhoto(bal_id) {
       const b = await apiGetBal(bal_id);
@@ -1793,6 +1787,7 @@
             ${kv("Operator Mesin", safe(b.operator_mesin || "-"))}
             ${b.obras_by ? kv("Pekerja Obras", safe(b.obras_by)) : ""}
             ${getSettingWorkersText(b) ? kv("Pekerja Setting", getSettingWorkersText(b)) : ""}
+            ${getPackingWorkersText(b) ? kv("Pekerja Packing", getPackingWorkersText(b)) : ""}
             ${kv("Jenis", safe(b.jenis_barang || "-"))}
             ${kv("Warna / Size", `${safe(b.warna || "-")} / ${safe(b.size || "-")}`)}
             ${kv("Jumlah Operator", `<strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>`)}
@@ -1845,6 +1840,21 @@
       // Multi-pekerja: tampilkan list dengan qty
       return [...map.entries()].map(([n, q]) => `${safe(n)} ${q}`).join(", ");
     }
+
+    /**
+     * Ambil daftar pekerja packing dari packing_workers_json.
+     * Contoh: "Sandi 15, Mirwah 15".
+     */
+    function getPackingWorkersText(b) {
+      const workers = Array.isArray(b?.packing_workers) ? b.packing_workers : [];
+      if (!workers.length) return "";
+      const satuan = b.satuan || "";
+      return workers
+        .filter(w => String(w.name || "").trim())
+        .map(w => `${safe(w.name)} ${Number(w.qty || 0)} ${safe(satuan)}`)
+        .join(", ");
+    }
+
 
     function detailActions(b) {
       if (b.status === "DIPECAH" || b.is_parent_split) {
@@ -1903,11 +1913,93 @@
       return "";
     }
 
+
+    function packingWorkerRow(name = "", qty = "") {
+      return `
+        <div class="worker-row packing-worker-row">
+          <div>
+            <label>Nama Pekerja Packing <span class="required">*</span></label>
+            <input class="packing-worker-name" placeholder="Contoh: Sandi" value="${safe(name)}" oninput="updatePackingWorkerTotal()">
+          </div>
+          <div>
+            <label>Qty <span class="required">*</span></label>
+            <input class="packing-worker-qty" type="number" step="any" min="0" placeholder="0" value="${safe(qty)}" oninput="updatePackingWorkerTotal()">
+          </div>
+          <button type="button" class="btn-danger btn-sm" onclick="this.closest('.packing-worker-row').remove(); updatePackingWorkerTotal();">×</button>
+        </div>
+      `;
+    }
+
+    function addPackingWorkerRow() {
+      const box = document.getElementById("packingWorkersBox");
+      if (!box) return;
+      box.insertAdjacentHTML("beforeend", packingWorkerRow());
+      updatePackingWorkerTotal();
+    }
+
+    function getPackingWorkerRows() {
+      return Array.from(document.querySelectorAll("#packingWorkersBox .packing-worker-row"));
+    }
+
+    function collectPackingWorkers() {
+      const rows = getPackingWorkerRows();
+      const workers = [];
+      let ok = true;
+
+      rows.forEach(row => {
+        const nameEl = row.querySelector(".packing-worker-name");
+        const qtyEl = row.querySelector(".packing-worker-qty");
+        const name = String(nameEl?.value || "").trim();
+        const qty = Number(qtyEl?.value || 0);
+
+        nameEl?.classList.remove("field-error");
+        qtyEl?.classList.remove("field-error");
+
+        if (!name) { nameEl?.classList.add("field-error"); ok = false; }
+        if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); ok = false; }
+        if (name && qty > 0) workers.push({ name, qty });
+      });
+
+      const target = Number(document.getElementById("packingWorkersBox")?.dataset.targetQty || 0);
+      const total = workers.reduce((s, w) => s + Number(w.qty || 0), 0);
+
+      if (!workers.length) {
+        alert("Minimal 1 pekerja packing wajib diisi.");
+        return null;
+      }
+      if (!ok) {
+        alert("Nama dan qty pekerja packing wajib diisi.");
+        return null;
+      }
+      if (Math.abs(total - target) > 0.0001) {
+        alert(`Total qty pekerja packing (${total}) harus sama dengan qty resmi bal (${target}).`);
+        return null;
+      }
+      return workers;
+    }
+
+    function updatePackingWorkerTotal() {
+      const box = document.getElementById("packingWorkersBox");
+      const totalBox = document.getElementById("packingWorkersTotal");
+      if (!box || !totalBox) return;
+
+      const target = Number(box.dataset.targetQty || 0);
+      const satuan = box.dataset.satuan || "";
+      const total = Array.from(box.querySelectorAll(".packing-worker-qty"))
+        .reduce((s, el) => s + Number(el.value || 0), 0);
+
+      totalBox.className = Math.abs(total - target) < 0.0001
+        ? "alert alert-success"
+        : "alert alert-warn";
+      totalBox.innerHTML = `<strong>Total pekerja:</strong> ${total} / ${target} ${safe(satuan)}`;
+    }
+
     async function openActionConfirm(bal_id, action) {
       const rule = ACTION_RULES.find(r => r.action === action);
       const bal = await apiGetBal(bal_id);
       document.getElementById("actionTitle").textContent = rule.label;
       const needReason = ["Owner", "Admin Produksi"].includes(currentUser.role);
+
       let qtyHtml = "";
       if (action === "VERIFIKASI_QTY") {
         qtyHtml = `
@@ -1917,12 +2009,11 @@
           <div class="form-group"><label>Catatan Selisih / Verifikasi</label><textarea id="verifyQtyNote"></textarea></div>
         `;
       }
+
       // Field nama pekerja obras: hanya tampil untuk akun Obras.
       // Owner/Admin tidak perlu isi (mereka supervisor, bukan yang ngerjain).
       let obrasHtml = "";
       if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
-        // SELESAI_OBRAS: input dikosongkan supaya operator harus aktif mengetik kalau orangnya beda.
-        // Kalau dibiarkan kosong → nama dari MULAI_OBRAS dipertahankan.
         const hint = action === "SELESAI_OBRAS" && bal.obras_by
           ? `Sudah tercatat dimulai oleh <strong>${safe(bal.obras_by)}</strong>. Kosongkan jika orangnya sama, isi jika beda (ganti shift).`
           : `Nama tukang obras yang ngerjain bal ini.`;
@@ -1934,15 +2025,35 @@
           </div>
         `;
       }
+
+      // Packing multi-pekerja: total qty pekerja wajib sama dengan qty resmi bal.
+      let packingHtml = "";
+      if (action === "SELESAI_PACKING") {
+        const qtyTarget = officialQty(bal);
+        packingHtml = `
+          <div class="alert alert-info">
+            <strong>Input pekerja packing.</strong><br>
+            Total qty pekerja wajib = <strong>${qtyTarget} ${safe(bal.satuan || "")}</strong>.
+          </div>
+          <div id="packingWorkersBox" data-target-qty="${qtyTarget}" data-satuan="${safe(bal.satuan || "")}">
+            ${packingWorkerRow()}
+          </div>
+          <button type="button" class="btn-outline btn-sm" onclick="addPackingWorkerRow()">+ Tambah Pekerja Packing</button>
+          <div id="packingWorkersTotal" class="alert alert-warn" style="margin-top:10px">Total pekerja: 0 / ${qtyTarget} ${safe(bal.satuan || "")}</div>
+        `;
+      }
+
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">Status akan berubah: <strong>${statusText(rule.from)}</strong> → <strong>${statusText(rule.to)}</strong></div>
         ${qtyHtml}
         ${obrasHtml}
+        ${packingHtml}
         <div class="form-group"><label>Catatan ${needReason ? '<span class="required">* wajib untuk Owner/Admin</span>' : '(opsional)'}</label><textarea id="actionNote"></textarea></div>
         <button class="btn-success btn-block" onclick="confirmUpdateStatus('${bal_id}','${action}')">Konfirmasi</button>
       `;
       document.getElementById("actionModal").classList.add("show");
       if (action === "VERIFIKASI_QTY") previewVerifyQty(bal_id);
+      if (action === "SELESAI_PACKING") updatePackingWorkerTotal();
     }
 
     async function previewVerifyQty(bal_id) {
@@ -1979,11 +2090,20 @@
           }
           if (wName) payload.worker_name = wName;
         }
+        // Packing multi-pekerja
+        if (action === "SELESAI_PACKING") {
+          const packingWorkers = collectPackingWorkers();
+          if (!packingWorkers) return;
+          payload.packing_workers = packingWorkers;
+        }
         await apiUpdateStatus(payload);
         closeModal("actionModal");
         closeModal("detailModal");
-        renderList(); renderDashboard(); renderGlobalHistory();
-        openDetail(bal_id);
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
       } catch (e) { alert(e.message); }
     }
 
@@ -3023,9 +3143,17 @@
        Owner edit tarif via tabel di tab HR → API auto-propagate.
        ============================================================ */
 
+
+    function hrSubLabel(sub) {
+      if (sub === "obras") return "Obras";
+      if (sub === "setting") return "Setting";
+      if (sub === "packing") return "Packing";
+      return sub || "-";
+    }
+
     function switchHrSub(sub) {
       currentHrSub = sub;
-      ["obras", "setting"].forEach(s => {
+      ["obras", "setting", "packing"].forEach(s => {
         const btn = document.getElementById(`hrSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
         if (!btn) return;
         if (s === sub) {
@@ -3100,14 +3228,14 @@
         if (rekapEl) {
           rekapEl.innerHTML = rekapArr.length
             ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th><th>Total Borongan</th></tr></thead><tbody>${rekapArr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td><td><strong>${rupiah(r.total)}</strong></td></tr>`).join("")}</tbody></table></div>`
-            : `<div class="empty">Belum ada data borongan untuk ${currentHrSub === "obras" ? "Obras" : "Setting"}.</div>`;
+            : `<div class="empty">Belum ada data borongan untuk ${hrSubLabel(currentHrSub)}.</div>`;
         }
 
         const tbody = document.getElementById("hrRows");
         const mobile = document.getElementById("hrMobile");
         if (!rows.length) {
-          if (tbody) tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Belum ada pekerjaan ${currentHrSub === "obras" ? "Obras" : "Setting"}. Data otomatis muncul saat bal mencapai SELESAI_PACKING.</div></td></tr>`;
-          if (mobile) mobile.innerHTML = `<div class="empty">Belum ada pekerjaan ${currentHrSub === "obras" ? "Obras" : "Setting"}.</div>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Belum ada pekerjaan ${hrSubLabel(currentHrSub)}. Data otomatis muncul saat bal mencapai SELESAI_PACKING.</div></td></tr>`;
+          if (mobile) mobile.innerHTML = `<div class="empty">Belum ada pekerjaan ${hrSubLabel(currentHrSub)}.</div>`;
           return;
         }
         const fotoCell = (foto, balId) => foto
