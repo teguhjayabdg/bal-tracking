@@ -247,6 +247,7 @@
       color: #000;
       overflow: hidden;
       box-sizing: border-box;
+      text-transform: uppercase;
     }
 
     .label-final-title {
@@ -309,12 +310,12 @@
 
     .label-qr #qrLabel canvas,
     .label-qr #qrLabel img {
-      width: 18mm !important;
-      height: 18mm !important;
+      width: 14mm !important;
+      height: 14mm !important;
     }
 
     .label-qr-id {
-      font-size: 3.8pt;
+      font-size: 3.4pt;
       line-height: 1;
       margin-top: 0.5mm;
       font-family: Arial, Helvetica, sans-serif;
@@ -328,15 +329,15 @@
       border-radius: 2mm;
       margin-top: 1.8mm;
       padding: 1mm;
-      font-size: 5pt;
-      line-height: 1.1;
+      font-size: 5.6pt;
+      line-height: 1.12;
       box-sizing: border-box;
       overflow: visible;
     }
 
     .label-workers-title {
       text-align: center;
-      font-size: 5.4pt;
+      font-size: 5.8pt;
       font-weight: 800;
       padding-bottom: 0.6mm;
       margin-bottom: 0.6mm;
@@ -345,7 +346,7 @@
 
     .label-worker-row {
       display: grid;
-      grid-template-columns: 9mm 1fr;
+      grid-template-columns: 10mm 1fr;
       gap: 0.5mm;
       margin-bottom: 0.65mm;
     }
@@ -382,6 +383,8 @@
       font-family: Arial, Helvetica, sans-serif;
       color: #000;
       overflow: hidden;
+      box-sizing: border-box;
+      text-transform: uppercase;
     }
 
     .ticket-title {
@@ -439,8 +442,8 @@
 
     .ticket-qr #qrLabel canvas,
     .ticket-qr #qrLabel img {
-      width: 16mm !important;
-      height: 16mm !important;
+      width: 12.5mm !important;
+      height: 12.5mm !important;
     }
 
     .ticket-qr-id {
@@ -456,7 +459,7 @@
       border-radius: 2mm;
       margin-top: 1.2mm;
       padding: 0.9mm;
-      font-size: 4.8pt;
+      font-size: 5pt;
       line-height: 1.08;
     }
 
@@ -480,7 +483,7 @@
       display: grid;
       grid-template-columns: 11mm 1fr;
       gap: 0.8mm;
-      font-size: 4.8pt;
+      font-size: 5pt;
       line-height: 1.08;
       margin-bottom: 0.55mm;
     }
@@ -956,7 +959,7 @@
 
   <!-- MODALS -->
   <div class="modal" id="detailModal"><div class="modal-content"><div class="modal-head"><strong>Detail Bal</strong><button class="close-btn" onclick="closeModal('detailModal')">×</button></div><div id="detailContent"></div></div></div>
-  <div class="modal" id="labelModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="labelModalTitle">Label Bal</strong><button class="close-btn" onclick="closeModal('labelModal')">×</button></div><div id="labelContent"></div><div class="actions"><button class="btn-success btn-block" onclick="window.print()">🖨 Print / Save PDF</button></div></div></div>
+  <div class="modal" id="labelModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="labelModalTitle">Label Bal</strong><button class="close-btn" onclick="closeModal('labelModal')">×</button></div><div id="labelContent"></div><div class="actions"><button class="btn-success btn-block" onclick="printCurrentLabel()">🖨 Print / Save PDF</button></div></div></div>
   <div class="modal" id="actionModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="actionTitle">Konfirmasi</strong><button class="close-btn" onclick="closeModal('actionModal')">×</button></div><div id="actionContent"></div></div></div>
   <div class="modal" id="editModal"><div class="modal-content"><div class="modal-head"><strong>Edit Bal 1x</strong><button class="close-btn" onclick="closeModal('editModal')">×</button></div><div id="editContent"></div></div></div>
   <div class="modal" id="outputModal"><div class="modal-content"><div class="modal-head"><strong>Label Plastik Baru / Output Setting</strong><button class="close-btn" onclick="closeModal('outputModal')">×</button></div><div id="outputContent"></div></div></div>
@@ -989,6 +992,10 @@
     let scanner = null;
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
+    let currentPrintMode = "label"; // label = 100x150, ticket = 100x50
+    // Persiapan nanti kalau label bal utama juga ganti ke kertas thermal 100 x 50.
+    // Untuk sekarang biarkan "100x150". Nanti cukup ubah jadi "100x50" lalu deploy ulang.
+    const LABEL_BAL_PRINT_SIZE = "100x150";
 
     const STATUS_ORDER = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
     const STATUS_LABEL = {
@@ -1446,6 +1453,8 @@
     function statusText(status) { return STATUS_LABEL[status] || String(status || "-").replaceAll("_", " "); }
     function statusBadge(status) { return `<span class="badge st-${status}">${statusText(status)}</span>`; }
     function safe(v) { return String(v ?? "").replace(/[&<>"]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s])); }
+    function cap(v) { return String(v ?? "").toLocaleUpperCase("id-ID"); }
+    function safeCap(v) { return safe(cap(v)); }
 
     function roleFocusStatuses(role = currentUser?.role) {
       if (["Owner", "Admin Produksi"].includes(role)) return null;
@@ -1481,6 +1490,415 @@
 
     function rupiah(n) { return "Rp" + Number(n || 0).toLocaleString("id-ID"); }
     function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+
+    function applyPrintMode(mode) {
+      currentPrintMode = mode === "ticket" ? "ticket" : "label";
+
+      let style = document.getElementById("dynamicPrintStyle");
+      if (!style) {
+        style = document.createElement("style");
+        style.id = "dynamicPrintStyle";
+        document.head.appendChild(style);
+      }
+
+      const isTicket = currentPrintMode === "ticket";
+      const isCompactLabel = !isTicket && LABEL_BAL_PRINT_SIZE === "100x50";
+      const pageSize = (isTicket || isCompactLabel) ? "100mm 50mm" : "100mm 150mm";
+      const pageHeight = (isTicket || isCompactLabel) ? "50mm" : "150mm";
+
+      const ticketCss = `
+  .label-area { display: none !important; }
+
+  .ticket-label-area {
+    display: block !important;
+    position: relative !important;
+    width: 96mm !important;
+    height: 46mm !important;
+    max-width: none !important;
+    margin: 2mm auto !important;
+    padding: 2mm !important;
+    border: 1.3px solid #111 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    text-transform: uppercase !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .ticket-title {
+    height: 5mm !important;
+    line-height: 4.5mm !important;
+    font-size: 8pt !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .ticket-grid {
+    display: grid !important;
+    grid-template-columns: 56mm 34mm !important;
+    gap: 1mm !important;
+    height: 35mm !important;
+  }
+
+  .ticket-main {
+    border-right: 1px solid #aaa !important;
+    padding-right: 1mm !important;
+    min-width: 0 !important;
+  }
+
+  .ticket-row {
+    display: grid !important;
+    grid-template-columns: 15mm 1fr !important;
+    align-items: start !important;
+    font-size: 5.6pt !important;
+    line-height: 1.05 !important;
+    margin-bottom: 0.85mm !important;
+  }
+
+  .ticket-row .v {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .ticket-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 34mm !important;
+    max-width: 34mm !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .ticket-qr { margin-top: 0.2mm !important; }
+
+  .ticket-qr #qrLabel canvas,
+  .ticket-qr #qrLabel img {
+    width: 12.5mm !important;
+    height: 12.5mm !important;
+  }
+
+  .ticket-qr-id {
+    font-size: 2.8pt !important;
+    word-break: break-all !important;
+  }
+
+  .ticket-workers {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    padding: 0.8mm !important;
+    margin-top: 0.6mm !important;
+    font-size: 4.8pt !important;
+    line-height: 1.06 !important;
+  }
+
+  .ticket-workers-title {
+    font-size: 5.1pt !important;
+    padding-bottom: 0.4mm !important;
+    margin-bottom: 0.4mm !important;
+  }
+
+  .ticket-worker-row {
+    display: grid !important;
+    grid-template-columns: 10mm 1fr !important;
+    gap: 0.4mm !important;
+    font-size: 4.5pt !important;
+    line-height: 1.04 !important;
+    margin-bottom: 0.35mm !important;
+  }
+
+  .ticket-worker-row .name {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-weight: 800 !important;
+  }
+
+  .ticket-worker-row .qty {
+    text-align: right !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+  }
+`;
+
+      const labelTallCss = `
+  .ticket-label-area { display: none !important; }
+
+  .label-area {
+    display: block !important;
+    position: relative !important;
+    width: 96mm !important;
+    height: 146mm !important;
+    max-width: none !important;
+    margin: 2mm auto !important;
+    padding: 2mm !important;
+    border: 1.3px solid #111 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    text-transform: uppercase !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .label-final-grid {
+    display: grid !important;
+    grid-template-columns: 52mm 37mm !important;
+    gap: 1mm !important;
+    height: 39mm !important;
+  }
+
+  .label-main {
+    border-right: 1px solid #aaa !important;
+    padding-right: 1mm !important;
+    min-width: 0 !important;
+  }
+
+  .label-main-row {
+    display: grid !important;
+    grid-template-columns: 16mm 1fr !important;
+    align-items: start !important;
+    font-size: 6.7pt !important;
+    line-height: 1.12 !important;
+    margin-bottom: 1.45mm !important;
+  }
+
+  .label-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 37mm !important;
+    max-width: 37mm !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .label-qr { margin-top: 0.2mm !important; }
+
+  .label-qr #qrLabel canvas,
+  .label-qr #qrLabel img {
+    width: 14mm !important;
+    height: 14mm !important;
+  }
+
+  .label-qr-id {
+    font-size: 3.3pt !important;
+    word-break: break-all !important;
+  }
+
+  .label-workers {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    padding: 1mm !important;
+    font-size: 5.6pt !important;
+    line-height: 1.12 !important;
+  }
+
+  .label-workers-title {
+    font-size: 5.8pt !important;
+    padding-bottom: 0.6mm !important;
+    margin-bottom: 0.6mm !important;
+  }
+
+  .label-worker-row {
+    display: grid !important;
+    grid-template-columns: 10mm 1fr !important;
+    gap: 0.5mm !important;
+    margin-bottom: 0.65mm !important;
+  }
+
+  .label-worker-row .v {
+    word-break: break-word !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-align: right !important;
+  }
+
+  .label-worker-row.setting .v {
+    font-size: 4.8pt !important;
+    line-height: 1.05 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+  }
+`;
+
+      const labelCompactCss = `
+  .ticket-label-area { display: none !important; }
+
+  .label-area {
+    display: block !important;
+    position: relative !important;
+    width: 96mm !important;
+    height: 46mm !important;
+    max-width: none !important;
+    margin: 2mm auto !important;
+    padding: 2mm !important;
+    border: 1.3px solid #111 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    text-transform: uppercase !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .label-final-title {
+    height: 5mm !important;
+    line-height: 4.5mm !important;
+    font-size: 8pt !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .label-final-grid {
+    display: grid !important;
+    grid-template-columns: 56mm 34mm !important;
+    gap: 1mm !important;
+    height: 35mm !important;
+  }
+
+  .label-main {
+    border-right: 1px solid #aaa !important;
+    padding-right: 1mm !important;
+    min-width: 0 !important;
+  }
+
+  .label-main-row {
+    display: grid !important;
+    grid-template-columns: 15mm 1fr !important;
+    align-items: start !important;
+    font-size: 5.4pt !important;
+    line-height: 1.03 !important;
+    margin-bottom: 0.72mm !important;
+  }
+
+  .label-main-row .v {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .label-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 34mm !important;
+    max-width: 34mm !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .label-qr { margin-top: 0.2mm !important; }
+
+  .label-qr #qrLabel canvas,
+  .label-qr #qrLabel img {
+    width: 12.5mm !important;
+    height: 12.5mm !important;
+  }
+
+  .label-qr-id {
+    font-size: 2.8pt !important;
+    word-break: break-all !important;
+  }
+
+  .label-workers {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    padding: 0.8mm !important;
+    margin-top: 0.6mm !important;
+    font-size: 4.8pt !important;
+    line-height: 1.06 !important;
+  }
+
+  .label-workers-title {
+    font-size: 5.1pt !important;
+    padding-bottom: 0.4mm !important;
+    margin-bottom: 0.4mm !important;
+  }
+
+  .label-worker-row {
+    display: grid !important;
+    grid-template-columns: 10mm 1fr !important;
+    gap: 0.4mm !important;
+    margin-bottom: 0.35mm !important;
+  }
+
+  .label-worker-row .v,
+  .label-worker-row.setting .v {
+    font-size: 4.5pt !important;
+    line-height: 1.04 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+    text-align: right !important;
+  }
+`;
+
+      style.textContent = `
+@media print {
+  @page {
+    size: ${pageSize};
+    margin: 0;
+  }
+
+  html,
+  body,
+  #labelModal,
+  #labelModal .modal-content,
+  #labelContent {
+    width: 100mm !important;
+    height: ${pageHeight} !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  body > * { display: none !important; }
+
+  #labelModal {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    transform: none !important;
+  }
+
+  #labelModal .modal-content {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    max-width: none !important;
+    transform: none !important;
+  }
+
+  #labelModal .modal-head,
+  #labelModal .actions { display: none !important; }
+
+  ${isTicket ? ticketCss : (isCompactLabel ? labelCompactCss : labelTallCss)}
+}
+`;
+    }
+
+    function printCurrentLabel() {
+      const isTicket = !!document.querySelector("#labelContent .ticket-label-area");
+      applyPrintMode(isTicket ? "ticket" : "label");
+      window.print();
+    }
 
     /**
      * Qty resmi bal = qty hasil verifikasi checker (kalau sudah diverifikasi),
@@ -2959,7 +3377,8 @@ Alasan: ${cleanReason}`)) return;
       const bukuText = labelBukuText(b);
 
       const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
-      if (titleEl) titleEl.textContent = "Tiket Packing";
+      if (titleEl) titleEl.textContent = "TIKET PACKING";
+      applyPrintMode("ticket");
 
       document.getElementById("labelContent").innerHTML = `
         <div class="ticket-label-area" id="printLabelArea">
@@ -2967,14 +3386,14 @@ Alasan: ${cleanReason}`)) return;
 
           <div class="ticket-grid">
             <div class="ticket-main">
-              <div class="ticket-row"><div class="k">Ticket</div><div class="v">${safe(out.ticket_id)}</div></div>
-              <div class="ticket-row"><div class="k">Bal</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Qty</div><div class="v"><b>${safe(qtyText)}</b></div></div>
+              <div class="ticket-row"><div class="k">TICKET</div><div class="v">${safe(out.ticket_id)}</div></div>
+              <div class="ticket-row"><div class="k">BAL</div><div class="v">${safe(b.bal_id)}</div></div>
+              <div class="ticket-row"><div class="k">PO/NO</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="ticket-row"><div class="k">BUKU</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="ticket-row"><div class="k">LINE/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="ticket-row"><div class="k">JENIS</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="ticket-row"><div class="k">WARNA/SIZE</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="ticket-row"><div class="k">QTY</div><div class="v"><b>${safe(qtyText)}</b></div></div>
             </div>
 
             <div class="ticket-right">
@@ -2986,15 +3405,15 @@ Alasan: ${cleanReason}`)) return;
               <div class="ticket-workers">
                 <div class="ticket-workers-title">PEKERJA</div>
                 <div class="ticket-worker-row">
-                  <div class="name">Op Mesin</div>
+                  <div class="name">OP MESIN</div>
                   <div class="qty">${safe(b.operator_mesin || "-")}</div>
                 </div>
                 <div class="ticket-worker-row">
-                  <div class="name">P Obras</div>
+                  <div class="name">P OBRAS</div>
                   <div class="qty">${safe(b.obras_by || "-")}</div>
                 </div>
                 <div class="ticket-worker-row setting-line">
-                  <div class="name">Setting</div>
+                  <div class="name">SETTING</div>
                   <div class="qty">${settingText || "-"}</div>
                 </div>
               </div>
@@ -3005,7 +3424,7 @@ Alasan: ${cleanReason}`)) return;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: out.ticket_id, width: 96, height: 96 });
+      new QRCode(qr, { text: out.ticket_id, width: 84, height: 84 });
       document.getElementById("labelModal").classList.add("show");
     }
 
@@ -3124,7 +3543,8 @@ Alasan: ${cleanReason}`)) return;
       const jumlahText = labelJumlahText(b);
 
       const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
-      if (titleEl) titleEl.textContent = "Label Bal";
+      if (titleEl) titleEl.textContent = "LABEL BAL";
+      applyPrintMode("label");
 
       document.getElementById("labelContent").innerHTML = `
         <div class="label-area" id="printLabelArea">
@@ -3135,13 +3555,13 @@ Alasan: ${cleanReason}`)) return;
           <div class="label-final-grid">
             <div class="label-main">
               <div class="label-main-row"><div class="k">ID</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
-              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
+              <div class="label-main-row"><div class="k">PO/NO</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="label-main-row"><div class="k">BUKU</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="label-main-row"><div class="k">TANGGAL</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
+              <div class="label-main-row"><div class="k">LINE/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="label-main-row"><div class="k">JENIS</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="label-main-row"><div class="k">WARNA/SIZE</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="label-main-row"><div class="k">JUMLAH</div><div class="v">${safe(jumlahText)}</div></div>
             </div>
 
             <div class="label-right">
@@ -3152,9 +3572,9 @@ Alasan: ${cleanReason}`)) return;
 
               <div class="label-workers">
                 <div class="label-workers-title">PEKERJA</div>
-                <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
-                <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
-                <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
+                <div class="label-worker-row"><div class="k">OP MESIN</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
+                <div class="label-worker-row"><div class="k">P OBRAS</div><div class="v">${safe(b.obras_by || "-")}</div></div>
+                <div class="label-worker-row setting"><div class="k">P SETTING</div><div class="v">${safe(settingText || "-")}</div></div>
               </div>
             </div>
           </div>
@@ -3163,7 +3583,7 @@ Alasan: ${cleanReason}`)) return;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: b.bal_id, width: 120, height: 120 });
+      new QRCode(qr, { text: b.bal_id, width: 90, height: 90 });
       document.getElementById("labelModal").classList.add("show");
     }
 
