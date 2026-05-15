@@ -235,7 +235,6 @@
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
     /* LABEL BAL FINAL 100 x 150 mm */
-    /* LABEL BAL FINAL 100 x 150 mm */
     .label-area {
       width: 96mm;
       height: 146mm;
@@ -248,7 +247,6 @@
       color: #000;
       overflow: hidden;
       box-sizing: border-box;
-      text-transform: uppercase;
     }
 
     .label-final-title {
@@ -349,9 +347,9 @@
 
     .label-worker-row {
       display: grid;
-      grid-template-columns: 9.8mm 1fr;
-      gap: 0.55mm;
-      margin-bottom: 0.72mm;
+      grid-template-columns: 10mm 1fr;
+      gap: 0.5mm;
+      margin-bottom: 0.65mm;
     }
 
     .label-worker-row .k {
@@ -376,7 +374,6 @@
       overflow: visible;
     }
 
-
     /* TIKET PACKING FINAL 100 x 50 mm */
     .ticket-label-area {
       width: 100mm;
@@ -390,7 +387,6 @@
       color: #000;
       overflow: hidden;
       box-sizing: border-box;
-      text-transform: uppercase;
     }
 
     .ticket-title {
@@ -607,32 +603,45 @@
 
   .label-final-grid {
     display: grid !important;
-    grid-template-columns: 52mm 37mm !important;
-    gap: 1mm !important;
+    grid-template-columns: 53.5mm 35.5mm !important;
+    gap: 0.4mm !important;
     height: 39mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 1mm !important;
+    padding-right: 0.6mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 16mm 1fr !important;
+    grid-template-columns: 13.8mm 1fr !important;
     align-items: start !important;
-    font-size: 6.7pt !important;
-    line-height: 1.12 !important;
+    line-height: 1.1 !important;
     margin-bottom: 1.45mm !important;
+  }
+
+  .label-main-row .k {
+    font-size: 5.7pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.01em !important;
+  }
+
+  .label-main-row .v {
+    font-size: 6.7pt !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .label-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 37mm !important;
-    max-width: 37mm !important;
+    width: 35.5mm !important;
+    max-width: 35.5mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
@@ -681,6 +690,7 @@
     white-space: normal !important;
     overflow: visible !important;
     text-align: right !important;
+    font-size: 5.4pt !important;
   }
 
   .label-worker-row.setting .v {
@@ -1526,7 +1536,6 @@
     border: 1.3px solid #111 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    text-transform: uppercase !important;
     page-break-before: avoid !important;
     page-break-after: avoid !important;
     page-break-inside: avoid !important;
@@ -1646,7 +1655,6 @@
     border: 1.3px solid #111 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    text-transform: uppercase !important;
     page-break-before: avoid !important;
     page-break-after: avoid !important;
     page-break-inside: avoid !important;
@@ -1662,7 +1670,7 @@
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.7mm !important;
+    padding-right: 0.6mm !important;
     min-width: 0 !important;
   }
 
@@ -1741,9 +1749,9 @@
   }
 
   .label-worker-row .k {
+    font-size: 5.2pt !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
-    font-size: 5.2pt !important;
   }
 
   .label-worker-row .v {
@@ -1761,9 +1769,9 @@
     word-break: break-word !important;
     overflow: visible !important;
   }
-`
+`;
 
-  const labelCompactCss = `
+      const labelCompactCss = `
   .ticket-label-area { display: none !important; }
 
   .label-area {
@@ -1777,7 +1785,6 @@
     border: 1.3px solid #111 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    text-transform: uppercase !important;
     page-break-before: avoid !important;
     page-break-after: avoid !important;
     page-break-inside: avoid !important;
@@ -1820,6 +1827,9 @@
 
   .label-main-row .v {
     font-size: 5.35pt !important;
+  }
+
+  .label-main-row .v {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -1858,45 +1868,33 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    margin-top: 0.55mm !important;
-    padding: 0.75mm !important;
-    font-size: 4.75pt !important;
+    padding: 0.8mm !important;
+    margin-top: 0.6mm !important;
+    font-size: 4.8pt !important;
     line-height: 1.06 !important;
   }
 
   .label-workers-title {
-    font-size: 4.95pt !important;
+    font-size: 5.1pt !important;
     padding-bottom: 0.4mm !important;
     margin-bottom: 0.4mm !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 8.8mm 1fr !important;
+    grid-template-columns: 10mm 1fr !important;
     gap: 0.4mm !important;
-    margin-bottom: 0.36mm !important;
+    margin-bottom: 0.35mm !important;
   }
 
-  .label-worker-row .k {
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-    font-size: 4.45pt !important;
-  }
-
-  .label-worker-row .v {
-    word-break: break-word !important;
+  .label-worker-row .v,
+  .label-worker-row.setting .v {
+    font-size: 4.5pt !important;
+    line-height: 1.04 !important;
     white-space: normal !important;
+    word-break: break-word !important;
     overflow: visible !important;
     text-align: right !important;
-    font-size: 4.55pt !important;
-  }
-
-  .label-worker-row.setting .v {
-    font-size: 4pt !important;
-    line-height: 1.02 !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow: visible !important;
   }
 `;
 
@@ -3432,22 +3430,22 @@ Alasan: ${cleanReason}`)) return;
       const bukuText = labelBukuText(b);
 
       const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
-      if (titleEl) titleEl.textContent = "TIKET PACKING";
+      if (titleEl) titleEl.textContent = "Tiket Packing";
       applyPrintMode("ticket");
 
       document.getElementById("labelContent").innerHTML = `
         <div class="ticket-label-area" id="printLabelArea">
-          <div class="ticket-title">TIKET PACKING</div>
+          <div class="ticket-title">Tiket Packing</div>
 
           <div class="ticket-grid">
             <div class="ticket-main">
               <div class="ticket-row"><div class="k">TICKET</div><div class="v">${safe(out.ticket_id)}</div></div>
               <div class="ticket-row"><div class="k">BAL</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="ticket-row"><div class="k">PO/NO</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="ticket-row"><div class="k">BUKU</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="ticket-row"><div class="k">LINE/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="ticket-row"><div class="k">JENIS</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="ticket-row"><div class="k">WARNA/SIZE</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
               <div class="ticket-row"><div class="k">QTY</div><div class="v"><b>${safe(qtyText)}</b></div></div>
             </div>
 
@@ -3458,13 +3456,13 @@ Alasan: ${cleanReason}`)) return;
               </div>
 
               <div class="ticket-workers">
-                <div class="ticket-workers-title">PEKERJA</div>
+                <div class="ticket-workers-title">Pekerja</div>
                 <div class="ticket-worker-row">
-                  <div class="name">OP MESIN</div>
+                  <div class="name">Op Mesin</div>
                   <div class="qty">${safe(b.operator_mesin || "-")}</div>
                 </div>
                 <div class="ticket-worker-row">
-                  <div class="name">P OBRAS</div>
+                  <div class="name">P Obras</div>
                   <div class="qty">${safe(b.obras_by || "-")}</div>
                 </div>
                 <div class="ticket-worker-row setting-line">
@@ -3598,7 +3596,7 @@ Alasan: ${cleanReason}`)) return;
       const jumlahText = labelJumlahText(b);
 
       const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
-      if (titleEl) titleEl.textContent = "LABEL BAL";
+      if (titleEl) titleEl.textContent = "Label Bal";
       applyPrintMode("label");
 
       document.getElementById("labelContent").innerHTML = `
@@ -3610,13 +3608,13 @@ Alasan: ${cleanReason}`)) return;
           <div class="label-final-grid">
             <div class="label-main">
               <div class="label-main-row"><div class="k">ID</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="label-main-row"><div class="k">PO/NO</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="label-main-row"><div class="k">BUKU</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="label-main-row"><div class="k">TANGGAL</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
-              <div class="label-main-row"><div class="k">LINE/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="label-main-row"><div class="k">JENIS</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="label-main-row"><div class="k">WARNA/SIZE</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
-              <div class="label-main-row"><div class="k">JUMLAH</div><div class="v">${safe(jumlahText)}</div></div>
+              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
+              <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
+              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
             </div>
 
             <div class="label-right">
@@ -3626,10 +3624,10 @@ Alasan: ${cleanReason}`)) return;
               </div>
 
               <div class="label-workers">
-                <div class="label-workers-title">PEKERJA</div>
-                <div class="label-worker-row"><div class="k">OP MESIN</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
-                <div class="label-worker-row"><div class="k">P OBRAS</div><div class="v">${safe(b.obras_by || "-")}</div></div>
-                <div class="label-worker-row setting"><div class="k">P SETTING</div><div class="v">${safe(settingText || "-")}</div></div>
+                <div class="label-workers-title">Pekerja</div>
+                <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
+                <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
+                <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
               </div>
             </div>
           </div>
