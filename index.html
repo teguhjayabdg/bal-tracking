@@ -235,6 +235,7 @@
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
     /* LABEL BAL FINAL 100 x 150 mm */
+    /* LABEL BAL FINAL 100 x 150 mm */
     .label-area {
       width: 96mm;
       height: 146mm;
@@ -262,62 +263,64 @@
 
     .label-final-grid {
       display: grid;
-      grid-template-columns: 52mm 37mm;
-      gap: 1mm;
+      grid-template-columns: 53.5mm 35.5mm;
+      gap: 0.4mm;
       height: 39mm;
     }
 
     .label-main {
       border-right: 1px solid #aaa;
-      padding-right: 1mm;
+      padding-right: 0.7mm;
       min-width: 0;
     }
 
     .label-main-row {
       display: grid;
-      grid-template-columns: 16mm 1fr;
+      grid-template-columns: 13.8mm 1fr;
       align-items: start;
-      font-size: 6.7pt;
-      line-height: 1.12;
+      line-height: 1.1;
       margin-bottom: 1.45mm;
     }
 
     .label-main-row .k {
       font-weight: 800;
       white-space: nowrap;
+      font-size: 5.7pt;
+      letter-spacing: .01em;
     }
 
     .label-main-row .v {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-size: 6.7pt;
     }
 
     .label-right {
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      width: 37mm;
-      max-width: 37mm;
+      width: 35.5mm;
+      max-width: 35.5mm;
       min-width: 0;
       overflow: visible;
     }
 
     .label-qr {
       text-align: center;
-      margin-top: 0.5mm;
+      margin-top: 0;
     }
 
     .label-qr #qrLabel canvas,
     .label-qr #qrLabel img {
-      width: 14mm !important;
-      height: 14mm !important;
+      width: 13mm !important;
+      height: 13mm !important;
     }
 
     .label-qr-id {
-      font-size: 3.4pt;
+      font-size: 2.9pt;
       line-height: 1;
-      margin-top: 0.5mm;
+      margin-top: 0.15mm;
       font-family: Arial, Helvetica, sans-serif;
       word-break: break-all;
     }
@@ -327,9 +330,9 @@
       max-width: 100%;
       border: 1px solid #111;
       border-radius: 2mm;
-      margin-top: 1.8mm;
+      margin-top: 0.85mm;
       padding: 1mm;
-      font-size: 5.6pt;
+      font-size: 5.7pt;
       line-height: 1.12;
       box-sizing: border-box;
       overflow: visible;
@@ -337,23 +340,24 @@
 
     .label-workers-title {
       text-align: center;
-      font-size: 5.8pt;
+      font-size: 5.9pt;
       font-weight: 800;
-      padding-bottom: 0.6mm;
-      margin-bottom: 0.6mm;
+      padding-bottom: 0.7mm;
+      margin-bottom: 0.7mm;
       border-bottom: 1px solid #111;
     }
 
     .label-worker-row {
       display: grid;
-      grid-template-columns: 10mm 1fr;
-      gap: 0.5mm;
-      margin-bottom: 0.65mm;
+      grid-template-columns: 9.8mm 1fr;
+      gap: 0.55mm;
+      margin-bottom: 0.72mm;
     }
 
     .label-worker-row .k {
       font-weight: 800;
       white-space: nowrap;
+      font-size: 5.2pt;
     }
 
     .label-worker-row .v {
@@ -361,15 +365,17 @@
       white-space: normal;
       overflow: visible;
       text-align: right;
+      font-size: 5.4pt;
     }
 
     .label-worker-row.setting .v {
-      font-size: 4.5pt;
+      font-size: 4.8pt;
       line-height: 1.05;
       white-space: normal;
       word-break: break-word;
       overflow: visible;
     }
+
 
     /* TIKET PACKING FINAL 100 x 50 mm */
     .ticket-label-area {
@@ -1649,46 +1655,64 @@
 
   .label-final-grid {
     display: grid !important;
-    grid-template-columns: 52mm 37mm !important;
-    gap: 1mm !important;
+    grid-template-columns: 53.5mm 35.5mm !important;
+    gap: 0.4mm !important;
     height: 39mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 1mm !important;
+    padding-right: 0.7mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 16mm 1fr !important;
+    grid-template-columns: 13.8mm 1fr !important;
     align-items: start !important;
-    font-size: 6.7pt !important;
-    line-height: 1.12 !important;
+    line-height: 1.1 !important;
     margin-bottom: 1.45mm !important;
+  }
+
+  .label-main-row .k {
+    font-size: 5.7pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.01em !important;
+  }
+
+  .label-main-row .v {
+    font-size: 6.7pt !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .label-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 37mm !important;
-    max-width: 37mm !important;
+    width: 35.5mm !important;
+    max-width: 35.5mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
-  .label-qr { margin-top: 0.2mm !important; }
+  .label-qr {
+    margin-top: 0 !important;
+    text-align: center !important;
+  }
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 14mm !important;
-    height: 14mm !important;
+    width: 13mm !important;
+    height: 13mm !important;
   }
 
   .label-qr-id {
-    font-size: 3.3pt !important;
+    font-size: 2.9pt !important;
+    line-height: 1 !important;
+    margin-top: 0.15mm !important;
     word-break: break-all !important;
   }
 
@@ -1697,22 +1721,29 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
+    margin-top: 0.85mm !important;
     padding: 1mm !important;
-    font-size: 5.6pt !important;
+    font-size: 5.7pt !important;
     line-height: 1.12 !important;
   }
 
   .label-workers-title {
-    font-size: 5.8pt !important;
-    padding-bottom: 0.6mm !important;
-    margin-bottom: 0.6mm !important;
+    font-size: 5.9pt !important;
+    padding-bottom: 0.7mm !important;
+    margin-bottom: 0.7mm !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 10mm 1fr !important;
-    gap: 0.5mm !important;
-    margin-bottom: 0.65mm !important;
+    grid-template-columns: 9.8mm 1fr !important;
+    gap: 0.55mm !important;
+    margin-bottom: 0.72mm !important;
+  }
+
+  .label-worker-row .k {
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    font-size: 5.2pt !important;
   }
 
   .label-worker-row .v {
@@ -1720,6 +1751,7 @@
     white-space: normal !important;
     overflow: visible !important;
     text-align: right !important;
+    font-size: 5.4pt !important;
   }
 
   .label-worker-row.setting .v {
@@ -1729,9 +1761,9 @@
     word-break: break-word !important;
     overflow: visible !important;
   }
-`;
+`
 
-      const labelCompactCss = `
+  const labelCompactCss = `
   .ticket-label-area { display: none !important; }
 
   .label-area {
@@ -1761,27 +1793,33 @@
 
   .label-final-grid {
     display: grid !important;
-    grid-template-columns: 56mm 34mm !important;
-    gap: 1mm !important;
+    grid-template-columns: 58mm 32mm !important;
+    gap: 0.4mm !important;
     height: 35mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 1mm !important;
+    padding-right: 0.6mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 15mm 1fr !important;
+    grid-template-columns: 11.5mm 1fr !important;
     align-items: start !important;
-    font-size: 5.4pt !important;
     line-height: 1.03 !important;
     margin-bottom: 0.72mm !important;
   }
 
+  .label-main-row .k {
+    font-size: 4.8pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+
   .label-main-row .v {
+    font-size: 5.35pt !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -1791,22 +1829,27 @@
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 34mm !important;
-    max-width: 34mm !important;
+    width: 32mm !important;
+    max-width: 32mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
-  .label-qr { margin-top: 0.2mm !important; }
+  .label-qr {
+    margin-top: 0 !important;
+    text-align: center !important;
+  }
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 12.5mm !important;
-    height: 12.5mm !important;
+    width: 10.8mm !important;
+    height: 10.8mm !important;
   }
 
   .label-qr-id {
-    font-size: 2.8pt !important;
+    font-size: 2.4pt !important;
+    line-height: 1 !important;
+    margin-top: 0.1mm !important;
     word-break: break-all !important;
   }
 
@@ -1815,33 +1858,45 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    padding: 0.8mm !important;
-    margin-top: 0.6mm !important;
-    font-size: 4.8pt !important;
+    margin-top: 0.55mm !important;
+    padding: 0.75mm !important;
+    font-size: 4.75pt !important;
     line-height: 1.06 !important;
   }
 
   .label-workers-title {
-    font-size: 5.1pt !important;
+    font-size: 4.95pt !important;
     padding-bottom: 0.4mm !important;
     margin-bottom: 0.4mm !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 10mm 1fr !important;
+    grid-template-columns: 8.8mm 1fr !important;
     gap: 0.4mm !important;
-    margin-bottom: 0.35mm !important;
+    margin-bottom: 0.36mm !important;
   }
 
-  .label-worker-row .v,
+  .label-worker-row .k {
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    font-size: 4.45pt !important;
+  }
+
+  .label-worker-row .v {
+    word-break: break-word !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-align: right !important;
+    font-size: 4.55pt !important;
+  }
+
   .label-worker-row.setting .v {
-    font-size: 4.5pt !important;
-    line-height: 1.04 !important;
+    font-size: 4pt !important;
+    line-height: 1.02 !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
-    text-align: right !important;
   }
 `;
 
