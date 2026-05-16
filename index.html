@@ -1733,8 +1733,7 @@
       const dup = (existing || []).find(b => b.po_id === po_id && String(b.nomor_bal) === nomor_bal && String(b.no_mesin) === no_mesin && String(b.tanggal_buat || "").slice(0, 10) === today);
       if (dup && !confirm(`Peringatan: PO + No Bal + Mesin sudah ada hari ini (${dup.bal_id}). Tetap simpan?`)) return;
 
-      try {
-        // STEP 1: upload foto ke Drive dulu, dapat URL
+      // STEP 1: upload foto ke Drive dulu, dapat URL
         let fotoUrl = "";
         await withLoading("Upload foto...", async () => {
           const balIdPreview = generateBalId();
