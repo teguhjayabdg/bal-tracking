@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (FIX 8 - Label 100x78 QR Besar)</title>
+  <title>Bal Tracking 3.0 - Cloud (FIX 10 - Label 100x78 Readable QR)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -234,11 +234,10 @@
     .kv strong { font-size: 13px; }
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
-    /* LABEL & TIKET FINAL — DESAIN 100 x 78 mm
-       Catatan: saat ini kertas fisik masih boleh 100 x 150 mm.
-       Area label dibuat 96 x 74 mm agar aman dari potong kanan/kiri.
-       Nanti kalau ganti kertas 100 x 78, cukup ubah THERMAL_PAPER_SIZE di JS.
-    */
+    /* LABEL & TIKET THERMAL FINAL 100 x 78 mm
+       Kertas fisik sekarang boleh tetap 100 x 150 mm.
+       Isi label dibuat 100 x 78 mm di bagian atas agar nanti siap pindah ke 100 x 78.
+       Layout ini dibuat supaya ID, tanggal, warna, dan size tetap terbaca. */
     .label-area,
     .ticket-label-area {
       width: 96mm;
@@ -246,7 +245,7 @@
       max-width: none;
       margin: 2mm auto;
       background: white;
-      border: 1.5px solid #111;
+      border: 1.3px solid #111;
       padding: 2mm;
       font-family: Arial, Helvetica, sans-serif;
       color: #000;
@@ -257,65 +256,84 @@
     .label-final-title,
     .ticket-title {
       height: 8mm;
-      line-height: 7mm;
+      line-height: 7.2mm;
       text-align: center;
-      font-size: 18pt;
+      font-size: 14.2pt;
       font-weight: 900;
-      border-bottom: 1.4px solid #111;
-      margin-bottom: 2mm;
+      border-bottom: 1px solid #111;
+      margin-bottom: 1.2mm;
       text-transform: uppercase;
       letter-spacing: .02em;
     }
 
+    /* Bagian atas: data kiri, QR kanan. Pekerja pindah full-width di bawah */
     .label-final-grid,
     .ticket-grid {
       display: grid;
-      grid-template-columns: 61mm 29mm;
-      gap: 1.5mm;
-      height: 59mm;
+      grid-template-columns: 66mm 24mm;
+      gap: 2mm;
+      height: 45mm;
     }
 
     .label-main,
     .ticket-main {
-      border-right: 1.4px solid #111;
-      padding-right: 1.8mm;
+      border-right: 1px solid #111;
+      padding-right: 1.7mm;
       min-width: 0;
     }
 
     .label-main-row,
     .ticket-row {
       display: grid;
-      grid-template-columns: 22mm 1fr;
+      grid-template-columns: 18mm 1fr;
       align-items: start;
-      line-height: 1.14;
-      margin-bottom: 2.35mm;
+      line-height: 1.05;
+      margin-bottom: 0.95mm;
+      min-height: 3.45mm;
     }
 
     .label-main-row .k,
     .ticket-row .k {
       font-weight: 900;
       white-space: nowrap;
-      font-size: 10pt;
+      font-size: 7.7pt;
       letter-spacing: .01em;
     }
 
     .label-main-row .v,
     .ticket-row .v {
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 11.5pt;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: 8.45pt;
       font-weight: 800;
-      text-transform: uppercase;
+      min-width: 0;
+    }
+
+    .label-main-row .v.small-fit,
+    .ticket-row .v.small-fit {
+      font-size: 7.8pt;
+      letter-spacing: -0.02em;
+    }
+
+    .label-main-row .v.tiny-fit,
+    .ticket-row .v.tiny-fit {
+      font-size: 6.75pt;
+      letter-spacing: -0.035em;
+    }
+
+    .label-main-row .v.long-fit,
+    .ticket-row .v.long-fit {
+      font-size: 7.45pt;
+      letter-spacing: -0.025em;
     }
 
     .label-right,
     .ticket-right {
       display: flex;
       flex-direction: column;
-      align-items: stretch;
-      width: 29mm;
-      max-width: 29mm;
+      align-items: center;
+      justify-content: flex-start;
       min-width: 0;
       overflow: visible;
     }
@@ -324,18 +342,18 @@
     .ticket-qr {
       text-align: center;
       margin-top: 0;
+      width: 100%;
     }
 
     .label-qr #qrLabel canvas,
     .label-qr #qrLabel img,
     .ticket-qr #qrLabel canvas,
     .ticket-qr #qrLabel img {
-      width: 27mm !important;
-      height: 27mm !important;
-      image-rendering: pixelated;
+      width: 24mm !important;
+      height: 24mm !important;
+      display: inline-block !important;
     }
 
-    /* ID kecil di bawah QR sengaja disembunyikan agar QR bisa lebih besar */
     .label-qr-id,
     .ticket-qr-id {
       display: none !important;
@@ -344,63 +362,59 @@
     .label-workers,
     .ticket-workers {
       width: 100%;
-      max-width: 100%;
-      border: 1.4px solid #111;
+      border: 1px solid #111;
       border-radius: 2mm;
-      margin-top: 3mm;
-      padding: 1.4mm;
-      font-size: 7.7pt;
-      line-height: 1.18;
+      margin-top: 2mm;
+      padding: 1.15mm 1.8mm;
+      font-size: 7.4pt;
+      line-height: 1.12;
       box-sizing: border-box;
-      overflow: visible;
+      overflow: hidden;
     }
 
     .label-workers-title,
     .ticket-workers-title {
       text-align: center;
-      font-size: 10pt;
+      font-size: 8.2pt;
       font-weight: 900;
-      padding-bottom: 1mm;
-      margin-bottom: 1.4mm;
-      border-bottom: 1.2px solid #111;
+      padding-bottom: 0.65mm;
+      margin-bottom: 0.75mm;
+      border-bottom: 1px solid #111;
       text-transform: uppercase;
     }
 
     .label-worker-row,
     .ticket-worker-row {
       display: grid;
-      grid-template-columns: 12mm 1fr;
-      gap: 0.8mm;
-      margin-bottom: 1.35mm;
-      font-size: 7.5pt;
-      line-height: 1.12;
+      grid-template-columns: 22mm 1fr;
+      gap: 1.4mm;
+      margin-bottom: 0.65mm;
+      align-items: start;
     }
 
     .label-worker-row .k,
     .ticket-worker-row .name {
       font-weight: 900;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: 7.1pt;
     }
 
     .label-worker-row .v,
     .ticket-worker-row .qty {
+      font-size: 7.35pt;
+      font-weight: 800;
       word-break: break-word;
       white-space: normal;
       overflow: visible;
-      text-align: right;
-      font-weight: 800;
-      text-transform: uppercase;
+      text-align: left;
     }
 
     .label-worker-row.setting .v,
     .ticket-worker-row.setting-line .qty {
-      font-size: 7pt;
-      line-height: 1.08;
-      white-space: normal;
-      word-break: break-word;
-      overflow: visible;
+      font-size: 6.85pt;
+      line-height: 1.05;
     }
 
     #scanner-area { margin: 12px 0; border-radius: 12px; overflow: hidden; }
@@ -418,36 +432,33 @@
   }
 
   html,
-  body,
-  #labelModal,
-  #labelModal .modal-content,
-  #labelContent {
+  body {
     width: 100mm !important;
     height: 150mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
     overflow: hidden !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
   }
 
   body > * { display: none !important; }
 
-  #labelModal {
+  #labelModal,
+  #labelModal .modal-content,
+  #labelContent {
     display: block !important;
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    transform: none !important;
-  }
-
-  #labelModal .modal-content {
-    display: block !important;
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
+    width: 100mm !important;
+    height: 150mm !important;
     max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
     transform: none !important;
   }
 
@@ -456,14 +467,14 @@
 
   .label-area,
   .ticket-label-area {
-    display: block !important;
-    position: relative !important;
     width: 96mm !important;
     height: 74mm !important;
-    margin: 2mm auto !important;
+    margin: 2mm auto 0 auto !important;
     padding: 2mm !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -758,9 +769,9 @@
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
     let isSubmittingBal = false;
-    let currentPrintMode = "label";
-    // Sekarang kertas fisik masih 100x150. Desain isi label sudah 100x78 di bagian atas.
-    // Nanti kalau sudah pakai stiker 100x78, cukup ubah THERMAL_PAPER_SIZE jadi "100x78".
+    let currentPrintMode = "label"; // label / ticket
+    // Sekarang printer masih pakai kertas 100x150, tapi desain isi label sudah 100x78 di bagian atas.
+    // Nanti kalau stok label 100x78 sudah dipakai, ubah THERMAL_PAPER_SIZE jadi "100x78".
     const THERMAL_PAPER_SIZE = "100x150";
     const LABEL_CONTENT_SIZE = "100x78";
 
@@ -1268,16 +1279,13 @@
         document.head.appendChild(style);
       }
 
-      const paperHeight = THERMAL_PAPER_SIZE === "100x78" ? "78mm" : "150mm";
-      const pageSize = THERMAL_PAPER_SIZE === "100x78" ? "100mm 78mm" : "100mm 150mm";
-      const hideOther = currentPrintMode === "ticket"
-        ? `.label-area { display: none !important; }`
-        : `.ticket-label-area { display: none !important; }`;
+      const isTicket = currentPrintMode === "ticket";
+      const pageHeight = THERMAL_PAPER_SIZE === "100x78" ? "78mm" : "150mm";
 
       style.textContent = `
 @media print {
   @page {
-    size: ${pageSize};
+    size: 100mm ${pageHeight};
     margin: 0;
   }
 
@@ -1287,7 +1295,7 @@
   #labelModal .modal-content,
   #labelContent {
     width: 100mm !important;
-    height: ${paperHeight} !important;
+    height: ${pageHeight} !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -1298,14 +1306,7 @@
 
   body > * { display: none !important; }
 
-  #labelModal {
-    display: block !important;
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
-    transform: none !important;
-  }
-
+  #labelModal,
   #labelModal .modal-content {
     display: block !important;
     position: fixed !important;
@@ -1318,18 +1319,12 @@
   #labelModal .modal-head,
   #labelModal .actions { display: none !important; }
 
-  ${hideOther}
-
   .label-area,
   .ticket-label-area {
-    display: block !important;
-    position: relative !important;
     width: 96mm !important;
     height: 74mm !important;
-    max-width: none !important;
-    margin: 2mm auto !important;
+    margin: 2mm auto 0 auto !important;
     padding: 2mm !important;
-    border: 1.5px solid #111 !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
     page-break-before: avoid !important;
@@ -1338,122 +1333,8 @@
     break-inside: avoid !important;
   }
 
-  .label-final-title,
-  .ticket-title {
-    height: 8mm !important;
-    line-height: 7mm !important;
-    font-size: 18pt !important;
-    font-weight: 900 !important;
-    margin-bottom: 2mm !important;
-    border-bottom: 1.4px solid #111 !important;
-    text-transform: uppercase !important;
-  }
-
-  .label-final-grid,
-  .ticket-grid {
-    display: grid !important;
-    grid-template-columns: 61mm 29mm !important;
-    gap: 1.5mm !important;
-    height: 59mm !important;
-  }
-
-  .label-main,
-  .ticket-main {
-    border-right: 1.4px solid #111 !important;
-    padding-right: 1.8mm !important;
-    min-width: 0 !important;
-  }
-
-  .label-main-row,
-  .ticket-row {
-    display: grid !important;
-    grid-template-columns: 22mm 1fr !important;
-    align-items: start !important;
-    line-height: 1.14 !important;
-    margin-bottom: 2.35mm !important;
-  }
-
-  .label-main-row .k,
-  .ticket-row .k {
-    font-size: 10pt !important;
-    font-weight: 900 !important;
-    white-space: nowrap !important;
-  }
-
-  .label-main-row .v,
-  .ticket-row .v {
-    font-size: 11.5pt !important;
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    text-transform: uppercase !important;
-  }
-
-  .label-right,
-  .ticket-right {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    width: 29mm !important;
-    max-width: 29mm !important;
-    min-width: 0 !important;
-    overflow: visible !important;
-  }
-
-  .label-qr #qrLabel canvas,
-  .label-qr #qrLabel img,
-  .ticket-qr #qrLabel canvas,
-  .ticket-qr #qrLabel img {
-    width: 27mm !important;
-    height: 27mm !important;
-    image-rendering: pixelated !important;
-  }
-
-  .label-qr-id,
-  .ticket-qr-id { display: none !important; }
-
-  .label-workers,
-  .ticket-workers {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-    overflow: visible !important;
-    margin-top: 3mm !important;
-    padding: 1.4mm !important;
-    font-size: 7.7pt !important;
-    line-height: 1.18 !important;
-  }
-
-  .label-workers-title,
-  .ticket-workers-title {
-    font-size: 10pt !important;
-    font-weight: 900 !important;
-    padding-bottom: 1mm !important;
-    margin-bottom: 1.4mm !important;
-    text-transform: uppercase !important;
-  }
-
-  .label-worker-row,
-  .ticket-worker-row {
-    display: grid !important;
-    grid-template-columns: 12mm 1fr !important;
-    gap: 0.8mm !important;
-    margin-bottom: 1.35mm !important;
-    font-size: 7.5pt !important;
-    line-height: 1.12 !important;
-  }
-
-  .label-worker-row .v,
-  .ticket-worker-row .qty,
-  .label-worker-row.setting .v,
-  .ticket-worker-row.setting-line .qty {
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow: visible !important;
-    text-align: right !important;
-    text-transform: uppercase !important;
-  }
+  .label-area { display: ${isTicket ? "none" : "block"} !important; }
+  .ticket-label-area { display: ${isTicket ? "block" : "none"} !important; }
 }
 `;
     }
@@ -1733,7 +1614,8 @@
       const dup = (existing || []).find(b => b.po_id === po_id && String(b.nomor_bal) === nomor_bal && String(b.no_mesin) === no_mesin && String(b.tanggal_buat || "").slice(0, 10) === today);
       if (dup && !confirm(`Peringatan: PO + No Bal + Mesin sudah ada hari ini (${dup.bal_id}). Tetap simpan?`)) return;
 
-      // STEP 1: upload foto ke Drive dulu, dapat URL
+      try {
+        // STEP 1: upload foto ke Drive dulu, dapat URL
         let fotoUrl = "";
         await withLoading("Upload foto...", async () => {
           const balIdPreview = generateBalId();
@@ -2953,7 +2835,7 @@ Alasan: ${cleanReason}`)) return;
       const qtyText = `${out.qty} ${satuan} / Bal ${ticketNo} / Sisa ${sisaQty}`;
 
       const settingText = (out.workers || [])
-        .map(w => `${safe(w.name || "-")} ${safe(w.qty || "-")}`)
+        .map(w => `${cap(w.name || "-")} ${safe(w.qty || "-")}`)
         .join(", ");
 
       const bukuText = labelBukuText(b);
@@ -2964,55 +2846,47 @@ Alasan: ${cleanReason}`)) return;
 
       document.getElementById("labelContent").innerHTML = `
         <div class="ticket-label-area" id="printLabelArea">
-          <div class="ticket-title">Tiket Packing</div>
+          <div class="ticket-title">TIKET PACKING</div>
 
           <div class="ticket-grid">
             <div class="ticket-main">
-              <div class="ticket-row"><div class="k">TICKET</div><div class="v">${safe(out.ticket_id)}</div></div>
-              <div class="ticket-row"><div class="k">BAL</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Hal/Buku</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
-              <div class="ticket-row"><div class="k">QTY</div><div class="v"><b>${safe(qtyText)}</b></div></div>
+              <div class="ticket-row"><div class="k">Ticket</div><div class="v tiny-fit">${safe(out.ticket_id)}</div></div>
+              <div class="ticket-row"><div class="k">Bal</div><div class="v small-fit">${safe(b.bal_id)}</div></div>
+              <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safeCap(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Hal/Buku</div><div class="v">${safeCap(bukuText)}</div></div>
+              <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safeCap(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safeCap(b.jenis_barang || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Warna</div><div class="v long-fit">${safeCap(b.warna || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Size</div><div class="v long-fit">${safeCap(b.size || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Qty</div><div class="v tiny-fit">${safeCap(qtyText)}</div></div>
             </div>
 
             <div class="ticket-right">
               <div class="ticket-qr">
                 <div id="qrLabel"></div>
-                
-              </div>
-
-              <div class="ticket-workers">
-                <div class="ticket-workers-title">Pekerja</div>
-                <div class="ticket-worker-row">
-                  <div class="name">Op Mesin</div>
-                  <div class="qty">${safe(b.operator_mesin || "-")}</div>
-                </div>
-                <div class="ticket-worker-row">
-                  <div class="name">P Obras</div>
-                  <div class="qty">${safe(b.obras_by || "-")}</div>
-                </div>
-                <div class="ticket-worker-row setting-line">
-                  <div class="name">SETTING</div>
-                  <div class="qty">${settingText || "-"}</div>
-                </div>
               </div>
             </div>
+          </div>
+
+          <div class="ticket-workers">
+            <div class="ticket-workers-title">PEKERJA</div>
+            <div class="ticket-worker-row"><div class="name">Op Mesin</div><div class="qty">${safeCap(b.operator_mesin || "-")}</div></div>
+            <div class="ticket-worker-row"><div class="name">P Obras</div><div class="qty">${safeCap(b.obras_by || "-")}</div></div>
+            <div class="ticket-worker-row setting-line"><div class="name">P Setting</div><div class="qty">${settingText || "-"}</div></div>
           </div>
         </div>
       `;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: out.ticket_id, width: 84, height: 84 });
+      new QRCode(qr, {
+        text: out.ticket_id,
+        width: 220,
+        height: 220,
+        correctLevel: QRCode.CorrectLevel.M
+      });
       document.getElementById("labelModal").classList.add("show");
     }
-
-    /* ============================================================
-       PECAH BAL
-       ============================================================ */
 
     async function openSplit(bal_id) {
       const b = await apiGetBal(bal_id);
@@ -3136,36 +3010,41 @@ Alasan: ${cleanReason}`)) return;
 
           <div class="label-final-grid">
             <div class="label-main">
-              <div class="label-main-row"><div class="k">ID</div><div class="v">${safe(b.bal_id)}</div></div>
-              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Hal/Buku</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
-              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
+              <div class="label-main-row"><div class="k">ID</div><div class="v small-fit">${safe(b.bal_id)}</div></div>
+              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safeCap(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Hal/Buku</div><div class="v">${safeCap(bukuText)}</div></div>
+              <div class="label-main-row"><div class="k">Tanggal</div><div class="v small-fit">${fmtDate(b.tanggal_buat)}</div></div>
+              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safeCap(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safeCap(b.jenis_barang || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Warna</div><div class="v long-fit">${safeCap(b.warna || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Size</div><div class="v long-fit">${safeCap(b.size || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safeCap(jumlahText)}</div></div>
             </div>
 
             <div class="label-right">
               <div class="label-qr">
                 <div id="qrLabel"></div>
-                
-              </div>
-
-              <div class="label-workers">
-                <div class="label-workers-title">Pekerja</div>
-                <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
-                <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
-                <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
               </div>
             </div>
+          </div>
+
+          <div class="label-workers">
+            <div class="label-workers-title">PEKERJA</div>
+            <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safeCap(b.operator_mesin || "-")}</div></div>
+            <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safeCap(b.obras_by || "-")}</div></div>
+            <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safeCap(settingText || "-")}</div></div>
           </div>
         </div>
       `;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: b.bal_id, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+      new QRCode(qr, {
+        text: b.bal_id,
+        width: 220,
+        height: 220,
+        correctLevel: QRCode.CorrectLevel.M
+      });
       document.getElementById("labelModal").classList.add("show");
     }
 
@@ -3202,39 +3081,71 @@ Alasan: ${cleanReason}`)) return;
        SCANNER
        ============================================================ */
 
-    function startScan() {
+    async function startScan() {
       if (!currentUser) return alert("Login dulu.");
+
       document.getElementById("btnStartScan").classList.add("hidden");
       document.getElementById("btnStopScan").classList.remove("hidden");
-      document.getElementById("scanMessage").innerHTML = "";
+      document.getElementById("scanMessage").innerHTML = `
+        <div class="alert alert-info">
+          Kamera dibuka. Arahkan QR ke tengah kotak. Kalau blur, mundurkan sedikit lalu dekatkan pelan.
+        </div>
+      `;
 
+      const area = document.getElementById("scanner-area");
+      area.innerHTML = "";
       scanner = new Html5Qrcode("scanner-area");
 
       const scanConfig = {
-        fps: 15,
+        fps: 12,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const size = Math.max(260, Math.floor(minEdge * 0.72));
+          const maxSize = Math.max(120, minEdge - 24);
+          const preferred = Math.floor(minEdge * 0.68);
+          const size = Math.min(maxSize, Math.max(170, preferred));
           return { width: size, height: size };
         },
         aspectRatio: 1.0,
-        disableFlip: true
+        disableFlip: true,
+        rememberLastUsedCamera: true
       };
 
-      const cameraConfig = {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        advanced: [{ focusMode: "continuous" }]
-      };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        let cameraId = null;
 
-      scanner.start(cameraConfig, scanConfig, onScanSuccess, () => {})
-        .then(() => setTimeout(applyCameraFocusAssist, 800))
-        .catch(() => {
-          scanner.start({ facingMode: "environment" }, scanConfig, onScanSuccess, () => {})
-            .then(() => setTimeout(applyCameraFocusAssist, 800))
-            .catch(err2 => { alert("Gagal buka kamera: " + err2); stopScan(); });
-        });
+        if (Array.isArray(cameras) && cameras.length) {
+          const rear = cameras.find(c =>
+            /back|rear|environment|belakang|kamera belakang/i.test(c.label || "")
+          );
+          cameraId = (rear || cameras[cameras.length - 1]).id;
+        }
+
+        if (cameraId) {
+          await scanner.start(cameraId, scanConfig, onScanSuccess, () => {});
+        } else {
+          await scanner.start({ facingMode: "environment" }, scanConfig, onScanSuccess, () => {});
+        }
+
+        setTimeout(applyCameraFocusAssist, 900);
+      } catch (err) {
+        try {
+          if (scanner) {
+            try { await scanner.clear(); } catch (_) {}
+          }
+          scanner = new Html5Qrcode("scanner-area");
+          await scanner.start({ facingMode: "environment" }, scanConfig, onScanSuccess, () => {});
+          setTimeout(applyCameraFocusAssist, 900);
+        } catch (err2) {
+          document.getElementById("scanMessage").innerHTML = `
+            <div class="alert alert-danger">
+              Kamera tidak bisa dibuka. Pastikan izin kamera di browser sudah Allow, gunakan HTTPS/GitHub Pages, lalu reload halaman.
+            </div>
+          `;
+          alert("Gagal buka kamera: " + (err2?.message || err2));
+          stopScan();
+        }
+      }
     }
 
     async function applyCameraFocusAssist() {
@@ -3242,25 +3153,21 @@ Alasan: ${cleanReason}`)) return;
         const video = document.querySelector("#scanner-area video");
         const stream = video?.srcObject;
         const track = stream?.getVideoTracks?.()[0];
-        if (!track || !track.getCapabilities) return;
+        if (!track || !track.getCapabilities || !track.applyConstraints) return;
 
         const caps = track.getCapabilities();
         const advanced = [];
-
         if (caps.focusMode && caps.focusMode.includes("continuous")) {
           advanced.push({ focusMode: "continuous" });
         }
         if (caps.zoom) {
-          const zoomValue = Math.min(caps.zoom.max || 2, 1.6);
+          const zoomValue = Math.min(caps.zoom.max || 2, Math.max(caps.zoom.min || 1, 1.4));
           advanced.push({ zoom: zoomValue });
         }
-        if (advanced.length && track.applyConstraints) {
-          await track.applyConstraints({ advanced });
-        }
-      } catch (e) {
-        // Tidak semua HP/tablet mendukung kontrol fokus/zoom dari browser.
-      }
+        if (advanced.length) await track.applyConstraints({ advanced });
+      } catch (_) {}
     }
+
     function stopScan() {
       if (scanner) scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(() => {});
       document.getElementById("btnStartScan")?.classList.remove("hidden");
