@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (FIX 7 - Phase A Packing Multi Pekerja)</title>
+  <title>Bal Tracking 3.0 - Cloud (Packing Flow + Print 100x78 on Paper 100x150)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -240,10 +240,10 @@
     .kv strong { font-size: 13px; }
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
-    /* LABEL BAL FINAL 100 x 150 mm */
+    /* LABEL BAL FINAL: desain isi 100 x 78 mm, aman dicetak di kertas 100 x 150 mm */
     .label-area {
       width: 96mm;
-      height: 146mm;
+      height: 74mm;
       max-width: none;
       margin: 2mm auto;
       background: white;
@@ -256,40 +256,40 @@
     }
 
     .label-final-title {
-      height: 6mm;
-      line-height: 5.2mm;
+      height: 7mm;
+      line-height: 6.2mm;
       text-align: center;
-      font-size: 8.8pt;
-      font-weight: 800;
-      border-bottom: 1px solid #111;
-      margin-bottom: 1.2mm;
+      font-size: 11pt;
+      font-weight: 900;
+      border-bottom: 1.2px solid #111;
+      margin-bottom: 1.5mm;
     }
 
     .label-final-grid {
       display: grid;
-      grid-template-columns: 53.5mm 35.5mm;
-      gap: 0.4mm;
-      height: 39mm;
+      grid-template-columns: 58mm 32mm;
+      gap: 0.8mm;
+      height: 61.5mm;
     }
 
     .label-main {
       border-right: 1px solid #aaa;
-      padding-right: 0.7mm;
+      padding-right: 0.9mm;
       min-width: 0;
     }
 
     .label-main-row {
       display: grid;
-      grid-template-columns: 13.8mm 1fr;
+      grid-template-columns: 16mm 1fr;
       align-items: start;
-      line-height: 1.1;
-      margin-bottom: 1.45mm;
+      line-height: 1.15;
+      margin-bottom: 1.6mm;
     }
 
     .label-main-row .k {
       font-weight: 800;
       white-space: nowrap;
-      font-size: 5.7pt;
+      font-size: 9pt;
       letter-spacing: .01em;
     }
 
@@ -297,15 +297,24 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 6.7pt;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    /* Field ID Bal di-display kecil saja (referensi visual, QR sudah mewakili).
+       Pakai class .id-cell di kolom .v untuk row ID. */
+    .label-main-row .v.id-cell {
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #444;
     }
 
     .label-right {
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      width: 35.5mm;
-      max-width: 35.5mm;
+      width: 32mm;
+      max-width: 32mm;
       min-width: 0;
       overflow: visible;
     }
@@ -317,51 +326,49 @@
 
     .label-qr #qrLabel canvas,
     .label-qr #qrLabel img {
-      width: 13mm !important;
-      height: 13mm !important;
+      width: 26mm !important;
+      height: 26mm !important;
     }
 
+    /* Hapus teks kecil di bawah QR (QR sudah cukup, ID-nya ada di main info kecil) */
     .label-qr-id {
-      font-size: 2.9pt;
-      line-height: 1;
-      margin-top: 0.15mm;
-      font-family: Arial, Helvetica, sans-serif;
-      word-break: break-all;
+      display: none !important;
     }
 
     .label-workers {
       width: 100%;
       max-width: 100%;
-      border: 1px solid #111;
+      border: 1.5px solid #111;
       border-radius: 2mm;
-      margin-top: 0.85mm;
-      padding: 1mm;
-      font-size: 5.7pt;
-      line-height: 1.12;
+      margin-top: 1.5mm;
+      padding: 1.2mm;
+      font-size: 8.5pt;
+      line-height: 1.2;
       box-sizing: border-box;
       overflow: visible;
     }
 
     .label-workers-title {
       text-align: center;
-      font-size: 5.9pt;
-      font-weight: 800;
-      padding-bottom: 0.7mm;
-      margin-bottom: 0.7mm;
-      border-bottom: 1px solid #111;
+      font-size: 9pt;
+      font-weight: 900;
+      padding-bottom: 0.8mm;
+      margin-bottom: 0.8mm;
+      border-bottom: 1.2px solid #111;
+      letter-spacing: .03em;
     }
 
     .label-worker-row {
       display: grid;
-      grid-template-columns: 10mm 1fr;
-      gap: 0.5mm;
-      margin-bottom: 0.65mm;
+      grid-template-columns: 12mm 1fr;
+      gap: 0.6mm;
+      margin-bottom: 0.9mm;
     }
 
     .label-worker-row .k {
       font-weight: 800;
       white-space: nowrap;
-      font-size: 5.2pt;
+      font-size: 8pt;
     }
 
     .label-worker-row .v {
@@ -369,23 +376,25 @@
       white-space: normal;
       overflow: visible;
       text-align: right;
-      font-size: 5.4pt;
+      font-size: 8.5pt;
+      font-weight: 700;
     }
 
     .label-worker-row.setting .v {
-      font-size: 4.8pt;
-      line-height: 1.05;
+      font-size: 7.5pt;
+      line-height: 1.15;
       white-space: normal;
       word-break: break-word;
       overflow: visible;
+      font-weight: 700;
     }
 
-    /* TIKET PACKING FINAL 100 x 50 mm */
+    /* TIKET PACKING — 100 x 78 mm (sama dengan Label Bal) */
     .ticket-label-area {
-      width: 100mm;
-      height: 50mm;
+      width: 96mm;
+      height: 74mm;
       max-width: none;
-      margin: 0 auto;
+      margin: 2mm auto;
       background: white;
       border: 1.3px solid #111;
       padding: 2mm;
@@ -396,104 +405,114 @@
     }
 
     .ticket-title {
-      height: 6mm;
-      line-height: 5.2mm;
+      height: 7mm;
+      line-height: 6.2mm;
       text-align: center;
-      font-size: 8.8pt;
-      font-weight: 800;
-      border-bottom: 1px solid #111;
-      margin-bottom: 1.2mm;
+      font-size: 11pt;
+      font-weight: 900;
+      border-bottom: 1.2px solid #111;
+      margin-bottom: 1.5mm;
     }
 
     .ticket-grid {
       display: grid;
-      grid-template-columns: 57mm 37mm;
-      gap: 1.5mm;
-      height: 39mm;
+      grid-template-columns: 58mm 32mm;
+      gap: 0.8mm;
+      height: 61.5mm;
     }
 
     .ticket-main {
       border-right: 1px solid #aaa;
-      padding-right: 1.5mm;
+      padding-right: 0.9mm;
+      min-width: 0;
     }
 
     .ticket-row {
       display: grid;
       grid-template-columns: 16mm 1fr;
       align-items: start;
-      font-size: 6.1pt;
-      line-height: 1.08;
-      margin-bottom: 1.22mm;
+      font-size: 9pt;
+      line-height: 1.15;
+      margin-bottom: 1.6mm;
     }
 
     .ticket-row .k {
       font-weight: 800;
       white-space: nowrap;
+      font-size: 9pt;
     }
 
     .ticket-row .v {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    /* Ticket ID kecil seperti label */
+    .ticket-row .v.id-cell {
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #444;
     }
 
     .ticket-right {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
     }
 
     .ticket-qr {
       text-align: center;
-      margin-top: 0.5mm;
+      margin-top: 0;
     }
 
     .ticket-qr #qrLabel canvas,
     .ticket-qr #qrLabel img {
-      width: 12.5mm !important;
-      height: 12.5mm !important;
+      width: 26mm !important;
+      height: 26mm !important;
     }
 
     .ticket-qr-id {
-      font-size: 3.4pt;
-      line-height: 1;
-      margin-top: 0.35mm;
-      font-family: Arial, Helvetica, sans-serif;
+      display: none !important;
     }
 
     .ticket-workers {
       width: 100%;
-      border: 1px solid #111;
+      border: 1.5px solid #111;
       border-radius: 2mm;
-      margin-top: 1.2mm;
-      padding: 0.9mm;
-      font-size: 5pt;
-      line-height: 1.08;
+      margin-top: 1.5mm;
+      padding: 1.2mm;
+      font-size: 8.5pt;
+      line-height: 1.2;
     }
 
     .ticket-workers-title {
       text-align: center;
-      font-size: 5.3pt;
-      font-weight: 800;
-      padding-bottom: 0.6mm;
-      margin-bottom: 0.6mm;
-      border-bottom: 1px solid #111;
+      font-size: 9pt;
+      font-weight: 900;
+      padding-bottom: 0.8mm;
+      margin-bottom: 0.8mm;
+      border-bottom: 1.2px solid #111;
+      letter-spacing: .03em;
     }
 
     .ticket-worker-line {
-      font-size: 5.2pt;
-      line-height: 1.1;
-      margin-bottom: 0.8mm;
+      font-size: 8.5pt;
+      line-height: 1.2;
+      margin-bottom: 1mm;
       word-break: break-word;
+      font-weight: 700;
     }
 
     .ticket-worker-row {
       display: grid;
-      grid-template-columns: 11mm 1fr;
+      grid-template-columns: 14mm 1fr;
       gap: 0.8mm;
-      font-size: 5pt;
-      line-height: 1.08;
-      margin-bottom: 0.55mm;
+      font-size: 8.5pt;
+      line-height: 1.18;
+      margin-bottom: 0.8mm;
     }
 
     .ticket-worker-row .name {
@@ -511,8 +530,8 @@
     }
 
     .ticket-worker-row.setting-line .qty {
-      font-size: 4.35pt;
-      line-height: 1.02;
+      font-size: 7.5pt;
+      line-height: 1.1;
     }
 
 
@@ -589,12 +608,12 @@
     overflow: hidden !important;
   }
 
-  /* PRINT OVERRIDE KHUSUS LABEL BAL 100 x 150 */
+  /* PRINT OVERRIDE — kertas 100 x 150, desain label 100 x 78 di bagian atas */
   .label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 146mm !important;
+    height: 74mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -609,58 +628,64 @@
 
   .label-final-grid {
     display: grid !important;
-    grid-template-columns: 53.5mm 35.5mm !important;
-    gap: 0.4mm !important;
-    height: 39mm !important;
+    grid-template-columns: 58mm 32mm !important;
+    gap: 0.8mm !important;
+    height: 61.5mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.6mm !important;
+    padding-right: 0.9mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 13.8mm 1fr !important;
+    grid-template-columns: 16mm 1fr !important;
     align-items: start !important;
-    line-height: 1.1 !important;
-    margin-bottom: 1.45mm !important;
+    line-height: 1.15 !important;
+    margin-bottom: 1.6mm !important;
   }
 
   .label-main-row .k {
-    font-size: 5.7pt !important;
+    font-size: 9pt !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
     letter-spacing: 0.01em !important;
   }
 
   .label-main-row .v {
-    font-size: 6.7pt !important;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+  }
+
+  .label-main-row .v.id-cell {
+    font-size: 7.5pt !important;
+    font-weight: 600 !important;
+    color: #444 !important;
   }
 
   .label-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 35.5mm !important;
-    max-width: 35.5mm !important;
+    width: 32mm !important;
+    max-width: 32mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 18mm !important;
-    height: 18mm !important;
+    width: 26mm !important;
+    height: 26mm !important;
   }
 
   .label-qr-id {
-    font-size: 3.8pt !important;
-    word-break: break-all !important;
+    display: none !important;
   }
 
   .label-workers {
@@ -668,27 +693,32 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    padding: 1mm !important;
-    font-size: 5pt !important;
-    line-height: 1.1 !important;
+    border: 1.5px solid #111 !important;
+    padding: 1.2mm !important;
+    margin-top: 1.5mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.2 !important;
   }
 
   .label-workers-title {
-    font-size: 5.4pt !important;
-    padding-bottom: 0.6mm !important;
-    margin-bottom: 0.6mm !important;
+    font-size: 9pt !important;
+    font-weight: 900 !important;
+    padding-bottom: 0.8mm !important;
+    margin-bottom: 0.8mm !important;
+    border-bottom: 1.2px solid #111 !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 9mm 1fr !important;
-    gap: 0.5mm !important;
-    margin-bottom: 0.65mm !important;
+    grid-template-columns: 12mm 1fr !important;
+    gap: 0.6mm !important;
+    margin-bottom: 0.9mm !important;
   }
 
   .label-worker-row .k {
     font-weight: 800 !important;
     white-space: nowrap !important;
+    font-size: 8pt !important;
   }
 
   .label-worker-row .v {
@@ -696,23 +726,25 @@
     white-space: normal !important;
     overflow: visible !important;
     text-align: right !important;
-    font-size: 5.4pt !important;
+    font-size: 8.5pt !important;
+    font-weight: 700 !important;
   }
 
   .label-worker-row.setting .v {
-    font-size: 4.5pt !important;
-    line-height: 1.05 !important;
+    font-size: 7.5pt !important;
+    line-height: 1.15 !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
+    font-weight: 700 !important;
   }
 
-  /* Tiket packing tetap ukuran 100 x 50, tidak ikut dipaksa menjadi label bal. */
+  /* Tiket packing — sama ukuran 100 x 78 */
   .ticket-label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 46mm !important;
+    height: 74mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -1014,10 +1046,12 @@
     let scanner = null;
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
-    let currentPrintMode = "label"; // label = 100x150, ticket = 100x50
-    // Persiapan nanti kalau label bal utama juga ganti ke kertas thermal 100 x 50.
-    // Untuk sekarang biarkan "100x150". Nanti cukup ubah jadi "100x50" lalu deploy ulang.
-    const LABEL_BAL_PRINT_SIZE = "100x150";
+    let currentPrintMode = "label"; // label = bal utama, ticket = ticket packing. Keduanya 100x78mm.
+    // Ukuran kertas fisik saat ini masih 100x150.
+    // Desain label tetap 100x78 dan ditempatkan di bagian atas kertas.
+    // Nanti kalau sudah pakai label 100x78, ubah THERMAL_PAPER_SIZE menjadi "100x78".
+    const THERMAL_PAPER_SIZE = "100x150";
+    const LABEL_BAL_PRINT_SIZE = "100x78";
 
     const STATUS_ORDER = [
       "SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS",
@@ -1584,9 +1618,10 @@
       }
 
       const isTicket = currentPrintMode === "ticket";
-      const isCompactLabel = !isTicket && LABEL_BAL_PRINT_SIZE === "100x50";
-      const pageSize = (isTicket || isCompactLabel) ? "100mm 50mm" : "100mm 150mm";
-      const pageHeight = (isTicket || isCompactLabel) ? "50mm" : "150mm";
+      // Kertas fisik saat ini 100x150, desain label tetap 100x78 di bagian atas.
+      // Kalau nanti kertas sudah 100x78, cukup ubah THERMAL_PAPER_SIZE ke "100x78".
+      const pageSize = THERMAL_PAPER_SIZE === "100x78" ? "100mm 78mm" : "100mm 150mm";
+      const pageHeight = THERMAL_PAPER_SIZE === "100x78" ? "78mm" : "150mm";
 
       const ticketCss = `
   .label-area { display: none !important; }
@@ -1595,7 +1630,7 @@
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 46mm !important;
+    height: 74mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -1609,61 +1644,79 @@
   }
 
   .ticket-title {
-    height: 5mm !important;
-    line-height: 4.5mm !important;
-    font-size: 8pt !important;
-    margin-bottom: 1mm !important;
+    height: 7mm !important;
+    line-height: 6.2mm !important;
+    font-size: 11pt !important;
+    font-weight: 900 !important;
+    border-bottom: 1.2px solid #111 !important;
+    margin-bottom: 1.5mm !important;
   }
 
   .ticket-grid {
     display: grid !important;
-    grid-template-columns: 56mm 34mm !important;
-    gap: 1mm !important;
-    height: 35mm !important;
+    grid-template-columns: 58mm 32mm !important;
+    gap: 0.8mm !important;
+    height: 61.5mm !important;
   }
 
   .ticket-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 1mm !important;
+    padding-right: 0.9mm !important;
     min-width: 0 !important;
   }
 
   .ticket-row {
     display: grid !important;
-    grid-template-columns: 15mm 1fr !important;
+    grid-template-columns: 16mm 1fr !important;
     align-items: start !important;
-    font-size: 5.6pt !important;
-    line-height: 1.05 !important;
-    margin-bottom: 0.85mm !important;
+    font-size: 9pt !important;
+    line-height: 1.15 !important;
+    margin-bottom: 1.6mm !important;
+  }
+
+  .ticket-row .k {
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    font-size: 9pt !important;
   }
 
   .ticket-row .v {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+  }
+
+  .ticket-row .v.id-cell {
+    font-size: 7.5pt !important;
+    font-weight: 600 !important;
+    color: #444 !important;
   }
 
   .ticket-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 34mm !important;
-    max-width: 34mm !important;
+    width: 32mm !important;
+    max-width: 32mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
-  .ticket-qr { margin-top: 0.2mm !important; }
+  .ticket-qr {
+    margin-top: 0 !important;
+    text-align: center !important;
+  }
 
   .ticket-qr #qrLabel canvas,
   .ticket-qr #qrLabel img {
-    width: 12.5mm !important;
-    height: 12.5mm !important;
+    width: 26mm !important;
+    height: 26mm !important;
   }
 
   .ticket-qr-id {
-    font-size: 2.8pt !important;
-    word-break: break-all !important;
+    display: none !important;
   }
 
   .ticket-workers {
@@ -1671,25 +1724,28 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    padding: 0.8mm !important;
-    margin-top: 0.6mm !important;
-    font-size: 4.8pt !important;
-    line-height: 1.06 !important;
+    border: 1.5px solid #111 !important;
+    padding: 1.2mm !important;
+    margin-top: 1.5mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.2 !important;
   }
 
   .ticket-workers-title {
-    font-size: 5.1pt !important;
-    padding-bottom: 0.4mm !important;
-    margin-bottom: 0.4mm !important;
+    font-size: 9pt !important;
+    font-weight: 900 !important;
+    padding-bottom: 0.8mm !important;
+    margin-bottom: 0.8mm !important;
+    border-bottom: 1.2px solid #111 !important;
   }
 
   .ticket-worker-row {
     display: grid !important;
-    grid-template-columns: 10mm 1fr !important;
-    gap: 0.4mm !important;
-    font-size: 4.5pt !important;
-    line-height: 1.04 !important;
-    margin-bottom: 0.35mm !important;
+    grid-template-columns: 14mm 1fr !important;
+    gap: 0.8mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.18 !important;
+    margin-bottom: 0.8mm !important;
   }
 
   .ticket-worker-row .name {
@@ -1704,147 +1760,18 @@
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
+    font-weight: 700 !important;
   }
 `;
 
-      const labelTallCss = `
+      const labelCss = `
   .ticket-label-area { display: none !important; }
 
   .label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 146mm !important;
-    max-width: none !important;
-    margin: 2mm auto !important;
-    padding: 2mm !important;
-    border: 1.3px solid #111 !important;
-    box-sizing: border-box !important;
-    overflow: hidden !important;
-    page-break-before: avoid !important;
-    page-break-after: avoid !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .label-final-grid {
-    display: grid !important;
-    grid-template-columns: 53.5mm 35.5mm !important;
-    gap: 0.4mm !important;
-    height: 39mm !important;
-  }
-
-  .label-main {
-    border-right: 1px solid #aaa !important;
-    padding-right: 0.6mm !important;
-    min-width: 0 !important;
-  }
-
-  .label-main-row {
-    display: grid !important;
-    grid-template-columns: 13.8mm 1fr !important;
-    align-items: start !important;
-    line-height: 1.1 !important;
-    margin-bottom: 1.45mm !important;
-  }
-
-  .label-main-row .k {
-    font-size: 5.7pt !important;
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-    letter-spacing: 0.01em !important;
-  }
-
-  .label-main-row .v {
-    font-size: 6.7pt !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
-
-  .label-right {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    width: 35.5mm !important;
-    max-width: 35.5mm !important;
-    min-width: 0 !important;
-    overflow: visible !important;
-  }
-
-  .label-qr {
-    margin-top: 0 !important;
-    text-align: center !important;
-  }
-
-  .label-qr #qrLabel canvas,
-  .label-qr #qrLabel img {
-    width: 13mm !important;
-    height: 13mm !important;
-  }
-
-  .label-qr-id {
-    font-size: 2.9pt !important;
-    line-height: 1 !important;
-    margin-top: 0.15mm !important;
-    word-break: break-all !important;
-  }
-
-  .label-workers {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-    overflow: visible !important;
-    margin-top: 0.85mm !important;
-    padding: 1mm !important;
-    font-size: 5.7pt !important;
-    line-height: 1.12 !important;
-  }
-
-  .label-workers-title {
-    font-size: 5.9pt !important;
-    padding-bottom: 0.7mm !important;
-    margin-bottom: 0.7mm !important;
-  }
-
-  .label-worker-row {
-    display: grid !important;
-    grid-template-columns: 9.8mm 1fr !important;
-    gap: 0.55mm !important;
-    margin-bottom: 0.72mm !important;
-  }
-
-  .label-worker-row .k {
-    font-size: 5.2pt !important;
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-  }
-
-  .label-worker-row .v {
-    word-break: break-word !important;
-    white-space: normal !important;
-    overflow: visible !important;
-    text-align: right !important;
-    font-size: 5.4pt !important;
-  }
-
-  .label-worker-row.setting .v {
-    font-size: 4.8pt !important;
-    line-height: 1.05 !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow: visible !important;
-  }
-`;
-
-      const labelCompactCss = `
-  .ticket-label-area { display: none !important; }
-
-  .label-area {
-    display: block !important;
-    position: relative !important;
-    width: 96mm !important;
-    height: 46mm !important;
+    height: 74mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -1858,47 +1785,54 @@
   }
 
   .label-final-title {
-    height: 5mm !important;
-    line-height: 4.5mm !important;
-    font-size: 8pt !important;
-    margin-bottom: 1mm !important;
+    height: 7mm !important;
+    line-height: 6.2mm !important;
+    font-size: 11pt !important;
+    font-weight: 900 !important;
+    border-bottom: 1.2px solid #111 !important;
+    margin-bottom: 1.5mm !important;
   }
 
   .label-final-grid {
     display: grid !important;
     grid-template-columns: 58mm 32mm !important;
-    gap: 0.4mm !important;
-    height: 35mm !important;
+    gap: 0.8mm !important;
+    height: 61.5mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.6mm !important;
+    padding-right: 0.9mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 11.5mm 1fr !important;
+    grid-template-columns: 16mm 1fr !important;
     align-items: start !important;
-    line-height: 1.03 !important;
-    margin-bottom: 0.72mm !important;
+    line-height: 1.15 !important;
+    margin-bottom: 1.6mm !important;
   }
 
   .label-main-row .k {
-    font-size: 4.8pt !important;
+    font-size: 9pt !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
+    letter-spacing: 0.01em !important;
   }
 
   .label-main-row .v {
-    font-size: 5.35pt !important;
-  }
-
-  .label-main-row .v {
+    font-size: 10pt !important;
+    font-weight: 700 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+  }
+
+  .label-main-row .v.id-cell {
+    font-size: 7.5pt !important;
+    font-weight: 600 !important;
+    color: #444 !important;
   }
 
   .label-right {
@@ -1918,15 +1852,12 @@
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 10.8mm !important;
-    height: 10.8mm !important;
+    width: 26mm !important;
+    height: 26mm !important;
   }
 
   .label-qr-id {
-    font-size: 2.4pt !important;
-    line-height: 1 !important;
-    margin-top: 0.1mm !important;
-    word-break: break-all !important;
+    display: none !important;
   }
 
   .label-workers {
@@ -1934,33 +1865,50 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    padding: 0.8mm !important;
-    margin-top: 0.6mm !important;
-    font-size: 4.8pt !important;
-    line-height: 1.06 !important;
+    border: 1.5px solid #111 !important;
+    margin-top: 1.5mm !important;
+    padding: 1.2mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.2 !important;
   }
 
   .label-workers-title {
-    font-size: 5.1pt !important;
-    padding-bottom: 0.4mm !important;
-    margin-bottom: 0.4mm !important;
+    font-size: 9pt !important;
+    font-weight: 900 !important;
+    padding-bottom: 0.8mm !important;
+    margin-bottom: 0.8mm !important;
+    border-bottom: 1.2px solid #111 !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 10mm 1fr !important;
-    gap: 0.4mm !important;
-    margin-bottom: 0.35mm !important;
+    grid-template-columns: 12mm 1fr !important;
+    gap: 0.6mm !important;
+    margin-bottom: 0.9mm !important;
   }
 
-  .label-worker-row .v,
+  .label-worker-row .k {
+    font-size: 8pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+
+  .label-worker-row .v {
+    word-break: break-word !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-align: right !important;
+    font-size: 8.5pt !important;
+    font-weight: 700 !important;
+  }
+
   .label-worker-row.setting .v {
-    font-size: 4.5pt !important;
-    line-height: 1.04 !important;
+    font-size: 7.5pt !important;
+    line-height: 1.15 !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
-    text-align: right !important;
+    font-weight: 700 !important;
   }
 `;
 
@@ -2008,7 +1956,7 @@
   #labelModal .modal-head,
   #labelModal .actions { display: none !important; }
 
-  ${isTicket ? ticketCss : (isCompactLabel ? labelCompactCss : labelTallCss)}
+  ${isTicket ? ticketCss : labelCss}
 }
 `;
     }
