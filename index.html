@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (FINAL - Label 100x78 on Paper 100x150)</title>
+  <title>Bal Tracking 3.0 - Cloud (FIX 7 - Phase A Packing Multi Pekerja)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -216,7 +216,13 @@
     .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
     .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
     .st-SELESAI_SETTING { background: #fbcfe8; color: #831843; }
+    .st-SIAP_PACKING { background: #fed7aa; color: #9a3412; }
+    .st-PROSES_PACKING_INTERNAL { background: #fde68a; color: #78350f; }
+    .st-PROSES_PACKING_MAKLON { background: #fbbf24; color: #78350f; }
     .st-SELESAI_PACKING { background: #d1fae5; color: #065f46; }
+    .st-STOK_BARANG { background: #bae6fd; color: #075985; }
+    .st-SIAP_KIRIM { background: #a7f3d0; color: #064e3b; }
+    .st-TERKIRIM { background: #86efac; color: #14532d; }
     .st-DIPECAH { background: #fee2e2; color: #991b1b; }
     .tag { background: #e0e7ff; color: #3730a3; }
 
@@ -234,10 +240,10 @@
     .kv strong { font-size: 13px; }
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
-    /* LABEL BAL FINAL: desain isi 100 x 78 mm, aman dicetak di kertas 100 x 150 mm */
+    /* LABEL BAL FINAL 100 x 150 mm */
     .label-area {
       width: 96mm;
-      height: 74mm;
+      height: 146mm;
       max-width: none;
       margin: 2mm auto;
       background: white;
@@ -250,40 +256,40 @@
     }
 
     .label-final-title {
-      height: 7mm;
-      line-height: 6.2mm;
+      height: 6mm;
+      line-height: 5.2mm;
       text-align: center;
-      font-size: 11pt;
-      font-weight: 900;
-      border-bottom: 1.2px solid #111;
-      margin-bottom: 1.5mm;
+      font-size: 8.8pt;
+      font-weight: 800;
+      border-bottom: 1px solid #111;
+      margin-bottom: 1.2mm;
     }
 
     .label-final-grid {
       display: grid;
-      grid-template-columns: 58mm 32mm;
-      gap: 0.8mm;
-      height: 61.5mm;
+      grid-template-columns: 53.5mm 35.5mm;
+      gap: 0.4mm;
+      height: 39mm;
     }
 
     .label-main {
       border-right: 1px solid #aaa;
-      padding-right: 0.9mm;
+      padding-right: 0.7mm;
       min-width: 0;
     }
 
     .label-main-row {
       display: grid;
-      grid-template-columns: 16mm 1fr;
+      grid-template-columns: 13.8mm 1fr;
       align-items: start;
-      line-height: 1.15;
-      margin-bottom: 1.6mm;
+      line-height: 1.1;
+      margin-bottom: 1.45mm;
     }
 
     .label-main-row .k {
       font-weight: 800;
       white-space: nowrap;
-      font-size: 9pt;
+      font-size: 5.7pt;
       letter-spacing: .01em;
     }
 
@@ -291,24 +297,15 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 10pt;
-      font-weight: 700;
-    }
-
-    /* Field ID Bal di-display kecil saja (referensi visual, QR sudah mewakili).
-       Pakai class .id-cell di kolom .v untuk row ID. */
-    .label-main-row .v.id-cell {
-      font-size: 7.5pt;
-      font-weight: 600;
-      color: #444;
+      font-size: 6.7pt;
     }
 
     .label-right {
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      width: 32mm;
-      max-width: 32mm;
+      width: 35.5mm;
+      max-width: 35.5mm;
       min-width: 0;
       overflow: visible;
     }
@@ -320,49 +317,51 @@
 
     .label-qr #qrLabel canvas,
     .label-qr #qrLabel img {
-      width: 26mm !important;
-      height: 26mm !important;
+      width: 13mm !important;
+      height: 13mm !important;
     }
 
-    /* Hapus teks kecil di bawah QR (QR sudah cukup, ID-nya ada di main info kecil) */
     .label-qr-id {
-      display: none !important;
+      font-size: 2.9pt;
+      line-height: 1;
+      margin-top: 0.15mm;
+      font-family: Arial, Helvetica, sans-serif;
+      word-break: break-all;
     }
 
     .label-workers {
       width: 100%;
       max-width: 100%;
-      border: 1.5px solid #111;
+      border: 1px solid #111;
       border-radius: 2mm;
-      margin-top: 1.5mm;
-      padding: 1.2mm;
-      font-size: 8.5pt;
-      line-height: 1.2;
+      margin-top: 0.85mm;
+      padding: 1mm;
+      font-size: 5.7pt;
+      line-height: 1.12;
       box-sizing: border-box;
       overflow: visible;
     }
 
     .label-workers-title {
       text-align: center;
-      font-size: 9pt;
-      font-weight: 900;
-      padding-bottom: 0.8mm;
-      margin-bottom: 0.8mm;
-      border-bottom: 1.2px solid #111;
-      letter-spacing: .03em;
+      font-size: 5.9pt;
+      font-weight: 800;
+      padding-bottom: 0.7mm;
+      margin-bottom: 0.7mm;
+      border-bottom: 1px solid #111;
     }
 
     .label-worker-row {
       display: grid;
-      grid-template-columns: 12mm 1fr;
-      gap: 0.6mm;
-      margin-bottom: 0.9mm;
+      grid-template-columns: 10mm 1fr;
+      gap: 0.5mm;
+      margin-bottom: 0.65mm;
     }
 
     .label-worker-row .k {
       font-weight: 800;
       white-space: nowrap;
-      font-size: 8pt;
+      font-size: 5.2pt;
     }
 
     .label-worker-row .v {
@@ -370,25 +369,23 @@
       white-space: normal;
       overflow: visible;
       text-align: right;
-      font-size: 8.5pt;
-      font-weight: 700;
+      font-size: 5.4pt;
     }
 
     .label-worker-row.setting .v {
-      font-size: 7.5pt;
-      line-height: 1.15;
+      font-size: 4.8pt;
+      line-height: 1.05;
       white-space: normal;
       word-break: break-word;
       overflow: visible;
-      font-weight: 700;
     }
 
-    /* TIKET PACKING — 100 x 78 mm (sama dengan Label Bal) */
+    /* TIKET PACKING FINAL 100 x 50 mm */
     .ticket-label-area {
-      width: 96mm;
-      height: 74mm;
+      width: 100mm;
+      height: 50mm;
       max-width: none;
-      margin: 2mm auto;
+      margin: 0 auto;
       background: white;
       border: 1.3px solid #111;
       padding: 2mm;
@@ -399,114 +396,104 @@
     }
 
     .ticket-title {
-      height: 7mm;
-      line-height: 6.2mm;
+      height: 6mm;
+      line-height: 5.2mm;
       text-align: center;
-      font-size: 11pt;
-      font-weight: 900;
-      border-bottom: 1.2px solid #111;
-      margin-bottom: 1.5mm;
+      font-size: 8.8pt;
+      font-weight: 800;
+      border-bottom: 1px solid #111;
+      margin-bottom: 1.2mm;
     }
 
     .ticket-grid {
       display: grid;
-      grid-template-columns: 58mm 32mm;
-      gap: 0.8mm;
-      height: 61.5mm;
+      grid-template-columns: 57mm 37mm;
+      gap: 1.5mm;
+      height: 39mm;
     }
 
     .ticket-main {
       border-right: 1px solid #aaa;
-      padding-right: 0.9mm;
-      min-width: 0;
+      padding-right: 1.5mm;
     }
 
     .ticket-row {
       display: grid;
       grid-template-columns: 16mm 1fr;
       align-items: start;
-      font-size: 9pt;
-      line-height: 1.15;
-      margin-bottom: 1.6mm;
+      font-size: 6.1pt;
+      line-height: 1.08;
+      margin-bottom: 1.22mm;
     }
 
     .ticket-row .k {
       font-weight: 800;
       white-space: nowrap;
-      font-size: 9pt;
     }
 
     .ticket-row .v {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 10pt;
-      font-weight: 700;
-    }
-
-    /* Ticket ID kecil seperti label */
-    .ticket-row .v.id-cell {
-      font-size: 7.5pt;
-      font-weight: 600;
-      color: #444;
     }
 
     .ticket-right {
       display: flex;
       flex-direction: column;
-      align-items: stretch;
+      align-items: center;
     }
 
     .ticket-qr {
       text-align: center;
-      margin-top: 0;
+      margin-top: 0.5mm;
     }
 
     .ticket-qr #qrLabel canvas,
     .ticket-qr #qrLabel img {
-      width: 26mm !important;
-      height: 26mm !important;
+      width: 12.5mm !important;
+      height: 12.5mm !important;
     }
 
     .ticket-qr-id {
-      display: none !important;
+      font-size: 3.4pt;
+      line-height: 1;
+      margin-top: 0.35mm;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
     .ticket-workers {
       width: 100%;
-      border: 1.5px solid #111;
+      border: 1px solid #111;
       border-radius: 2mm;
-      margin-top: 1.5mm;
-      padding: 1.2mm;
-      font-size: 8.5pt;
-      line-height: 1.2;
+      margin-top: 1.2mm;
+      padding: 0.9mm;
+      font-size: 5pt;
+      line-height: 1.08;
     }
 
     .ticket-workers-title {
       text-align: center;
-      font-size: 9pt;
-      font-weight: 900;
-      padding-bottom: 0.8mm;
-      margin-bottom: 0.8mm;
-      border-bottom: 1.2px solid #111;
-      letter-spacing: .03em;
+      font-size: 5.3pt;
+      font-weight: 800;
+      padding-bottom: 0.6mm;
+      margin-bottom: 0.6mm;
+      border-bottom: 1px solid #111;
     }
 
     .ticket-worker-line {
-      font-size: 8.5pt;
-      line-height: 1.2;
-      margin-bottom: 1mm;
+      font-size: 5.2pt;
+      line-height: 1.1;
+      margin-bottom: 0.8mm;
       word-break: break-word;
-      font-weight: 700;
     }
 
     .ticket-worker-row {
       display: grid;
-      grid-template-columns: 14mm 1fr;
+      grid-template-columns: 11mm 1fr;
       gap: 0.8mm;
-      font-size: 8.5pt;
-      line-height: 1.18;
-      margin-bottom: 0.8mm;
+      font-size: 5pt;
+      line-height: 1.08;
+      margin-bottom: 0.55mm;
     }
 
     .ticket-worker-row .name {
@@ -524,8 +511,8 @@
     }
 
     .ticket-worker-row.setting-line .qty {
-      font-size: 7.5pt;
-      line-height: 1.1;
+      font-size: 4.35pt;
+      line-height: 1.02;
     }
 
 
@@ -602,12 +589,12 @@
     overflow: hidden !important;
   }
 
-  /* PRINT OVERRIDE — kertas 100 x 150, desain label 100 x 78 di bagian atas */
+  /* PRINT OVERRIDE KHUSUS LABEL BAL 100 x 150 */
   .label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 74mm !important;
+    height: 146mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -622,64 +609,58 @@
 
   .label-final-grid {
     display: grid !important;
-    grid-template-columns: 58mm 32mm !important;
-    gap: 0.8mm !important;
-    height: 61.5mm !important;
+    grid-template-columns: 53.5mm 35.5mm !important;
+    gap: 0.4mm !important;
+    height: 39mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.9mm !important;
+    padding-right: 0.6mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 16mm 1fr !important;
+    grid-template-columns: 13.8mm 1fr !important;
     align-items: start !important;
-    line-height: 1.15 !important;
-    margin-bottom: 1.6mm !important;
+    line-height: 1.1 !important;
+    margin-bottom: 1.45mm !important;
   }
 
   .label-main-row .k {
-    font-size: 9pt !important;
+    font-size: 5.7pt !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
     letter-spacing: 0.01em !important;
   }
 
   .label-main-row .v {
-    font-size: 10pt !important;
-    font-weight: 700 !important;
+    font-size: 6.7pt !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-  }
-
-  .label-main-row .v.id-cell {
-    font-size: 7.5pt !important;
-    font-weight: 600 !important;
-    color: #444 !important;
   }
 
   .label-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 32mm !important;
-    max-width: 32mm !important;
+    width: 35.5mm !important;
+    max-width: 35.5mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 26mm !important;
-    height: 26mm !important;
+    width: 18mm !important;
+    height: 18mm !important;
   }
 
   .label-qr-id {
-    display: none !important;
+    font-size: 3.8pt !important;
+    word-break: break-all !important;
   }
 
   .label-workers {
@@ -687,32 +668,27 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    border: 1.5px solid #111 !important;
-    padding: 1.2mm !important;
-    margin-top: 1.5mm !important;
-    font-size: 8.5pt !important;
-    line-height: 1.2 !important;
+    padding: 1mm !important;
+    font-size: 5pt !important;
+    line-height: 1.1 !important;
   }
 
   .label-workers-title {
-    font-size: 9pt !important;
-    font-weight: 900 !important;
-    padding-bottom: 0.8mm !important;
-    margin-bottom: 0.8mm !important;
-    border-bottom: 1.2px solid #111 !important;
+    font-size: 5.4pt !important;
+    padding-bottom: 0.6mm !important;
+    margin-bottom: 0.6mm !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 12mm 1fr !important;
-    gap: 0.6mm !important;
-    margin-bottom: 0.9mm !important;
+    grid-template-columns: 9mm 1fr !important;
+    gap: 0.5mm !important;
+    margin-bottom: 0.65mm !important;
   }
 
   .label-worker-row .k {
     font-weight: 800 !important;
     white-space: nowrap !important;
-    font-size: 8pt !important;
   }
 
   .label-worker-row .v {
@@ -720,25 +696,23 @@
     white-space: normal !important;
     overflow: visible !important;
     text-align: right !important;
-    font-size: 8.5pt !important;
-    font-weight: 700 !important;
+    font-size: 5.4pt !important;
   }
 
   .label-worker-row.setting .v {
-    font-size: 7.5pt !important;
-    line-height: 1.15 !important;
+    font-size: 4.5pt !important;
+    line-height: 1.05 !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
-    font-weight: 700 !important;
   }
 
-  /* Tiket packing — sama ukuran 100 x 78 */
+  /* Tiket packing tetap ukuran 100 x 50, tidak ikut dipaksa menjadi label bal. */
   .ticket-label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 74mm !important;
+    height: 46mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -868,7 +842,7 @@
             <button id="btnResetPhoto" class="btn-secondary btn-sm hidden" onclick="resetPhoto()" type="button">🗑 Hapus Foto</button>
           </div>
 
-          <button class="btn-primary btn-block" onclick="guardedClick(this, submitBal, 'Menyimpan...')">💾 Simpan Bal & Cetak Label</button>
+          <button class="btn-primary btn-block" onclick="submitBal()">💾 Simpan Bal & Cetak Label</button>
         </div>
       </div>
 
@@ -1026,22 +1000,8 @@
     // Timeout per request (ms). Apps Script bisa lambat, kasih cukup waktu.
     const API_TIMEOUT_MS = 30000;
 
-    // Retry policy berbeda per jenis action:
-    // - READ-only (list/get) boleh retry — kalau network glitch, retry membantu
-    // - WRITE (create/update/delete) JANGAN retry — risk duplikat record di server
-    // Lebih aman: kalau write gagal, user lihat error & retry manual (idempotent)
-    const API_RETRY_READ = 2;
-    const API_RETRY_WRITE = 0;
-    // Action yang dianggap WRITE (mutate data). Selain ini = READ.
-    const WRITE_ACTIONS = new Set([
-      "createBal", "updateStatus", "createOutputLabel", "editBal",
-      "splitBal", "deleteBal", "manualSelesaiSetting", "ownerOverride",
-      "updateBoronganTarif", "deleteBoronganRow", "uploadFoto",
-      "createUser", "updateUser", "resetUserPin", "setUserActive"
-    ]);
-    function getMaxRetries(action) {
-      return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
-    }
+    // Retry kalau request gagal karena network (bukan karena error business).
+    const API_MAX_RETRIES = 2;
 
     // Cache TTL untuk listBals/listHistory dll (ms). Set 0 = no cache.
     const API_CACHE_TTL_MS = 60000;
@@ -1054,14 +1014,19 @@
     let scanner = null;
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
-    let currentPrintMode = "label"; // label = bal utama, ticket = ticket packing. Keduanya 100x78mm.
-    // Ukuran kertas fisik saat ini masih 100x150.
-    // Desain label tetap 100x78 dan ditempatkan di bagian atas kertas.
-    // Nanti kalau sudah pakai label 100x78, ubah THERMAL_PAPER_SIZE menjadi "100x78".
-    const THERMAL_PAPER_SIZE = "100x150";
-    const LABEL_BAL_PRINT_SIZE = "100x78";
+    let currentPrintMode = "label"; // label = 100x150, ticket = 100x50
+    // Persiapan nanti kalau label bal utama juga ganti ke kertas thermal 100 x 50.
+    // Untuk sekarang biarkan "100x150". Nanti cukup ubah jadi "100x50" lalu deploy ulang.
+    const LABEL_BAL_PRINT_SIZE = "100x150";
 
-    const STATUS_ORDER = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+    const STATUS_ORDER = [
+      "SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS",
+      "MULAI_SETTING", "SELESAI_SETTING",
+      "SIAP_PACKING",
+      "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
+      "SELESAI_PACKING",
+      "STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"
+    ];
     const STATUS_LABEL = {
       SELESAI_MESIN: "Selesai Mesin",
       QTY_TERVERIFIKASI: "Qty Terverifikasi",
@@ -1069,7 +1034,13 @@
       SELESAI_OBRAS: "Selesai Obras",
       MULAI_SETTING: "Mulai Setting",
       SELESAI_SETTING: "Selesai Setting",
-      SELESAI_PACKING: "Selesai Packing",
+      SIAP_PACKING: "Siap Packing",
+      PROSES_PACKING_INTERNAL: "Proses Packing Internal",
+      PROSES_PACKING_MAKLON: "Proses Packing Maklon",
+      SELESAI_PACKING: "Selesai Packing (Menunggu QC)",
+      STOK_BARANG: "Stok Gudang",
+      SIAP_KIRIM: "Siap Kirim",
+      TERKIRIM: "Terkirim",
       DIPECAH: "Dipecah"
     };
 
@@ -1082,9 +1053,12 @@
       { action: "VERIFIKASI_QTY",  label: "Verifikasi Qty",  from: "SELESAI_MESIN",     to: "QTY_TERVERIFIKASI", roles: ["Checker / QC", "Admin Produksi", "Owner"] },
       { action: "MULAI_OBRAS",     label: "Mulai Obras",     from: "QTY_TERVERIFIKASI", to: "MULAI_OBRAS",       roles: ["Obras", "Admin Produksi", "Owner"] },
       { action: "SELESAI_OBRAS",   label: "Selesai Obras",   from: "MULAI_OBRAS",       to: "SELESAI_OBRAS",     roles: ["Obras", "Admin Produksi", "Owner"] },
-      { action: "MULAI_SETTING",   label: "Mulai Setting",   from: "SELESAI_OBRAS",     to: "MULAI_SETTING",     roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
-      { action: "SELESAI_SETTING", label: "Selesai Setting", from: "MULAI_SETTING",     to: "SELESAI_SETTING",   roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
-      { action: "SELESAI_PACKING", label: "Selesai Packing", from: "SELESAI_SETTING",   to: "SELESAI_PACKING",   roles: ["Packing", "Admin Produksi", "Owner"] }
+      { action: "MULAI_SETTING",   label: "Mulai Setting",   from: "SELESAI_OBRAS",     to: "MULAI_SETTING",     roles: ["Setting / Steam", "Admin Produksi", "Owner"] }
+      // SELESAI_SETTING → SIAP_PACKING: AUTO oleh server saat output setting penuh.
+      // SIAP_PACKING → PROSES_PACKING_*: pakai apiStartPacking (modal khusus).
+      // PROSES_PACKING_* → SELESAI_PACKING: pakai apiFinishPacking (modal khusus).
+      // SELESAI_PACKING → STOK_BARANG/SIAP_KIRIM: pakai apiQcPacking (modal QC).
+      // STOK_BARANG/SIAP_KIRIM → TERKIRIM: pakai apiMarkShipped (modal kirim).
     ];
 
     /* ============================================================
@@ -1124,8 +1098,7 @@
       }
 
       let lastErr = null;
-      const maxRetries = getMaxRetries(action);
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      for (let attempt = 0; attempt <= API_MAX_RETRIES; attempt++) {
         try {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
@@ -1145,10 +1118,9 @@
           return json.data;
         } catch (err) {
           lastErr = err;
-          // Network / abort error → retry (jika maxRetries > 0).
-          // Business error (json.ok=false) di-throw tanpa retry path.
+          // Network / abort error → retry. Business error (ok:false) sudah di-throw tanpa retry path.
           if (err.name === "AbortError" || /HTTP \d|Failed to fetch|NetworkError/i.test(err.message)) {
-            if (attempt < maxRetries) {
+            if (attempt < API_MAX_RETRIES) {
               await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
               continue;
             }
@@ -1231,47 +1203,6 @@
         throw err;
       } finally {
         hideLoading();
-      }
-    }
-
-    /* ============================================================
-       ANTI DOUBLE-TAP
-       Wrap event handler tombol kritis (action yang mutate data).
-       Tombol auto-disable + ubah text selama operasi, auto-restore
-       di finally. Mencegah user klik 2x karena network lambat.
-       ============================================================ */
-    function lockButton(btn, busyText = "Memproses...") {
-      if (!btn || btn._locked) return null;
-      btn._locked = true;
-      const origText = btn.textContent;
-      const origDisabled = btn.disabled;
-      btn.disabled = true;
-      btn.textContent = busyText;
-      btn.style.opacity = "0.7";
-      btn.style.cursor = "not-allowed";
-      return function unlock() {
-        btn._locked = false;
-        btn.disabled = origDisabled;
-        btn.textContent = origText;
-        btn.style.opacity = "";
-        btn.style.cursor = "";
-      };
-    }
-
-    /**
-     * Pakai untuk wrap handler kritis. Contoh:
-     *   <button onclick="guardedClick(this, () => submitBal())">Simpan</button>
-     * Atau dari script:
-     *   const btn = document.getElementById('submitBtn');
-     *   btn.addEventListener('click', () => guardedClick(btn, submitBal));
-     */
-    async function guardedClick(btn, fn, busyText = "Memproses...") {
-      const unlock = lockButton(btn, busyText);
-      if (!unlock) return; // sedang locked, ignore
-      try {
-        await fn();
-      } finally {
-        unlock();
       }
     }
 
@@ -1452,6 +1383,37 @@
       return await api("setUserActive", { username, active });
     }
 
+    async function apiStartPacking(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("startPacking", payload);
+    }
+
+    async function apiFinishPacking(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("finishPacking", payload);
+    }
+
+    async function apiQcPacking(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      clearApiCache("listBorongan");
+      return await api("qcPacking", payload);
+    }
+
+    async function apiToggleStokKirim(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("toggleStokKirim", payload);
+    }
+
+    async function apiMarkShipped(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("markShipped", payload);
+    }
+
     async function apiUploadFoto(base64, bal_id = "") {
       return await api("uploadFoto", { base64, bal_id });
     }
@@ -1563,8 +1525,9 @@
     function cap(v) { return String(v ?? "").toLocaleUpperCase("id-ID"); }
     function safeCap(v) { return safe(cap(v)); }
     /**
-     * Title Case: huruf pertama tiap kata jadi kapital.
-     * Untuk nama orang. "sandi mirwan" -> "Sandi Mirwan", "ADRIAN" -> "Adrian".
+     * Title Case: huruf pertama tiap kata jadi kapital, sisanya lowercase.
+     * Dipakai untuk nama orang (pekerja packing, maklon_by, dll).
+     * Contoh: "SANDI mirwah" → "Sandi Mirwah"
      */
     function titleCase(v) {
       return String(v ?? "")
@@ -1578,10 +1541,10 @@
     function roleFocusStatuses(role = currentUser?.role) {
       if (["Owner", "Admin Produksi"].includes(role)) return null;
       if (role === "Operator Mesin") return ["SELESAI_MESIN"];
-      if (role === "Checker / QC") return ["SELESAI_MESIN"];
+      if (role === "Checker / QC") return ["SELESAI_MESIN", "SELESAI_PACKING"];
       if (role === "Obras") return ["QTY_TERVERIFIKASI", "MULAI_OBRAS"];
-      if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING"];
-      if (role === "Packing") return ["SELESAI_SETTING", "SELESAI_PACKING"];
+      if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING"];
+      if (role === "Packing") return ["SIAP_PACKING", "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON", "SELESAI_PACKING"];
       return null;
     }
 
@@ -1621,10 +1584,9 @@
       }
 
       const isTicket = currentPrintMode === "ticket";
-      // Kertas fisik saat ini 100x150, desain label tetap 100x78 di bagian atas.
-      // Kalau nanti kertas sudah 100x78, cukup ubah THERMAL_PAPER_SIZE ke "100x78".
-      const pageSize = THERMAL_PAPER_SIZE === "100x78" ? "100mm 78mm" : "100mm 150mm";
-      const pageHeight = THERMAL_PAPER_SIZE === "100x78" ? "78mm" : "150mm";
+      const isCompactLabel = !isTicket && LABEL_BAL_PRINT_SIZE === "100x50";
+      const pageSize = (isTicket || isCompactLabel) ? "100mm 50mm" : "100mm 150mm";
+      const pageHeight = (isTicket || isCompactLabel) ? "50mm" : "150mm";
 
       const ticketCss = `
   .label-area { display: none !important; }
@@ -1633,7 +1595,7 @@
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 74mm !important;
+    height: 46mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -1647,79 +1609,61 @@
   }
 
   .ticket-title {
-    height: 7mm !important;
-    line-height: 6.2mm !important;
-    font-size: 11pt !important;
-    font-weight: 900 !important;
-    border-bottom: 1.2px solid #111 !important;
-    margin-bottom: 1.5mm !important;
+    height: 5mm !important;
+    line-height: 4.5mm !important;
+    font-size: 8pt !important;
+    margin-bottom: 1mm !important;
   }
 
   .ticket-grid {
     display: grid !important;
-    grid-template-columns: 58mm 32mm !important;
-    gap: 0.8mm !important;
-    height: 61.5mm !important;
+    grid-template-columns: 56mm 34mm !important;
+    gap: 1mm !important;
+    height: 35mm !important;
   }
 
   .ticket-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.9mm !important;
+    padding-right: 1mm !important;
     min-width: 0 !important;
   }
 
   .ticket-row {
     display: grid !important;
-    grid-template-columns: 16mm 1fr !important;
+    grid-template-columns: 15mm 1fr !important;
     align-items: start !important;
-    font-size: 9pt !important;
-    line-height: 1.15 !important;
-    margin-bottom: 1.6mm !important;
-  }
-
-  .ticket-row .k {
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-    font-size: 9pt !important;
+    font-size: 5.6pt !important;
+    line-height: 1.05 !important;
+    margin-bottom: 0.85mm !important;
   }
 
   .ticket-row .v {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    font-size: 10pt !important;
-    font-weight: 700 !important;
-  }
-
-  .ticket-row .v.id-cell {
-    font-size: 7.5pt !important;
-    font-weight: 600 !important;
-    color: #444 !important;
   }
 
   .ticket-right {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    width: 32mm !important;
-    max-width: 32mm !important;
+    width: 34mm !important;
+    max-width: 34mm !important;
     min-width: 0 !important;
     overflow: visible !important;
   }
 
-  .ticket-qr {
-    margin-top: 0 !important;
-    text-align: center !important;
-  }
+  .ticket-qr { margin-top: 0.2mm !important; }
 
   .ticket-qr #qrLabel canvas,
   .ticket-qr #qrLabel img {
-    width: 26mm !important;
-    height: 26mm !important;
+    width: 12.5mm !important;
+    height: 12.5mm !important;
   }
 
   .ticket-qr-id {
-    display: none !important;
+    font-size: 2.8pt !important;
+    word-break: break-all !important;
   }
 
   .ticket-workers {
@@ -1727,28 +1671,25 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    border: 1.5px solid #111 !important;
-    padding: 1.2mm !important;
-    margin-top: 1.5mm !important;
-    font-size: 8.5pt !important;
-    line-height: 1.2 !important;
+    padding: 0.8mm !important;
+    margin-top: 0.6mm !important;
+    font-size: 4.8pt !important;
+    line-height: 1.06 !important;
   }
 
   .ticket-workers-title {
-    font-size: 9pt !important;
-    font-weight: 900 !important;
-    padding-bottom: 0.8mm !important;
-    margin-bottom: 0.8mm !important;
-    border-bottom: 1.2px solid #111 !important;
+    font-size: 5.1pt !important;
+    padding-bottom: 0.4mm !important;
+    margin-bottom: 0.4mm !important;
   }
 
   .ticket-worker-row {
     display: grid !important;
-    grid-template-columns: 14mm 1fr !important;
-    gap: 0.8mm !important;
-    font-size: 8.5pt !important;
-    line-height: 1.18 !important;
-    margin-bottom: 0.8mm !important;
+    grid-template-columns: 10mm 1fr !important;
+    gap: 0.4mm !important;
+    font-size: 4.5pt !important;
+    line-height: 1.04 !important;
+    margin-bottom: 0.35mm !important;
   }
 
   .ticket-worker-row .name {
@@ -1763,18 +1704,147 @@
     white-space: normal !important;
     word-break: break-word !important;
     overflow: visible !important;
-    font-weight: 700 !important;
   }
 `;
 
-      const labelCss = `
+      const labelTallCss = `
   .ticket-label-area { display: none !important; }
 
   .label-area {
     display: block !important;
     position: relative !important;
     width: 96mm !important;
-    height: 74mm !important;
+    height: 146mm !important;
+    max-width: none !important;
+    margin: 2mm auto !important;
+    padding: 2mm !important;
+    border: 1.3px solid #111 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .label-final-grid {
+    display: grid !important;
+    grid-template-columns: 53.5mm 35.5mm !important;
+    gap: 0.4mm !important;
+    height: 39mm !important;
+  }
+
+  .label-main {
+    border-right: 1px solid #aaa !important;
+    padding-right: 0.6mm !important;
+    min-width: 0 !important;
+  }
+
+  .label-main-row {
+    display: grid !important;
+    grid-template-columns: 13.8mm 1fr !important;
+    align-items: start !important;
+    line-height: 1.1 !important;
+    margin-bottom: 1.45mm !important;
+  }
+
+  .label-main-row .k {
+    font-size: 5.7pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.01em !important;
+  }
+
+  .label-main-row .v {
+    font-size: 6.7pt !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .label-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 35.5mm !important;
+    max-width: 35.5mm !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .label-qr {
+    margin-top: 0 !important;
+    text-align: center !important;
+  }
+
+  .label-qr #qrLabel canvas,
+  .label-qr #qrLabel img {
+    width: 13mm !important;
+    height: 13mm !important;
+  }
+
+  .label-qr-id {
+    font-size: 2.9pt !important;
+    line-height: 1 !important;
+    margin-top: 0.15mm !important;
+    word-break: break-all !important;
+  }
+
+  .label-workers {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    margin-top: 0.85mm !important;
+    padding: 1mm !important;
+    font-size: 5.7pt !important;
+    line-height: 1.12 !important;
+  }
+
+  .label-workers-title {
+    font-size: 5.9pt !important;
+    padding-bottom: 0.7mm !important;
+    margin-bottom: 0.7mm !important;
+  }
+
+  .label-worker-row {
+    display: grid !important;
+    grid-template-columns: 9.8mm 1fr !important;
+    gap: 0.55mm !important;
+    margin-bottom: 0.72mm !important;
+  }
+
+  .label-worker-row .k {
+    font-size: 5.2pt !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+
+  .label-worker-row .v {
+    word-break: break-word !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-align: right !important;
+    font-size: 5.4pt !important;
+  }
+
+  .label-worker-row.setting .v {
+    font-size: 4.8pt !important;
+    line-height: 1.05 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+  }
+`;
+
+      const labelCompactCss = `
+  .ticket-label-area { display: none !important; }
+
+  .label-area {
+    display: block !important;
+    position: relative !important;
+    width: 96mm !important;
+    height: 46mm !important;
     max-width: none !important;
     margin: 2mm auto !important;
     padding: 2mm !important;
@@ -1788,54 +1858,47 @@
   }
 
   .label-final-title {
-    height: 7mm !important;
-    line-height: 6.2mm !important;
-    font-size: 11pt !important;
-    font-weight: 900 !important;
-    border-bottom: 1.2px solid #111 !important;
-    margin-bottom: 1.5mm !important;
+    height: 5mm !important;
+    line-height: 4.5mm !important;
+    font-size: 8pt !important;
+    margin-bottom: 1mm !important;
   }
 
   .label-final-grid {
     display: grid !important;
     grid-template-columns: 58mm 32mm !important;
-    gap: 0.8mm !important;
-    height: 61.5mm !important;
+    gap: 0.4mm !important;
+    height: 35mm !important;
   }
 
   .label-main {
     border-right: 1px solid #aaa !important;
-    padding-right: 0.9mm !important;
+    padding-right: 0.6mm !important;
     min-width: 0 !important;
   }
 
   .label-main-row {
     display: grid !important;
-    grid-template-columns: 16mm 1fr !important;
+    grid-template-columns: 11.5mm 1fr !important;
     align-items: start !important;
-    line-height: 1.15 !important;
-    margin-bottom: 1.6mm !important;
+    line-height: 1.03 !important;
+    margin-bottom: 0.72mm !important;
   }
 
   .label-main-row .k {
-    font-size: 9pt !important;
+    font-size: 4.8pt !important;
     font-weight: 800 !important;
     white-space: nowrap !important;
-    letter-spacing: 0.01em !important;
   }
 
   .label-main-row .v {
-    font-size: 10pt !important;
-    font-weight: 700 !important;
+    font-size: 5.35pt !important;
+  }
+
+  .label-main-row .v {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-  }
-
-  .label-main-row .v.id-cell {
-    font-size: 7.5pt !important;
-    font-weight: 600 !important;
-    color: #444 !important;
   }
 
   .label-right {
@@ -1855,12 +1918,15 @@
 
   .label-qr #qrLabel canvas,
   .label-qr #qrLabel img {
-    width: 26mm !important;
-    height: 26mm !important;
+    width: 10.8mm !important;
+    height: 10.8mm !important;
   }
 
   .label-qr-id {
-    display: none !important;
+    font-size: 2.4pt !important;
+    line-height: 1 !important;
+    margin-top: 0.1mm !important;
+    word-break: break-all !important;
   }
 
   .label-workers {
@@ -1868,50 +1934,33 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    border: 1.5px solid #111 !important;
-    margin-top: 1.5mm !important;
-    padding: 1.2mm !important;
-    font-size: 8.5pt !important;
-    line-height: 1.2 !important;
+    padding: 0.8mm !important;
+    margin-top: 0.6mm !important;
+    font-size: 4.8pt !important;
+    line-height: 1.06 !important;
   }
 
   .label-workers-title {
-    font-size: 9pt !important;
-    font-weight: 900 !important;
-    padding-bottom: 0.8mm !important;
-    margin-bottom: 0.8mm !important;
-    border-bottom: 1.2px solid #111 !important;
+    font-size: 5.1pt !important;
+    padding-bottom: 0.4mm !important;
+    margin-bottom: 0.4mm !important;
   }
 
   .label-worker-row {
     display: grid !important;
-    grid-template-columns: 12mm 1fr !important;
-    gap: 0.6mm !important;
-    margin-bottom: 0.9mm !important;
+    grid-template-columns: 10mm 1fr !important;
+    gap: 0.4mm !important;
+    margin-bottom: 0.35mm !important;
   }
 
-  .label-worker-row .k {
-    font-size: 8pt !important;
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-  }
-
-  .label-worker-row .v {
-    word-break: break-word !important;
+  .label-worker-row .v,
+  .label-worker-row.setting .v {
+    font-size: 4.5pt !important;
+    line-height: 1.04 !important;
     white-space: normal !important;
+    word-break: break-word !important;
     overflow: visible !important;
     text-align: right !important;
-    font-size: 8.5pt !important;
-    font-weight: 700 !important;
-  }
-
-  .label-worker-row.setting .v {
-    font-size: 7.5pt !important;
-    line-height: 1.15 !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    overflow: visible !important;
-    font-weight: 700 !important;
   }
 `;
 
@@ -1959,7 +2008,7 @@
   #labelModal .modal-head,
   #labelModal .actions { display: none !important; }
 
-  ${isTicket ? ticketCss : labelCss}
+  ${isTicket ? ticketCss : (isCompactLabel ? labelCompactCss : labelTallCss)}
 }
 `;
     }
@@ -2108,6 +2157,8 @@
 
       const inObras = bals.filter(b => b.status === "MULAI_OBRAS").length;
       const inSetting = bals.filter(b => b.status === "MULAI_SETTING").length;
+      const inPacking = bals.filter(b => ["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(b.status)).length;
+      const inMaklon = bals.filter(b => b.status === "PROSES_PACKING_MAKLON").length;
       const dipecah = bals.filter(b => b.status === "DIPECAH" || b.is_parent_split).length;
       const stats = [
         ["Total Fokus", bals.length],
@@ -2115,7 +2166,13 @@
         ["Siap Obras", count("QTY_TERVERIFIKASI")],
         ["Dalam Obras", inObras],
         ["Dalam Setting", inSetting],
-        ["Selesai Packing", count("SELESAI_PACKING")]
+        ["Siap Packing", count("SIAP_PACKING")],
+        ["Dalam Packing", inPacking],
+        ["Di Maklon", inMaklon],
+        ["Menunggu QC", count("SELESAI_PACKING")],
+        ["Stok Gudang", count("STOK_BARANG")],
+        ["Siap Kirim", count("SIAP_KIRIM")],
+        ["Terkirim", count("TERKIRIM")]
       ];
       document.querySelector("#tab-dashboard .section-title").textContent = title;
       document.getElementById("dashboardStats").innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
@@ -2193,25 +2250,16 @@
     async function submitBal() {
       if (!currentUser) return alert("Silakan login dulu.");
       if (!["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) return alert("Role Anda tidak boleh input bal.");
-      // Auto-uppercase pola A:
-      //   PO, Line, Warna, Size = UPPERCASE (kode/atribut produk)
-      //   Operator Mesin (nama) = Title Case (nama orang)
-      //   Jenis Barang = as-is dari dropdown / titleCase kalau freetype "Lainnya..."
-      //   No Bal, No Mesin, Halaman Buku, Buku No = angka, biarkan
-      //   Catatan = free text, biarkan
-      const po_id = cap(document.getElementById("f_po_id").value.trim());
+      const po_id = document.getElementById("f_po_id").value.trim();
       const nomor_bal = document.getElementById("f_nomor_bal").value.trim();
       const halaman_buku = document.getElementById("f_halaman_buku").value.trim();
       const buku_nomor = document.getElementById("f_buku_nomor").value.trim();
-      const line = cap(document.getElementById("f_line").value.trim());
+      const line = document.getElementById("f_line").value.trim();
       const no_mesin = document.getElementById("f_no_mesin").value.trim();
-      const operator_mesin = titleCase(document.getElementById("f_operator_mesin").value.trim());
-      const jenis_raw = resolveJenisValue("f_jenis_barang", "f_jenis_barang_lain");
-      // Jenis dari dropdown utama = as-is. Freetype "Lainnya..." = titleCase
-      const f_jenis_select = document.getElementById("f_jenis_barang");
-      const jenis_barang = f_jenis_select.value === "__OTHER__" ? titleCase(jenis_raw) : jenis_raw;
-      const warna = cap(document.getElementById("f_warna").value.trim());
-      const size = cap(document.getElementById("f_size").value.trim());
+      const operator_mesin = document.getElementById("f_operator_mesin").value.trim();
+      const jenis_barang = resolveJenisValue("f_jenis_barang", "f_jenis_barang_lain");
+      const warna = document.getElementById("f_warna").value.trim();
+      const size = document.getElementById("f_size").value.trim();
       const jumlah = Number(document.getElementById("f_jumlah").value);
       const satuan = document.getElementById("f_satuan").value;
       const catatan = document.getElementById("f_catatan").value.trim();
@@ -2412,6 +2460,10 @@ Alasan: ${cleanReason}`)) return;
             ${kv("Warna / Size", `${safe(b.warna || "-")} / ${safe(b.size || "-")}`)}
             ${kv("Jumlah Operator", `<strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>`)}
             ${b.qty_verifikasi ? kv("Qty Verifikasi", `<strong>${safe(b.qty_verifikasi)} ${safe(b.satuan)}</strong><br><span class="badge tag">${safe(b.qty_verifikasi_status)}</span><br><span class="small" style="color:var(--muted)">Qty resmi yang dipakai untuk sisa setting & borongan.</span>`) : ""}
+            ${b.tipe_packing ? kv("Tipe Packing", `<strong>${safe(b.tipe_packing)}</strong>${b.tipe_packing === "MAKLON" && b.maklon_by ? `<br>Maklon: ${safe(b.maklon_by)}` : ""}${b.maklon_keluar_at ? `<br>Keluar: ${fmtDate(b.maklon_keluar_at)}` : ""}${b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : ""}${b.maklon_kembali_at ? `<br>Kembali: ${fmtDate(b.maklon_kembali_at)}` : ""}`) : ""}
+            ${b.qty_packing ? kv("Qty Packing", `<strong>${safe(b.qty_packing)} ${safe(b.satuan)}</strong>${b.packing_finished_at ? `<br><small>Selesai: ${fmtDate(b.packing_finished_at)}</small>` : ""}`) : ""}
+            ${b.qc_at ? kv("Hasil QC", `Check: <strong>${safe(b.qc_qty_check)}</strong> · OK: <strong style="color:#16a34a">${safe(b.qc_qty_ok)}</strong> · Reject: <strong style="color:#dc2626">${safe(b.qc_qty_reject || 0)}</strong> · Selisih: <strong style="color:#ea580c">${safe(b.qc_qty_selisih || 0)}</strong><br><small>oleh ${safe(b.qc_by)} · ${fmtDate(b.qc_at)}</small>${b.qc_note ? `<br><em>"${safe(b.qc_note)}"</em>` : ""}`) : ""}
+            ${b.shipped_at ? kv("Pengiriman", `${b.shipped_to ? `Tujuan: <strong>${safe(b.shipped_to)}</strong><br>` : ""}${b.surat_jalan_no ? `SJ: <strong>${safe(b.surat_jalan_no)}</strong><br>` : ""}Tanggal: ${fmtDate(b.shipped_at)}<br><small>oleh ${safe(b.shipped_by)}</small>`) : ""}
             ${kv("Dibuat Oleh", `${safe(b.created_by || "-")} (${safe(b.created_role || "-")})`)}
           </div>
           ${b.catatan ? `<div class="alert alert-info"><strong>Catatan:</strong> ${safe(b.catatan)}</div>` : ""}
@@ -2479,30 +2531,108 @@ Alasan: ${cleanReason}`)) return;
     function detailActions(b) {
       if (b.status === "DIPECAH" || b.is_parent_split) {
         let html = `<div class="alert alert-warn">Bal induk sudah dipecah dan tidak bisa diproses lagi.</div>`;
-        // Owner masih bisa override (untuk koreksi/rollback split kalau perlu)
-        if (currentUser.role === "Owner") {
-          html += ownerOverrideButton(b);
-        }
-        return html;
-      }
-      let html = "";
-      if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
-        html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
-      }
-      if (b.status === "SELESAI_PACKING") {
-        html += `<div class="alert alert-success">✓ Bal sudah selesai packing.</div>`;
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
+      let html = "";
+
+      // Status final: TERKIRIM
+      if (b.status === "TERKIRIM") {
+        const info = [
+          b.shipped_to ? `Tujuan: ${safe(b.shipped_to)}` : "",
+          b.surat_jalan_no ? `SJ: ${safe(b.surat_jalan_no)}` : "",
+          b.shipped_at ? `Dikirim: ${fmtDate(b.shipped_at)}` : ""
+        ].filter(Boolean).join(" · ");
+        html += `<div class="alert alert-success">✓ Bal sudah TERKIRIM.<br><small>${info || ""}</small></div>`;
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // Edit 1x (saat SELESAI_MESIN)
+      if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
+        html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
+      }
+
+      // ===== FLOW PACKING BARU =====
+
+      // SIAP_PACKING → Mulai Packing (pilih INTERNAL/MAKLON)
+      if (b.status === "SIAP_PACKING") {
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openStartPacking('${b.bal_id}')">▶ Mulai Packing</button>`;
+        } else {
+          html += `<div class="alert alert-warn">Bal siap packing. Akun Packing yang akan mulai.</div>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // PROSES_PACKING_INTERNAL → Selesai Packing Internal
+      if (b.status === "PROSES_PACKING_INTERNAL") {
+        html += `<div class="alert alert-info">🏭 Proses packing INTERNAL di pabrik. Dimulai: ${fmtDate(b.packing_started_at)}</div>`;
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">✓ Selesai Packing Internal</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // PROSES_PACKING_MAKLON → Selesai Packing Maklon (barang kembali)
+      if (b.status === "PROSES_PACKING_MAKLON") {
+        const targetTxt = b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : "";
+        html += `<div class="alert alert-info">🏠 Sedang di MAKLON: <strong>${safe(b.maklon_by || "-")}</strong><br>Keluar: ${fmtDate(b.maklon_keluar_at)}${targetTxt}</div>`;
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">📥 Selesai Packing Maklon (Barang Kembali)</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // SELESAI_PACKING → QC Packing
+      if (b.status === "SELESAI_PACKING") {
+        if (b.qc_at) {
+          // Sudah pernah di-QC tapi masih SELESAI_PACKING — kasus aneh, kasih info
+          html += `<div class="alert alert-success">✓ Bal sudah QC dan packing selesai.</div>`;
+        } else {
+          html += `<div class="alert alert-warn">⏳ Menunggu QC. qty_packing: <strong>${safe(b.qty_packing || "-")} ${safe(b.satuan)}</strong></div>`;
+          if (["Admin Produksi", "Checker / QC", "Owner"].includes(currentUser.role)) {
+            html += `<button class="btn-success btn-block" onclick="openQcPacking('${b.bal_id}')">🔍 QC Packing</button>`;
+          } else {
+            html += `<div class="alert alert-warn">Menunggu QC oleh Admin / QC.</div>`;
+          }
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // STOK_BARANG → Pindah ke Siap Kirim atau Langsung Kirim
+      if (b.status === "STOK_BARANG") {
+        html += `<div class="alert alert-info">📦 Di stok gudang. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-primary btn-block" onclick="openToggleStokKirim('${b.bal_id}','SIAP_KIRIM')">📤 Pindah ke Siap Kirim</button>`;
+          html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // SIAP_KIRIM → Mark Terkirim atau Kembalikan ke Stok
+      if (b.status === "SIAP_KIRIM") {
+        html += `<div class="alert alert-info">🚛 Siap kirim. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
+          html += `<button class="btn-outline btn-block" style="margin-top:8px" onclick="openToggleStokKirim('${b.bal_id}','STOK_BARANG')">⬅ Kembalikan ke Stok Barang</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // ===== FLOW LAMA: verifikasi, obras, mulai setting =====
       const rule = ACTION_RULES.find(r => r.from === b.status);
       if (rule) {
-        const isAutoCompletedAction = rule.action === "SELESAI_SETTING";
-        if (!isAutoCompletedAction) {
-          if (rule.roles.includes(currentUser.role)) {
-            html += `<button class="btn-success btn-block" onclick="openActionConfirm('${b.bal_id}','${rule.action}')">✓ ${rule.label}</button>`;
-          } else {
-            html += `<div class="alert alert-danger">Akun Anda tidak memiliki akses untuk tindakan tahap ini. ${roleHint(b.status)}</div>`;
-          }
+        if (rule.roles.includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openActionConfirm('${b.bal_id}','${rule.action}')">✓ ${rule.label}</button>`;
+        } else {
+          html += `<div class="alert alert-danger">Akun Anda tidak memiliki akses untuk tindakan tahap ini. ${roleHint(b.status)}</div>`;
         }
       } else {
         html += `<div class="alert alert-warn">Bal ini belum masuk tahap kerja Anda.</div>`;
@@ -2516,7 +2646,6 @@ Alasan: ${cleanReason}`)) return;
       if (b.status === "MULAI_SETTING" && ["Owner", "Admin Produksi"].includes(currentUser.role)) {
         html += `<button class="btn-secondary btn-block" style="margin-top:8px; background: #6b7280" onclick="openManualSelesaiSetting('${b.bal_id}')">🔓 Selesai Setting Manual (Owner/Admin)</button>`;
       }
-      // Tombol Owner Override — paling bawah, hanya Owner.
       if (currentUser.role === "Owner") html += ownerOverrideButton(b);
       return html;
     }
@@ -2529,7 +2658,9 @@ Alasan: ${cleanReason}`)) return;
       if (status === "SELESAI_MESIN") return "Tahap ini untuk Checker / QC.";
       if (["QTY_TERVERIFIKASI", "MULAI_OBRAS"].includes(status)) return "Tahap ini untuk Obras.";
       if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(status)) return "Tahap ini untuk Setting / Steam.";
-      if (status === "SELESAI_SETTING") return "Tahap ini untuk Packing.";
+      if (status === "SIAP_PACKING") return "Tahap ini untuk Packing.";
+      if (["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(status)) return "Tahap ini untuk Packing.";
+      if (status === "SELESAI_PACKING") return "Tahap ini untuk Admin / Checker QC.";
       return "";
     }
 
@@ -2569,8 +2700,7 @@ Alasan: ${cleanReason}`)) return;
       rows.forEach(row => {
         const nameEl = row.querySelector(".packing-worker-name");
         const qtyEl = row.querySelector(".packing-worker-qty");
-        // Nama pekerja → Title Case (pola A: nama orang, bukan all-caps)
-        const name = titleCase(String(nameEl?.value || "").trim());
+        const name = String(nameEl?.value || "").trim();
         const qty = Number(qtyEl?.value || 0);
 
         nameEl?.classList.remove("field-error");
@@ -2670,7 +2800,7 @@ Alasan: ${cleanReason}`)) return;
         ${obrasHtml}
         ${packingHtml}
         <div class="form-group"><label>Catatan ${needReason ? '<span class="required">* wajib untuk Owner/Admin</span>' : '(opsional)'}</label><textarea id="actionNote"></textarea></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmUpdateStatus('${bal_id}','${action}'), 'Memproses...')">Konfirmasi</button>
+        <button class="btn-success btn-block" onclick="confirmUpdateStatus('${bal_id}','${action}')">Konfirmasi</button>
       `;
       document.getElementById("actionModal").classList.add("show");
       if (action === "VERIFIKASI_QTY") previewVerifyQty(bal_id);
@@ -2701,10 +2831,10 @@ Alasan: ${cleanReason}`)) return;
           payload.qty_aktual = qtyAktual;
           payload.qty_note = document.getElementById("verifyQtyNote")?.value.trim() || "";
         }
-        // Nama pekerja obras (khusus akun Obras) — Title Case (pola A)
+        // Nama pekerja obras (khusus akun Obras)
         if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
           const wEl = document.getElementById("obrasWorkerName");
-          const wName = titleCase(wEl?.value.trim() || "");
+          const wName = wEl?.value.trim() || "";
           if (action === "MULAI_OBRAS" && !wName) {
             wEl?.classList.add("field-error");
             return alert("Nama pekerja obras wajib diisi saat MULAI OBRAS.");
@@ -2753,7 +2883,7 @@ Alasan: ${cleanReason}`)) return;
           <label>Alasan <span class="required">* (minimal 10 karakter)</span></label>
           <textarea id="manualSettingReason" placeholder="contoh: Dimaklon ke vendor ABC, kembali estimasi 2 hari" rows="4"></textarea>
         </div>
-        <button class="btn-warning btn-block" onclick="guardedClick(this, () => confirmManualSelesaiSetting('${bal_id}'), 'Memproses...')">🔓 Konfirmasi Selesai Setting Manual</button>
+        <button class="btn-warning btn-block" onclick="confirmManualSelesaiSetting('${bal_id}')">🔓 Konfirmasi Selesai Setting Manual</button>
       `;
       document.getElementById("actionModal").classList.add("show");
     }
@@ -2770,6 +2900,350 @@ Alasan: ${cleanReason}`)) return;
         closeModal("detailModal");
         renderList(); renderDashboard(); renderGlobalHistory();
         openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       PACKING FLOW MODALS (Phase 1 client UI)
+       - openStartPacking → apiStartPacking (pilih INTERNAL/MAKLON)
+       - openFinishPacking → apiFinishPacking (qty_packing + workers internal / langsung untuk maklon)
+       - openQcPacking → apiQcPacking (qty_check/ok/reject/selisih + tujuan stok/kirim)
+       - openToggleStokKirim → apiToggleStokKirim (STOK_BARANG ↔ SIAP_KIRIM)
+       - openMarkShipped → apiMarkShipped (TERKIRIM + SJ optional)
+       ============================================================ */
+
+    async function openStartPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "SIAP_PACKING") return alert("Bal harus di status SIAP_PACKING.");
+      const qtyOff = officialQty(bal);
+      document.getElementById("actionTitle").textContent = "Mulai Packing";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong>
+        </div>
+        <div class="form-group">
+          <label>Tipe Packing <span class="required">*</span></label>
+          <select id="sp_tipe" onchange="document.getElementById('sp_maklon_box').style.display = this.value === 'MAKLON' ? 'block' : 'none'">
+            <option value="INTERNAL">INTERNAL (di pabrik)</option>
+            <option value="MAKLON">MAKLON (dibawa pulang pekerja)</option>
+          </select>
+        </div>
+        <div id="sp_maklon_box" style="display:none">
+          <div class="form-group">
+            <label>Nama Pekerja Maklon <span class="required">*</span></label>
+            <input id="sp_maklon_by" placeholder="Nama lengkap pekerja yang bawa pulang">
+          </div>
+          <div class="form-group">
+            <label>Target Kembali (opsional)</label>
+            <input id="sp_target_kembali" type="date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="sp_note" placeholder="Kondisi awal, instruksi, dll"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmStartPacking('${bal_id}')">▶ Mulai Packing</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmStartPacking(bal_id) {
+      try {
+        const tipe = document.getElementById("sp_tipe").value;
+        const payload = {
+          bal_id,
+          tipe_packing: tipe,
+          packing_note: document.getElementById("sp_note").value.trim()
+        };
+        if (tipe === "MAKLON") {
+          const mby = (typeof titleCase === "function"
+            ? titleCase(document.getElementById("sp_maklon_by").value.trim())
+            : document.getElementById("sp_maklon_by").value.trim());
+          if (!mby) return alert("Untuk MAKLON, nama pekerja wajib diisi.");
+          payload.maklon_by = mby;
+          payload.maklon_target_kembali = document.getElementById("sp_target_kembali").value;
+        }
+        await apiStartPacking(payload);
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openFinishPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (!["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(bal.status)) {
+        return alert("Bal harus di status PROSES_PACKING_INTERNAL atau PROSES_PACKING_MAKLON.");
+      }
+      const isMaklon = bal.status === "PROSES_PACKING_MAKLON";
+      const qtyOff = officialQty(bal);
+      const title = isMaklon ? "Selesai Packing Maklon (Barang Kembali)" : "Selesai Packing Internal";
+      document.getElementById("actionTitle").textContent = title;
+
+      let workersHtml = "";
+      if (!isMaklon) {
+        // Internal multi-worker
+        workersHtml = `
+          <div class="alert alert-info" style="margin-top:8px">
+            <strong>Pekerja Packing Internal</strong> — input siapa saja yang ngerjain.
+          </div>
+          <div id="fpWorkersList"></div>
+          <button class="btn-outline btn-sm" type="button" onclick="addFinishPackingWorkerRow()" style="margin-bottom:8px">+ Tambah Pekerja</button>
+          <div id="fpWorkersTotal" class="alert alert-info">Total qty pekerja: 0</div>
+        `;
+      } else {
+        // Maklon: 1 orang sudah tersimpan dari startPacking
+        workersHtml = `
+          <div class="alert alert-info">
+            Pekerja maklon: <strong>${safe(bal.maklon_by || "-")}</strong><br>
+            Keluar: ${fmtDate(bal.maklon_keluar_at)}${bal.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(bal.maklon_target_kembali)}` : ""}
+          </div>
+        `;
+      }
+
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong>
+        </div>
+        <div class="form-group">
+          <label>Qty Packing (qty hasil packing actual) <span class="required">*</span></label>
+          <input id="fp_qty_packing" type="number" step="any" placeholder="Bisa berbeda dari qty resmi" oninput="updateFinishPackingTotal()">
+        </div>
+        ${workersHtml}
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="fp_note" placeholder="Kondisi hasil, masalah yang ditemui, dll"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmFinishPacking('${bal_id}', ${isMaklon})">✓ Selesai Packing</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+      if (!isMaklon) addFinishPackingWorkerRow();
+    }
+
+    function addFinishPackingWorkerRow(name = "", qty = "") {
+      const list = document.getElementById("fpWorkersList");
+      if (!list) return;
+      const div = document.createElement("div");
+      div.className = "worker-row fp-worker-row";
+      div.style.cssText = "display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:end; margin-bottom:6px";
+      div.innerHTML = `
+        <div class="form-group" style="margin:0"><label class="small">Nama <span class="required">*</span></label><input class="fpWorkerName" value="${safe(name)}" placeholder="Nama pekerja"></div>
+        <div class="form-group" style="margin:0"><label class="small">Qty <span class="required">*</span></label><input class="fpWorkerQty" type="number" step="any" value="${safe(qty)}" oninput="updateFinishPackingTotal()"></div>
+        <button class="btn-danger btn-sm" type="button" onclick="this.parentElement.remove(); updateFinishPackingTotal();">×</button>
+      `;
+      list.appendChild(div);
+      updateFinishPackingTotal();
+    }
+
+    function updateFinishPackingTotal() {
+      const total = [...document.querySelectorAll(".fpWorkerQty")].reduce((s, el) => s + Number(el.value || 0), 0);
+      const box = document.getElementById("fpWorkersTotal");
+      if (!box) return;
+      const qtyPackingEl = document.getElementById("fp_qty_packing");
+      const target = Number(qtyPackingEl?.value || 0);
+      box.textContent = `Total qty pekerja: ${total}${target > 0 ? " / target qty_packing: " + target : ""}`;
+      box.className = `alert ${total > 0 && target > 0 && Math.abs(total - target) < 0.0001 ? 'alert-success' : 'alert-info'}`;
+    }
+
+    async function confirmFinishPacking(bal_id, isMaklon) {
+      try {
+        const qtyPacking = Number(document.getElementById("fp_qty_packing").value);
+        if (!qtyPacking || qtyPacking <= 0) return alert("Qty packing wajib > 0.");
+        const payload = {
+          bal_id,
+          qty_packing: qtyPacking,
+          packing_note: document.getElementById("fp_note").value.trim()
+        };
+        if (!isMaklon) {
+          const rows = document.querySelectorAll(".fp-worker-row");
+          if (!rows.length) return alert("Minimal 1 pekerja wajib diisi.");
+          const workers = [];
+          let invalid = false;
+          rows.forEach(r => {
+            const nameEl = r.querySelector(".fpWorkerName");
+            const qtyEl = r.querySelector(".fpWorkerQty");
+            const rawName = (nameEl?.value || "").trim();
+            const nm = (typeof titleCase === "function" ? titleCase(rawName) : rawName);
+            const qt = Number(qtyEl?.value || 0);
+            nameEl?.classList.toggle("field-error", !nm);
+            qtyEl?.classList.toggle("field-error", !qt || qt <= 0);
+            if (!nm || qt <= 0) { invalid = true; return; }
+            workers.push({ name: nm, qty: qt });
+          });
+          if (invalid) return alert("Semua pekerja wajib punya nama dan qty > 0.");
+          payload.packing_workers = workers;
+        }
+        await apiFinishPacking(payload);
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openQcPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "SELESAI_PACKING") return alert("Bal harus di status SELESAI_PACKING.");
+      if (bal.qc_at) return alert("Bal ini sudah pernah di-QC. Untuk koreksi, pakai Owner Override.");
+      document.getElementById("actionTitle").textContent = "QC Packing";
+      const qtyPacking = Number(bal.qty_packing || 0);
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Qty packing: <strong>${qtyPacking} ${safe(bal.satuan)}</strong>${bal.tipe_packing === "MAKLON" && bal.maklon_by ? `<br>Dari maklon: ${safe(bal.maklon_by)}` : ""}
+        </div>
+        <div class="form-group">
+          <label>Qty Check (yang diperiksa) <span class="required">*</span></label>
+          <input id="qc_qty_check" type="number" step="any" value="${qtyPacking}" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty Reject (rusak / cacat)</label>
+          <input id="qc_qty_reject" type="number" step="any" value="0" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty Selisih (kurang dari check, biasanya untuk maklon)</label>
+          <input id="qc_qty_selisih" type="number" step="any" value="0" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty OK (otomatis dihitung)</label>
+          <input id="qc_qty_ok" type="number" step="any" readonly style="background:#f3f4f6; font-weight:700">
+        </div>
+        <div class="form-group">
+          <label>Catatan QC <span id="qc_note_req" class="required" style="display:none">* wajib kalau ada reject</span></label>
+          <textarea id="qc_note" placeholder="Alasan reject / kondisi barang"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Setelah QC, masuk ke <span class="required">*</span></label>
+          <select id="qc_target">
+            <option value="STOK_BARANG">STOK BARANG (belum ada customer)</option>
+            <option value="SIAP_KIRIM">SIAP KIRIM (sudah ada pesanan)</option>
+          </select>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmQcPacking('${bal_id}')">🔍 Simpan Hasil QC</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+      recalcQcOk();
+    }
+
+    function recalcQcOk() {
+      const check = Number(document.getElementById("qc_qty_check")?.value || 0);
+      const reject = Number(document.getElementById("qc_qty_reject")?.value || 0);
+      const selisih = Number(document.getElementById("qc_qty_selisih")?.value || 0);
+      const ok = Math.max(0, check - reject - selisih);
+      const okEl = document.getElementById("qc_qty_ok");
+      if (okEl) okEl.value = ok;
+      const reqEl = document.getElementById("qc_note_req");
+      if (reqEl) reqEl.style.display = reject > 0 ? "inline" : "none";
+    }
+
+    async function confirmQcPacking(bal_id) {
+      try {
+        const qtyCheck = Number(document.getElementById("qc_qty_check").value || 0);
+        const qtyReject = Number(document.getElementById("qc_qty_reject").value || 0);
+        const qtySelisih = Number(document.getElementById("qc_qty_selisih").value || 0);
+        const qtyOk = Math.max(0, qtyCheck - qtyReject - qtySelisih);
+        const qcNote = document.getElementById("qc_note").value.trim();
+        if (qtyCheck <= 0) return alert("Qty check wajib > 0.");
+        if (qtyReject > 0 && !qcNote) return alert("Catatan QC wajib diisi kalau ada reject.");
+        await apiQcPacking({
+          bal_id,
+          qty_check: qtyCheck,
+          qty_ok: qtyOk,
+          qty_reject: qtyReject,
+          qty_selisih: qtySelisih,
+          qc_note: qcNote,
+          target_status: document.getElementById("qc_target").value
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openToggleStokKirim(bal_id, target_status) {
+      const bal = await apiGetBal(bal_id);
+      const targetLabel = target_status === "SIAP_KIRIM" ? "SIAP KIRIM" : "STOK BARANG";
+      const currentLabel = bal.status === "SIAP_KIRIM" ? "SIAP KIRIM" : "STOK BARANG";
+      document.getElementById("actionTitle").textContent = "Pindah Status";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Pindah dari <strong>${currentLabel}</strong> ke <strong>${targetLabel}</strong>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="tsk_note"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmToggleStokKirim('${bal_id}', '${target_status}')">Konfirmasi Pindah</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmToggleStokKirim(bal_id, target_status) {
+      try {
+        await apiToggleStokKirim({
+          bal_id,
+          target_status,
+          note: document.getElementById("tsk_note").value.trim()
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openMarkShipped(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (!["STOK_BARANG", "SIAP_KIRIM"].includes(bal.status)) {
+        return alert("Mark Terkirim hanya bisa dari STOK_BARANG atau SIAP_KIRIM.");
+      }
+      document.getElementById("actionTitle").textContent = "Mark Terkirim";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-warn">
+          ⚠️ Status akan berubah ke <strong>TERKIRIM</strong> (final, tidak bisa di-revert kecuali Owner Override).
+        </div>
+        <div class="form-group">
+          <label>Tujuan / Customer (opsional)</label>
+          <input id="ms_shipped_to" placeholder="Nama customer atau tujuan kirim">
+        </div>
+        <div class="form-group">
+          <label>No. Surat Jalan (opsional, dari Accurate)</label>
+          <input id="ms_sj_no" placeholder="SJ-2026-XXX">
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="ms_note"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmMarkShipped('${bal_id}')">🚚 Konfirmasi Terkirim</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmMarkShipped(bal_id) {
+      try {
+        await apiMarkShipped({
+          bal_id,
+          shipped_to: document.getElementById("ms_shipped_to").value.trim(),
+          surat_jalan_no: document.getElementById("ms_sj_no").value.trim(),
+          shipped_note: document.getElementById("ms_note").value.trim()
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
       } catch (e) { alert(e.message); }
     }
 
@@ -2871,28 +3345,24 @@ Alasan: ${cleanReason}`)) return;
         </div>
         <div class="form-group"><label>Catatan</label><textarea id="oo_catatan">${safe(b.catatan || "")}</textarea></div>
         <div class="form-group"><label>Alasan Override <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_data_reason" rows="2"></textarea></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, confirmOOEditData, 'Menyimpan...')">💾 Simpan Perubahan</button>
+        <button class="btn-success btn-block" onclick="confirmOOEditData()">💾 Simpan Perubahan</button>
       `;
     }
 
     async function confirmOOEditData() {
       const reason = (document.getElementById("oo_data_reason")?.value || "").trim();
       if (reason.length < 10) return alert("Alasan wajib diisi minimal 10 karakter.");
-      // Auto-uppercase pola A (sama seperti submitBal)
-      const jenis_raw = resolveJenisValue("oo_jenis_barang", "oo_jenis_barang_lain");
-      const oo_jenis_select = document.getElementById("oo_jenis_barang");
-      const jenis_barang = oo_jenis_select.value === "__OTHER__" ? titleCase(jenis_raw) : jenis_raw;
       const updates = {
-        po_id: cap(document.getElementById("oo_po_id").value.trim()),
+        po_id: document.getElementById("oo_po_id").value.trim(),
         nomor_bal: document.getElementById("oo_nomor_bal").value.trim(),
         halaman_buku: document.getElementById("oo_halaman_buku").value.trim(),
         buku_nomor: document.getElementById("oo_buku_nomor").value.trim(),
-        line: cap(document.getElementById("oo_line").value.trim()),
+        line: document.getElementById("oo_line").value.trim(),
         no_mesin: document.getElementById("oo_no_mesin").value.trim(),
-        operator_mesin: titleCase(document.getElementById("oo_operator_mesin").value.trim()),
-        jenis_barang,
-        warna: cap(document.getElementById("oo_warna").value.trim()),
-        size: cap(document.getElementById("oo_size").value.trim()),
+        operator_mesin: document.getElementById("oo_operator_mesin").value.trim(),
+        jenis_barang: resolveJenisValue("oo_jenis_barang", "oo_jenis_barang_lain"),
+        warna: document.getElementById("oo_warna").value.trim(),
+        size: document.getElementById("oo_size").value.trim(),
         jumlah: Number(document.getElementById("oo_jumlah").value || 0),
         satuan: document.getElementById("oo_satuan").value,
         catatan: document.getElementById("oo_catatan").value.trim()
@@ -2931,7 +3401,7 @@ Alasan: ${cleanReason}`)) return;
           </div>
         </div>
         <div class="form-group"><label>Alasan Override <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_qty_reason" rows="2"></textarea></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, confirmOOSetQty, 'Menyimpan...')">💾 Simpan Qty Override</button>
+        <button class="btn-success btn-block" onclick="confirmOOSetQty()">💾 Simpan Qty Override</button>
         ${punyaVerifikasi ? `
           <hr style="margin:16px 0">
           <div class="alert alert-danger">
@@ -2940,7 +3410,7 @@ Alasan: ${cleanReason}`)) return;
             <span class="small">Output_labels dan record borongan TIDAK dihapus — kalau bal sudah lewat tahap setting/packing, owner perlu rollback dulu lewat tab Status.</span>
           </div>
           <div class="form-group"><label>Alasan Reset Verifikasi <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_qty_reset_reason" rows="2"></textarea></div>
-          <button class="btn-danger btn-block" onclick="guardedClick(this, confirmOOResetQty, 'Memproses...')">🔄 Reset / Batalkan Verifikasi</button>
+          <button class="btn-danger btn-block" onclick="confirmOOResetQty()">🔄 Reset / Batalkan Verifikasi</button>
         ` : ""}
       `;
     }
@@ -2978,7 +3448,14 @@ Alasan: ${cleanReason}`)) return;
     /* ----- Tab 3: Rollback Status ----- */
     function renderOOTabStatus(b) {
       // Daftar status valid sebagai target rollback (lebih rendah dari status sekarang)
-      const flowOrder = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+      const flowOrder = [
+        "SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS",
+        "MULAI_SETTING", "SELESAI_SETTING",
+        "SIAP_PACKING",
+        "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
+        "SELESAI_PACKING",
+        "STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"
+      ];
       const currentIdx = flowOrder.indexOf(b.status);
       const targets = currentIdx > 0 ? flowOrder.slice(0, currentIdx) : [];
       const targetOpts = targets.map(s => `<option value="${s}">${statusText(s)}</option>`).join("");
@@ -2992,7 +3469,7 @@ Alasan: ${cleanReason}`)) return;
           : `
           <div class="form-group"><label>Rollback ke Status</label><select id="oo_status_target">${targetOpts}</select></div>
           <div class="form-group"><label>Alasan Rollback <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_status_reason" rows="2"></textarea></div>
-          <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOORollbackStatus, 'Memproses...')">⏮ Rollback Status</button>
+          <button class="btn-warning btn-block" onclick="confirmOORollbackStatus()">⏮ Rollback Status</button>
           `}
       `;
     }
@@ -3023,7 +3500,7 @@ Alasan: ${cleanReason}`)) return;
           <div class="section-title">Operator Mesin</div>
           <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
             <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_op_mesin" value="${safe(b.operator_mesin || "")}"></div>
-            <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('op_mesin'), 'Menyimpan...')">Simpan</button>
+            <button class="btn-outline" onclick="confirmOOEditPekerja('op_mesin')">Simpan</button>
           </div>
         </div>
       `;
@@ -3035,7 +3512,7 @@ Alasan: ${cleanReason}`)) return;
           ${b.obras_by ? `
             <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
               <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" value="${safe(b.obras_by)}"></div>
-              <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('obras'), 'Menyimpan...')">Simpan</button>
+              <button class="btn-outline" onclick="confirmOOEditPekerja('obras')">Simpan</button>
             </div>
             <div class="small" style="color:var(--muted); margin-top:4px">Saat nama diubah, record borongan Obras dengan nama lama akan di-sync ke nama baru.</div>
           ` : `<div class="empty">Belum ada data pekerja obras.</div>`}
@@ -3057,7 +3534,7 @@ Alasan: ${cleanReason}`)) return;
               <div class="grid-2" style="grid-template-columns:1fr 80px auto; gap:8px; align-items:end; margin-bottom:6px">
                 <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_set_${oi}_${wi}_name" value="${safe(w.name || "")}"></div>
                 <div class="form-group" style="margin:0"><label>Qty</label><input id="oo_pkj_set_${oi}_${wi}_qty" type="number" step="any" value="${safe(w.qty || 0)}"></div>
-                <button class="btn-outline btn-sm" onclick="guardedClick(this, () => confirmOOEditPekerja('setting','${out.output_id}',${wi}), 'Menyimpan...')">Simpan</button>
+                <button class="btn-outline btn-sm" onclick="confirmOOEditPekerja('setting','${out.output_id}',${wi})">Simpan</button>
               </div>
             `;
           });
@@ -3245,7 +3722,7 @@ Alasan: ${cleanReason}`)) return;
           <textarea id="e_edit_note"></textarea>
         </div>
 
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmEditBal('${b.bal_id}'), 'Menyimpan...')">
+        <button class="btn-success btn-block" onclick="confirmEditBal('${b.bal_id}')">
           Simpan Edit 1x
         </button>
       `;
@@ -3290,29 +3767,25 @@ Alasan: ${cleanReason}`)) return;
         return alert("Kotak merah wajib diisi.");
       }
 
-      const jenis_raw = resolveJenisValue("e_jenis_barang", "e_jenis_barang_lain");
+      const jenis_barang = resolveJenisValue("e_jenis_barang", "e_jenis_barang_lain");
 
-      if (!jenis_raw) {
+      if (!jenis_barang) {
         return alert("Jenis barang wajib diisi.");
       }
-
-      // Auto-uppercase pola A (sama seperti submitBal)
-      const e_jenis_select = document.getElementById("e_jenis_barang");
-      const jenis_barang = e_jenis_select.value === "__OTHER__" ? titleCase(jenis_raw) : jenis_raw;
 
       try {
         await apiEditBal({
           bal_id,
-          po_id: cap(document.getElementById("e_po_id").value.trim()),
+          po_id: document.getElementById("e_po_id").value.trim(),
           nomor_bal: document.getElementById("e_nomor_bal").value.trim(),
           halaman_buku: document.getElementById("e_halaman_buku").value.trim(),
           buku_nomor: document.getElementById("e_buku_nomor").value.trim(),
-          line: cap(document.getElementById("e_line").value.trim()),
+          line: document.getElementById("e_line").value.trim(),
           no_mesin: document.getElementById("e_no_mesin").value.trim(),
-          operator_mesin: titleCase(document.getElementById("e_operator_mesin").value.trim()),
+          operator_mesin: document.getElementById("e_operator_mesin").value.trim(),
           jenis_barang,
-          warna: cap(document.getElementById("e_warna").value.trim()),
-          size: cap(document.getElementById("e_size").value.trim()),
+          warna: document.getElementById("e_warna").value.trim(),
+          size: document.getElementById("e_size").value.trim(),
           jumlah: document.getElementById("e_jumlah").value,
           satuan: document.getElementById("e_satuan").value,
           catatan: document.getElementById("e_catatan").value.trim(),
@@ -3376,7 +3849,7 @@ Alasan: ${cleanReason}`)) return;
         <button class="btn-outline btn-sm" onclick="addOutputWorker()">+ Tambah Pekerja</button>
         <div id="outWorkerTotal" class="alert alert-info" style="margin-top:8px">Total pekerja: 0</div>
         <div class="form-group"><label>Catatan</label><textarea id="outNote"></textarea></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmOutputSetting('${b.bal_id}'), 'Menyimpan...')">Simpan & Cetak Label</button>
+        <button class="btn-success btn-block" onclick="confirmOutputSetting('${b.bal_id}')">Simpan & Cetak Label</button>
       `;
       document.getElementById("outputModal").classList.add("show");
       updateOutputWorkerTotal();
@@ -3426,8 +3899,7 @@ Alasan: ${cleanReason}`)) return;
       if (!qty || qty <= 0) { qtyEl.classList.add("field-error"); return alert("Qty plastik baru wajib diisi."); }
       const names = [...document.querySelectorAll(".outWorkerName")];
       const qtys = [...document.querySelectorAll(".outWorkerQty")];
-      // Nama pekerja → Title Case (pola A)
-      const workers = names.map((el,i)=>({ name: titleCase(el.value.trim()), qty: Number(qtys[i].value || 0) }));
+      const workers = names.map((el,i)=>({ name: el.value.trim(), qty: Number(qtys[i].value || 0) }));
       let ok = true;
       workers.forEach((w,i)=>{ if(!w.name){names[i].classList.add("field-error");ok=false;} if(!w.qty||w.qty<=0){qtys[i].classList.add("field-error");ok=false;} });
       if (!ok) return alert("Nama dan qty pekerja wajib diisi.");
@@ -3475,24 +3947,24 @@ Alasan: ${cleanReason}`)) return;
 
           <div class="ticket-grid">
             <div class="ticket-main">
-              <div class="ticket-row"><div class="k">TICKET</div><div class="v id-cell">${safe(out.ticket_id)}</div></div>
-              <div class="ticket-row"><div class="k">BAL</div><div class="v id-cell">${safe(b.bal_id)}</div></div>
+              <div class="ticket-row"><div class="k">TICKET</div><div class="v">${safe(out.ticket_id)}</div></div>
+              <div class="ticket-row"><div class="k">BAL</div><div class="v">${safe(b.bal_id)}</div></div>
               <div class="ticket-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
               <div class="ticket-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
               <div class="ticket-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
               <div class="ticket-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Warna</div><div class="v">${safe(b.warna || "-")}</div></div>
-              <div class="ticket-row"><div class="k">Size</div><div class="v">${safe(b.size || "-")}</div></div>
+              <div class="ticket-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
               <div class="ticket-row"><div class="k">QTY</div><div class="v"><b>${safe(qtyText)}</b></div></div>
             </div>
 
             <div class="ticket-right">
               <div class="ticket-qr">
                 <div id="qrLabel"></div>
+                <div class="ticket-qr-id">${safe(out.ticket_id)}</div>
               </div>
 
               <div class="ticket-workers">
-                <div class="ticket-workers-title">PEKERJA</div>
+                <div class="ticket-workers-title">Pekerja</div>
                 <div class="ticket-worker-row">
                   <div class="name">Op Mesin</div>
                   <div class="qty">${safe(b.operator_mesin || "-")}</div>
@@ -3513,7 +3985,7 @@ Alasan: ${cleanReason}`)) return;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: out.ticket_id, width: 180, height: 180 });
+      new QRCode(qr, { text: out.ticket_id, width: 84, height: 84 });
       document.getElementById("labelModal").classList.add("show");
     }
 
@@ -3533,7 +4005,7 @@ Alasan: ${cleanReason}`)) return;
         <button class="btn-outline btn-sm" onclick="addSplitRow()">+ Tambah Anak</button>
         <div class="alert alert-info" id="splitTotal">Total anak: 0 / ${qtyResmi} ${b.satuan}</div>
         <div class="form-group"><label>Alasan Pecah <span class="required">*</span></label><textarea id="splitReason"></textarea></div>
-        <button class="btn-warning btn-block" onclick="guardedClick(this, () => confirmSplit('${b.bal_id}'), 'Memproses...')">✂️ Eksekusi Pecah Bal Fisik</button>
+        <button class="btn-warning btn-block" onclick="confirmSplit('${b.bal_id}')">✂️ Eksekusi Pecah Bal Fisik</button>
       `;
       document.getElementById("splitModal").dataset.targetQty = qtyResmi;
       document.getElementById("splitModal").classList.add("show");
@@ -3643,24 +4115,24 @@ Alasan: ${cleanReason}`)) return;
 
           <div class="label-final-grid">
             <div class="label-main">
-              <div class="label-main-row"><div class="k">ID</div><div class="v id-cell">${safe(b.bal_id)}</div></div>
+              <div class="label-main-row"><div class="k">ID</div><div class="v">${safe(b.bal_id)}</div></div>
               <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
               <div class="label-main-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
               <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
               <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
               <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Warna</div><div class="v">${safe(b.warna || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Size</div><div class="v">${safe(b.size || "-")}</div></div>
+              <div class="label-main-row"><div class="k">Warna/Size</div><div class="v">${safe(b.warna || "-")} / ${safe(b.size || "-")}</div></div>
               <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
             </div>
 
             <div class="label-right">
               <div class="label-qr">
                 <div id="qrLabel"></div>
+                <div class="label-qr-id">${safe(b.bal_id)}</div>
               </div>
 
               <div class="label-workers">
-                <div class="label-workers-title">PEKERJA</div>
+                <div class="label-workers-title">Pekerja</div>
                 <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
                 <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
                 <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
@@ -3672,7 +4144,7 @@ Alasan: ${cleanReason}`)) return;
 
       const qr = document.getElementById("qrLabel");
       qr.innerHTML = "";
-      new QRCode(qr, { text: b.bal_id, width: 180, height: 180 });
+      new QRCode(qr, { text: b.bal_id, width: 90, height: 90 });
       document.getElementById("labelModal").classList.add("show");
     }
 
@@ -4128,7 +4600,7 @@ Alasan: ${cleanReason}`)) return;
           </select>
         </div>
         <div class="form-group"><label>PIN <span class="required">*</span> (min 4 karakter)</label><input id="nu_pin" type="text"></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, confirmCreateUser, 'Membuat...')">💾 Buat User</button>
+        <button class="btn-success btn-block" onclick="confirmCreateUser()">💾 Buat User</button>
       `;
       openSimpleModal("Tambah User Baru", html);
     }
@@ -4172,7 +4644,7 @@ Alasan: ${cleanReason}`)) return;
             </select>
             ${u.role === "Owner" ? '<div class="small" style="color:var(--muted); margin-top:4px">Role Owner tidak bisa diubah.</div>' : ""}
           </div>
-          <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmEditUser('${safe(username)}'), 'Menyimpan...')">💾 Simpan</button>
+          <button class="btn-success btn-block" onclick="confirmEditUser('${safe(username)}')">💾 Simpan</button>
         `;
         openSimpleModal("Edit User", html);
       } catch (e) { toast(e.message, "error"); }
@@ -4198,7 +4670,7 @@ Alasan: ${cleanReason}`)) return;
       const html = `
         <div class="alert alert-warn">Reset PIN untuk user <strong>${safe(username)}</strong>. User wajib login dengan PIN baru setelah ini.</div>
         <div class="form-group"><label>PIN Baru <span class="required">*</span> (min 4 karakter)</label><input id="rp_pin" type="text"></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmResetPin('${safe(username)}'), 'Reset...')">🔑 Reset PIN</button>
+        <button class="btn-success btn-block" onclick="confirmResetPin('${safe(username)}')">🔑 Reset PIN</button>
       `;
       openSimpleModal("Reset PIN", html);
     }
