@@ -216,7 +216,13 @@
     .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
     .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
     .st-SELESAI_SETTING { background: #fbcfe8; color: #831843; }
+    .st-SIAP_PACKING { background: #fed7aa; color: #9a3412; }
+    .st-PROSES_PACKING_INTERNAL { background: #fde68a; color: #78350f; }
+    .st-PROSES_PACKING_MAKLON { background: #fbbf24; color: #78350f; }
     .st-SELESAI_PACKING { background: #d1fae5; color: #065f46; }
+    .st-STOK_BARANG { background: #bae6fd; color: #075985; }
+    .st-SIAP_KIRIM { background: #a7f3d0; color: #064e3b; }
+    .st-TERKIRIM { background: #86efac; color: #14532d; }
     .st-DIPECAH { background: #fee2e2; color: #991b1b; }
     .tag { background: #e0e7ff; color: #3730a3; }
 
@@ -1037,7 +1043,8 @@
       "createBal", "updateStatus", "createOutputLabel", "editBal",
       "splitBal", "deleteBal", "manualSelesaiSetting", "ownerOverride",
       "updateBoronganTarif", "deleteBoronganRow", "uploadFoto",
-      "createUser", "updateUser", "resetUserPin", "setUserActive"
+      "createUser", "updateUser", "resetUserPin", "setUserActive",
+      "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1061,7 +1068,14 @@
     const THERMAL_PAPER_SIZE = "100x150";
     const LABEL_BAL_PRINT_SIZE = "100x78";
 
-    const STATUS_ORDER = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+    const STATUS_ORDER = [
+      "SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS",
+      "MULAI_SETTING", "SELESAI_SETTING",
+      "SIAP_PACKING",
+      "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
+      "SELESAI_PACKING",
+      "STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"
+    ];
     const STATUS_LABEL = {
       SELESAI_MESIN: "Selesai Mesin",
       QTY_TERVERIFIKASI: "Qty Terverifikasi",
@@ -1069,7 +1083,13 @@
       SELESAI_OBRAS: "Selesai Obras",
       MULAI_SETTING: "Mulai Setting",
       SELESAI_SETTING: "Selesai Setting",
-      SELESAI_PACKING: "Selesai Packing",
+      SIAP_PACKING: "Siap Packing",
+      PROSES_PACKING_INTERNAL: "Proses Packing Internal",
+      PROSES_PACKING_MAKLON: "Proses Packing Maklon",
+      SELESAI_PACKING: "Selesai Packing (Menunggu QC)",
+      STOK_BARANG: "Stok Gudang",
+      SIAP_KIRIM: "Siap Kirim",
+      TERKIRIM: "Terkirim",
       DIPECAH: "Dipecah"
     };
 
@@ -1082,9 +1102,12 @@
       { action: "VERIFIKASI_QTY",  label: "Verifikasi Qty",  from: "SELESAI_MESIN",     to: "QTY_TERVERIFIKASI", roles: ["Checker / QC", "Admin Produksi", "Owner"] },
       { action: "MULAI_OBRAS",     label: "Mulai Obras",     from: "QTY_TERVERIFIKASI", to: "MULAI_OBRAS",       roles: ["Obras", "Admin Produksi", "Owner"] },
       { action: "SELESAI_OBRAS",   label: "Selesai Obras",   from: "MULAI_OBRAS",       to: "SELESAI_OBRAS",     roles: ["Obras", "Admin Produksi", "Owner"] },
-      { action: "MULAI_SETTING",   label: "Mulai Setting",   from: "SELESAI_OBRAS",     to: "MULAI_SETTING",     roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
-      { action: "SELESAI_SETTING", label: "Selesai Setting", from: "MULAI_SETTING",     to: "SELESAI_SETTING",   roles: ["Setting / Steam", "Admin Produksi", "Owner"] },
-      { action: "SELESAI_PACKING", label: "Selesai Packing", from: "SELESAI_SETTING",   to: "SELESAI_PACKING",   roles: ["Packing", "Admin Produksi", "Owner"] }
+      { action: "MULAI_SETTING",   label: "Mulai Setting",   from: "SELESAI_OBRAS",     to: "MULAI_SETTING",     roles: ["Setting / Steam", "Admin Produksi", "Owner"] }
+      // SELESAI_SETTING → SIAP_PACKING: AUTO oleh server saat output setting penuh.
+      // SIAP_PACKING → PROSES_PACKING_*: pakai apiStartPacking (modal khusus).
+      // PROSES_PACKING_* → SELESAI_PACKING: pakai apiFinishPacking (modal khusus).
+      // SELESAI_PACKING → STOK_BARANG/SIAP_KIRIM: pakai apiQcPacking (modal QC).
+      // STOK_BARANG/SIAP_KIRIM → TERKIRIM: pakai apiMarkShipped (modal kirim).
     ];
 
     /* ============================================================
@@ -1452,6 +1475,37 @@
       return await api("setUserActive", { username, active });
     }
 
+    async function apiStartPacking(payload) {
+          clearApiCache("listBals");
+          clearApiCache("listHistory");
+          return await api("startPacking", payload);
+        }
+    
+    async function apiFinishPacking(payload) {
+          clearApiCache("listBals");
+          clearApiCache("listHistory");
+          return await api("finishPacking", payload);
+        }
+    
+    async function apiQcPacking(payload) {
+          clearApiCache("listBals");
+          clearApiCache("listHistory");
+          clearApiCache("listBorongan");
+          return await api("qcPacking", payload);
+        }
+    
+    async function apiToggleStokKirim(payload) {
+          clearApiCache("listBals");
+          clearApiCache("listHistory");
+          return await api("toggleStokKirim", payload);
+        }
+    
+    async function apiMarkShipped(payload) {
+          clearApiCache("listBals");
+          clearApiCache("listHistory");
+          return await api("markShipped", payload);
+        }
+
     async function apiUploadFoto(base64, bal_id = "") {
       return await api("uploadFoto", { base64, bal_id });
     }
@@ -1578,10 +1632,10 @@
     function roleFocusStatuses(role = currentUser?.role) {
       if (["Owner", "Admin Produksi"].includes(role)) return null;
       if (role === "Operator Mesin") return ["SELESAI_MESIN"];
-      if (role === "Checker / QC") return ["SELESAI_MESIN"];
+      if (role === "Checker / QC") return ["SELESAI_MESIN", "SELESAI_PACKING"];
       if (role === "Obras") return ["QTY_TERVERIFIKASI", "MULAI_OBRAS"];
-      if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING"];
-      if (role === "Packing") return ["SELESAI_SETTING", "SELESAI_PACKING"];
+      if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING"];
+      if (role === "Packing") return ["SIAP_PACKING", "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON", "SELESAI_PACKING"];
       return null;
     }
 
@@ -2108,6 +2162,8 @@
 
       const inObras = bals.filter(b => b.status === "MULAI_OBRAS").length;
       const inSetting = bals.filter(b => b.status === "MULAI_SETTING").length;
+      const inPacking = bals.filter(b => ["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(b.status)).length;
+      const inMaklon = bals.filter(b => b.status === "PROSES_PACKING_MAKLON").length;
       const dipecah = bals.filter(b => b.status === "DIPECAH" || b.is_parent_split).length;
       const stats = [
         ["Total Fokus", bals.length],
@@ -2115,7 +2171,13 @@
         ["Siap Obras", count("QTY_TERVERIFIKASI")],
         ["Dalam Obras", inObras],
         ["Dalam Setting", inSetting],
-        ["Selesai Packing", count("SELESAI_PACKING")]
+        ["Siap Packing", count("SIAP_PACKING")],
+        ["Dalam Packing", inPacking],
+        ["Di Maklon", inMaklon],
+        ["Menunggu QC", count("SELESAI_PACKING")],
+        ["Stok Gudang", count("STOK_BARANG")],
+        ["Siap Kirim", count("SIAP_KIRIM")],
+        ["Terkirim", count("TERKIRIM")]
       ];
       document.querySelector("#tab-dashboard .section-title").textContent = title;
       document.getElementById("dashboardStats").innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
@@ -2336,9 +2398,69 @@
       `).join("");
     }
 
-    function photoSrc(b) { return b.foto_url || b.foto_bal_url || b.foto_bal_base64_demo || ""; }
-    function photoImg(b) { return photoSrc(b) ? `<img src="${photoSrc(b)}" onclick="openPhoto('${b.bal_id}')">` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center">📷</div>`; }
-    function photoThumb(b) { return photoSrc(b) ? `<img src="${photoSrc(b)}" class="thumb" onclick="openPhoto('${b.bal_id}')">` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center">📷</div>`; }
+    function normalizeDriveImageUrl(url) {
+      const s = String(url || "").trim();
+      if (!s) return "";
+      if (s.startsWith("data:image/")) return s;
+
+      // Normalisasi berbagai format Google Drive agar lebih aman untuk <img>.
+      // Mendukung:
+      // - https://drive.google.com/uc?export=view&id=FILE_ID
+      // - https://drive.google.com/file/d/FILE_ID/view
+      // - https://drive.google.com/thumbnail?id=FILE_ID&sz=w1000
+      if (s.includes("drive.google.com")) {
+        let id = "";
+        const mThumb = s.match(/thumbnail\?id=([^&]+)/);
+        const mId = s.match(/[?&]id=([^&]+)/);
+        const mFile = s.match(/\/d\/([^/]+)/);
+        if (mThumb) id = mThumb[1];
+        else if (mId) id = mId[1];
+        else if (mFile) id = mFile[1];
+        if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+      }
+
+      return s;
+    }
+
+    function photoSrc(b) {
+      return normalizeDriveImageUrl(b?.foto_url || b?.foto_bal_url || b?.foto_bal_base64_demo || "");
+    }
+
+    function photoFallbackHtml(extraStyle = "") {
+      return `<div class="thumb" style="display:flex;align-items:center;justify-content:center;${extraStyle}">📷</div>`;
+    }
+
+    function handlePhotoError(img) {
+      if (!img) return;
+      img.onerror = null;
+      const div = document.createElement("div");
+      div.textContent = "📷";
+      div.style.cssText = "display:flex;align-items:center;justify-content:center;background:#e5e7eb;border-radius:8px;color:#64748b;";
+      if (img.classList.contains("detail-photo")) {
+        div.className = "detail-photo";
+        div.style.width = "100%";
+        div.style.minHeight = "160px";
+      } else {
+        div.className = "thumb";
+        if (img.style.width) div.style.width = img.style.width;
+        if (img.style.height) div.style.height = img.style.height;
+      }
+      img.replaceWith(div);
+    }
+
+    function photoImg(b) {
+      const src = photoSrc(b);
+      return src
+        ? `<img src="${safe(src)}" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
+        : photoFallbackHtml();
+    }
+
+    function photoThumb(b) {
+      const src = photoSrc(b);
+      return src
+        ? `<img src="${safe(src)}" class="thumb" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
+        : photoFallbackHtml();
+    }
     function splitBadges(b) {
       let html = "";
       if (b.is_parent_split) html += `<span class="badge tag">INDUK DIPECAH</span>`;
@@ -2373,9 +2495,10 @@ Alasan: ${cleanReason}`)) return;
 
     async function openPhoto(bal_id) {
       const b = await apiGetBal(bal_id);
-      if (!photoSrc(b)) return;
+      const src = photoSrc(b);
+      if (!src) return;
       const w = window.open("", "_blank");
-      w.document.write(`<title>${b.bal_id}</title><img src="${photoSrc(b)}" style="max-width:100%;height:auto">`);
+      w.document.write(`<title>${safe(b.bal_id)}</title><img src="${safe(src)}" style="max-width:100%;height:auto" onerror="document.body.innerHTML='Gambar tidak bisa dimuat.'">`);
     }
 
     /* ============================================================
@@ -2395,7 +2518,7 @@ Alasan: ${cleanReason}`)) return;
         if (b.is_child_bal && b.parent_bal_id) splitInfo += `<div class="alert alert-info">Bal anak dari <button class="btn-outline btn-sm" onclick="openDetail('${b.parent_bal_id}')">${b.parent_bal_id}</button></div>`;
         document.getElementById("detailContent").innerHTML = `
           ${splitInfo}
-          ${photoSrc(b) ? `<img src="${photoSrc(b)}" class="detail-photo">` : ""}
+          ${photoSrc(b) ? `<img src="${safe(photoSrc(b))}" class="detail-photo" onerror="handlePhotoError(this)">` : ""}
           <div class="detail-grid">
             ${kv("ID Bal", `<span class="mono">${safe(b.bal_id)}</span>${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}`)}
             ${kv("Status", statusBadge(b.status))}
@@ -2479,30 +2602,108 @@ Alasan: ${cleanReason}`)) return;
     function detailActions(b) {
       if (b.status === "DIPECAH" || b.is_parent_split) {
         let html = `<div class="alert alert-warn">Bal induk sudah dipecah dan tidak bisa diproses lagi.</div>`;
-        // Owner masih bisa override (untuk koreksi/rollback split kalau perlu)
-        if (currentUser.role === "Owner") {
-          html += ownerOverrideButton(b);
-        }
-        return html;
-      }
-      let html = "";
-      if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
-        html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
-      }
-      if (b.status === "SELESAI_PACKING") {
-        html += `<div class="alert alert-success">✓ Bal sudah selesai packing.</div>`;
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
+      let html = "";
+
+      // Status final: TERKIRIM
+      if (b.status === "TERKIRIM") {
+        const info = [
+          b.shipped_to ? `Tujuan: ${safe(b.shipped_to)}` : "",
+          b.surat_jalan_no ? `SJ: ${safe(b.surat_jalan_no)}` : "",
+          b.shipped_at ? `Dikirim: ${fmtDate(b.shipped_at)}` : ""
+        ].filter(Boolean).join(" · ");
+        html += `<div class="alert alert-success">✓ Bal sudah TERKIRIM.<br><small>${info || ""}</small></div>`;
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // Edit 1x (saat SELESAI_MESIN)
+      if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
+        html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
+      }
+
+      // ===== FLOW PACKING BARU =====
+
+      // SIAP_PACKING → Mulai Packing (pilih INTERNAL/MAKLON)
+      if (b.status === "SIAP_PACKING") {
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openStartPacking('${b.bal_id}')">▶ Mulai Packing</button>`;
+        } else {
+          html += `<div class="alert alert-warn">Bal siap packing. Akun Packing yang akan mulai.</div>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // PROSES_PACKING_INTERNAL → Selesai Packing Internal
+      if (b.status === "PROSES_PACKING_INTERNAL") {
+        html += `<div class="alert alert-info">🏭 Proses packing INTERNAL di pabrik. Dimulai: ${fmtDate(b.packing_started_at)}</div>`;
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">✓ Selesai Packing Internal</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // PROSES_PACKING_MAKLON → Selesai Packing Maklon (barang kembali)
+      if (b.status === "PROSES_PACKING_MAKLON") {
+        const targetTxt = b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : "";
+        html += `<div class="alert alert-info">🏠 Sedang di MAKLON: <strong>${safe(b.maklon_by || "-")}</strong><br>Keluar: ${fmtDate(b.maklon_keluar_at)}${targetTxt}</div>`;
+        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">📥 Selesai Packing Maklon (Barang Kembali)</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // SELESAI_PACKING → QC Packing
+      if (b.status === "SELESAI_PACKING") {
+        if (b.qc_at) {
+          // Sudah pernah di-QC tapi masih SELESAI_PACKING — kasus aneh, kasih info
+          html += `<div class="alert alert-success">✓ Bal sudah QC dan packing selesai.</div>`;
+        } else {
+          html += `<div class="alert alert-warn">⏳ Menunggu QC. qty_packing: <strong>${safe(b.qty_packing || "-")} ${safe(b.satuan)}</strong></div>`;
+          if (["Admin Produksi", "Checker / QC", "Owner"].includes(currentUser.role)) {
+            html += `<button class="btn-success btn-block" onclick="openQcPacking('${b.bal_id}')">🔍 QC Packing</button>`;
+          } else {
+            html += `<div class="alert alert-warn">Menunggu QC oleh Admin / QC.</div>`;
+          }
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // STOK_BARANG → Pindah ke Siap Kirim atau Langsung Kirim
+      if (b.status === "STOK_BARANG") {
+        html += `<div class="alert alert-info">📦 Di stok gudang. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-primary btn-block" onclick="openToggleStokKirim('${b.bal_id}','SIAP_KIRIM')">📤 Pindah ke Siap Kirim</button>`;
+          html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // SIAP_KIRIM → Mark Terkirim atau Kembalikan ke Stok
+      if (b.status === "SIAP_KIRIM") {
+        html += `<div class="alert alert-info">🚛 Siap kirim. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
+          html += `<button class="btn-outline btn-block" style="margin-top:8px" onclick="openToggleStokKirim('${b.bal_id}','STOK_BARANG')">⬅ Kembalikan ke Stok Barang</button>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
+      // ===== FLOW LAMA: verifikasi, obras, mulai setting =====
       const rule = ACTION_RULES.find(r => r.from === b.status);
       if (rule) {
-        const isAutoCompletedAction = rule.action === "SELESAI_SETTING";
-        if (!isAutoCompletedAction) {
-          if (rule.roles.includes(currentUser.role)) {
-            html += `<button class="btn-success btn-block" onclick="openActionConfirm('${b.bal_id}','${rule.action}')">✓ ${rule.label}</button>`;
-          } else {
-            html += `<div class="alert alert-danger">Akun Anda tidak memiliki akses untuk tindakan tahap ini. ${roleHint(b.status)}</div>`;
-          }
+        if (rule.roles.includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openActionConfirm('${b.bal_id}','${rule.action}')">✓ ${rule.label}</button>`;
+        } else {
+          html += `<div class="alert alert-danger">Akun Anda tidak memiliki akses untuk tindakan tahap ini. ${roleHint(b.status)}</div>`;
         }
       } else {
         html += `<div class="alert alert-warn">Bal ini belum masuk tahap kerja Anda.</div>`;
@@ -2516,7 +2717,6 @@ Alasan: ${cleanReason}`)) return;
       if (b.status === "MULAI_SETTING" && ["Owner", "Admin Produksi"].includes(currentUser.role)) {
         html += `<button class="btn-secondary btn-block" style="margin-top:8px; background: #6b7280" onclick="openManualSelesaiSetting('${b.bal_id}')">🔓 Selesai Setting Manual (Owner/Admin)</button>`;
       }
-      // Tombol Owner Override — paling bawah, hanya Owner.
       if (currentUser.role === "Owner") html += ownerOverrideButton(b);
       return html;
     }
@@ -2529,7 +2729,9 @@ Alasan: ${cleanReason}`)) return;
       if (status === "SELESAI_MESIN") return "Tahap ini untuk Checker / QC.";
       if (["QTY_TERVERIFIKASI", "MULAI_OBRAS"].includes(status)) return "Tahap ini untuk Obras.";
       if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(status)) return "Tahap ini untuk Setting / Steam.";
-      if (status === "SELESAI_SETTING") return "Tahap ini untuk Packing.";
+      if (status === "SIAP_PACKING") return "Tahap ini untuk Packing.";
+      if (["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(status)) return "Tahap ini untuk Packing.";
+      if (status === "SELESAI_PACKING") return "Tahap ini untuk Admin / Checker QC.";
       return "";
     }
 
@@ -3572,6 +3774,350 @@ Alasan: ${cleanReason}`)) return;
     }
 
     /* ============================================================
+       PACKING FLOW MODALS (Phase 1 client UI)
+       - openStartPacking → apiStartPacking (pilih INTERNAL/MAKLON)
+       - openFinishPacking → apiFinishPacking (qty_packing + workers internal / langsung untuk maklon)
+       - openQcPacking → apiQcPacking (qty_check/ok/reject/selisih + tujuan stok/kirim)
+       - openToggleStokKirim → apiToggleStokKirim (STOK_BARANG ↔ SIAP_KIRIM)
+       - openMarkShipped → apiMarkShipped (TERKIRIM + SJ optional)
+       ============================================================ */
+
+    async function openStartPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "SIAP_PACKING") return alert("Bal harus di status SIAP_PACKING.");
+      const qtyOff = officialQty(bal);
+      document.getElementById("actionTitle").textContent = "Mulai Packing";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong>
+        </div>
+        <div class="form-group">
+          <label>Tipe Packing <span class="required">*</span></label>
+          <select id="sp_tipe" onchange="document.getElementById('sp_maklon_box').style.display = this.value === 'MAKLON' ? 'block' : 'none'">
+            <option value="INTERNAL">INTERNAL (di pabrik)</option>
+            <option value="MAKLON">MAKLON (dibawa pulang pekerja)</option>
+          </select>
+        </div>
+        <div id="sp_maklon_box" style="display:none">
+          <div class="form-group">
+            <label>Nama Pekerja Maklon <span class="required">*</span></label>
+            <input id="sp_maklon_by" placeholder="Nama lengkap pekerja yang bawa pulang">
+          </div>
+          <div class="form-group">
+            <label>Target Kembali (opsional)</label>
+            <input id="sp_target_kembali" type="date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="sp_note" placeholder="Kondisi awal, instruksi, dll"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmStartPacking('${bal_id}')">▶ Mulai Packing</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmStartPacking(bal_id) {
+      try {
+        const tipe = document.getElementById("sp_tipe").value;
+        const payload = {
+          bal_id,
+          tipe_packing: tipe,
+          packing_note: document.getElementById("sp_note").value.trim()
+        };
+        if (tipe === "MAKLON") {
+          const mby = (typeof titleCase === "function"
+            ? titleCase(document.getElementById("sp_maklon_by").value.trim())
+            : document.getElementById("sp_maklon_by").value.trim());
+          if (!mby) return alert("Untuk MAKLON, nama pekerja wajib diisi.");
+          payload.maklon_by = mby;
+          payload.maklon_target_kembali = document.getElementById("sp_target_kembali").value;
+        }
+        await apiStartPacking(payload);
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openFinishPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (!["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(bal.status)) {
+        return alert("Bal harus di status PROSES_PACKING_INTERNAL atau PROSES_PACKING_MAKLON.");
+      }
+      const isMaklon = bal.status === "PROSES_PACKING_MAKLON";
+      const qtyOff = officialQty(bal);
+      const title = isMaklon ? "Selesai Packing Maklon (Barang Kembali)" : "Selesai Packing Internal";
+      document.getElementById("actionTitle").textContent = title;
+
+      let workersHtml = "";
+      if (!isMaklon) {
+        // Internal multi-worker
+        workersHtml = `
+          <div class="alert alert-info" style="margin-top:8px">
+            <strong>Pekerja Packing Internal</strong> — input siapa saja yang ngerjain.
+          </div>
+          <div id="fpWorkersList"></div>
+          <button class="btn-outline btn-sm" type="button" onclick="addFinishPackingWorkerRow()" style="margin-bottom:8px">+ Tambah Pekerja</button>
+          <div id="fpWorkersTotal" class="alert alert-info">Total qty pekerja: 0</div>
+        `;
+      } else {
+        // Maklon: 1 orang sudah tersimpan dari startPacking
+        workersHtml = `
+          <div class="alert alert-info">
+            Pekerja maklon: <strong>${safe(bal.maklon_by || "-")}</strong><br>
+            Keluar: ${fmtDate(bal.maklon_keluar_at)}${bal.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(bal.maklon_target_kembali)}` : ""}
+          </div>
+        `;
+      }
+
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong>
+        </div>
+        <div class="form-group">
+          <label>Qty Packing (qty hasil packing actual) <span class="required">*</span></label>
+          <input id="fp_qty_packing" type="number" step="any" placeholder="Bisa berbeda dari qty resmi" oninput="updateFinishPackingTotal()">
+        </div>
+        ${workersHtml}
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="fp_note" placeholder="Kondisi hasil, masalah yang ditemui, dll"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmFinishPacking('${bal_id}', ${isMaklon})">✓ Selesai Packing</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+      if (!isMaklon) addFinishPackingWorkerRow();
+    }
+
+    function addFinishPackingWorkerRow(name = "", qty = "") {
+      const list = document.getElementById("fpWorkersList");
+      if (!list) return;
+      const div = document.createElement("div");
+      div.className = "worker-row fp-worker-row";
+      div.style.cssText = "display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:end; margin-bottom:6px";
+      div.innerHTML = `
+        <div class="form-group" style="margin:0"><label class="small">Nama <span class="required">*</span></label><input class="fpWorkerName" value="${safe(name)}" placeholder="Nama pekerja"></div>
+        <div class="form-group" style="margin:0"><label class="small">Qty <span class="required">*</span></label><input class="fpWorkerQty" type="number" step="any" value="${safe(qty)}" oninput="updateFinishPackingTotal()"></div>
+        <button class="btn-danger btn-sm" type="button" onclick="this.parentElement.remove(); updateFinishPackingTotal();">×</button>
+      `;
+      list.appendChild(div);
+      updateFinishPackingTotal();
+    }
+
+    function updateFinishPackingTotal() {
+      const total = [...document.querySelectorAll(".fpWorkerQty")].reduce((s, el) => s + Number(el.value || 0), 0);
+      const box = document.getElementById("fpWorkersTotal");
+      if (!box) return;
+      const qtyPackingEl = document.getElementById("fp_qty_packing");
+      const target = Number(qtyPackingEl?.value || 0);
+      box.textContent = `Total qty pekerja: ${total}${target > 0 ? " / target qty_packing: " + target : ""}`;
+      box.className = `alert ${total > 0 && target > 0 && Math.abs(total - target) < 0.0001 ? 'alert-success' : 'alert-info'}`;
+    }
+
+    async function confirmFinishPacking(bal_id, isMaklon) {
+      try {
+        const qtyPacking = Number(document.getElementById("fp_qty_packing").value);
+        if (!qtyPacking || qtyPacking <= 0) return alert("Qty packing wajib > 0.");
+        const payload = {
+          bal_id,
+          qty_packing: qtyPacking,
+          packing_note: document.getElementById("fp_note").value.trim()
+        };
+        if (!isMaklon) {
+          const rows = document.querySelectorAll(".fp-worker-row");
+          if (!rows.length) return alert("Minimal 1 pekerja wajib diisi.");
+          const workers = [];
+          let invalid = false;
+          rows.forEach(r => {
+            const nameEl = r.querySelector(".fpWorkerName");
+            const qtyEl = r.querySelector(".fpWorkerQty");
+            const rawName = (nameEl?.value || "").trim();
+            const nm = (typeof titleCase === "function" ? titleCase(rawName) : rawName);
+            const qt = Number(qtyEl?.value || 0);
+            nameEl?.classList.toggle("field-error", !nm);
+            qtyEl?.classList.toggle("field-error", !qt || qt <= 0);
+            if (!nm || qt <= 0) { invalid = true; return; }
+            workers.push({ name: nm, qty: qt });
+          });
+          if (invalid) return alert("Semua pekerja wajib punya nama dan qty > 0.");
+          payload.packing_workers = workers;
+        }
+        await apiFinishPacking(payload);
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openQcPacking(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "SELESAI_PACKING") return alert("Bal harus di status SELESAI_PACKING.");
+      if (bal.qc_at) return alert("Bal ini sudah pernah di-QC. Untuk koreksi, pakai Owner Override.");
+      document.getElementById("actionTitle").textContent = "QC Packing";
+      const qtyPacking = Number(bal.qty_packing || 0);
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Qty packing: <strong>${qtyPacking} ${safe(bal.satuan)}</strong>${bal.tipe_packing === "MAKLON" && bal.maklon_by ? `<br>Dari maklon: ${safe(bal.maklon_by)}` : ""}
+        </div>
+        <div class="form-group">
+          <label>Qty Check (yang diperiksa) <span class="required">*</span></label>
+          <input id="qc_qty_check" type="number" step="any" value="${qtyPacking}" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty Reject (rusak / cacat)</label>
+          <input id="qc_qty_reject" type="number" step="any" value="0" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty Selisih (kurang dari check, biasanya untuk maklon)</label>
+          <input id="qc_qty_selisih" type="number" step="any" value="0" oninput="recalcQcOk()">
+        </div>
+        <div class="form-group">
+          <label>Qty OK (otomatis dihitung)</label>
+          <input id="qc_qty_ok" type="number" step="any" readonly style="background:#f3f4f6; font-weight:700">
+        </div>
+        <div class="form-group">
+          <label>Catatan QC <span id="qc_note_req" class="required" style="display:none">* wajib kalau ada reject</span></label>
+          <textarea id="qc_note" placeholder="Alasan reject / kondisi barang"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Setelah QC, masuk ke <span class="required">*</span></label>
+          <select id="qc_target">
+            <option value="STOK_BARANG">STOK BARANG (belum ada customer)</option>
+            <option value="SIAP_KIRIM">SIAP KIRIM (sudah ada pesanan)</option>
+          </select>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmQcPacking('${bal_id}')">🔍 Simpan Hasil QC</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+      recalcQcOk();
+    }
+
+    function recalcQcOk() {
+      const check = Number(document.getElementById("qc_qty_check")?.value || 0);
+      const reject = Number(document.getElementById("qc_qty_reject")?.value || 0);
+      const selisih = Number(document.getElementById("qc_qty_selisih")?.value || 0);
+      const ok = Math.max(0, check - reject - selisih);
+      const okEl = document.getElementById("qc_qty_ok");
+      if (okEl) okEl.value = ok;
+      const reqEl = document.getElementById("qc_note_req");
+      if (reqEl) reqEl.style.display = reject > 0 ? "inline" : "none";
+    }
+
+    async function confirmQcPacking(bal_id) {
+      try {
+        const qtyCheck = Number(document.getElementById("qc_qty_check").value || 0);
+        const qtyReject = Number(document.getElementById("qc_qty_reject").value || 0);
+        const qtySelisih = Number(document.getElementById("qc_qty_selisih").value || 0);
+        const qtyOk = Math.max(0, qtyCheck - qtyReject - qtySelisih);
+        const qcNote = document.getElementById("qc_note").value.trim();
+        if (qtyCheck <= 0) return alert("Qty check wajib > 0.");
+        if (qtyReject > 0 && !qcNote) return alert("Catatan QC wajib diisi kalau ada reject.");
+        await apiQcPacking({
+          bal_id,
+          qty_check: qtyCheck,
+          qty_ok: qtyOk,
+          qty_reject: qtyReject,
+          qty_selisih: qtySelisih,
+          qc_note: qcNote,
+          target_status: document.getElementById("qc_target").value
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openToggleStokKirim(bal_id, target_status) {
+      const bal = await apiGetBal(bal_id);
+      const targetLabel = target_status === "SIAP_KIRIM" ? "SIAP KIRIM" : "STOK BARANG";
+      const currentLabel = bal.status === "SIAP_KIRIM" ? "SIAP KIRIM" : "STOK BARANG";
+      document.getElementById("actionTitle").textContent = "Pindah Status";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Pindah dari <strong>${currentLabel}</strong> ke <strong>${targetLabel}</strong>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="tsk_note"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmToggleStokKirim('${bal_id}', '${target_status}')">Konfirmasi Pindah</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmToggleStokKirim(bal_id, target_status) {
+      try {
+        await apiToggleStokKirim({
+          bal_id,
+          target_status,
+          note: document.getElementById("tsk_note").value.trim()
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openMarkShipped(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      if (!["STOK_BARANG", "SIAP_KIRIM"].includes(bal.status)) {
+        return alert("Mark Terkirim hanya bisa dari STOK_BARANG atau SIAP_KIRIM.");
+      }
+      document.getElementById("actionTitle").textContent = "Mark Terkirim";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-warn">
+          ⚠️ Status akan berubah ke <strong>TERKIRIM</strong> (final, tidak bisa di-revert kecuali Owner Override).
+        </div>
+        <div class="form-group">
+          <label>Tujuan / Customer (opsional)</label>
+          <input id="ms_shipped_to" placeholder="Nama customer atau tujuan kirim">
+        </div>
+        <div class="form-group">
+          <label>No. Surat Jalan (opsional, dari Accurate)</label>
+          <input id="ms_sj_no" placeholder="SJ-2026-XXX">
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="ms_note"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="confirmMarkShipped('${bal_id}')">🚚 Konfirmasi Terkirim</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmMarkShipped(bal_id) {
+      try {
+        await apiMarkShipped({
+          bal_id,
+          shipped_to: document.getElementById("ms_shipped_to").value.trim(),
+          surat_jalan_no: document.getElementById("ms_sj_no").value.trim(),
+          shipped_note: document.getElementById("ms_note").value.trim()
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
        LABEL
        ============================================================ */
 
@@ -3870,9 +4416,12 @@ Alasan: ${cleanReason}`)) return;
           if (mobile) mobile.innerHTML = `<div class="empty">Belum ada pekerjaan ${hrSubLabel(currentHrSub)}.</div>`;
           return;
         }
-        const fotoCell = (foto, balId) => foto
-          ? `<img src="${foto}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')">`
-          : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
+        const fotoCell = (foto, balId) => {
+          const src = normalizeDriveImageUrl(foto || "");
+          return src
+            ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
+            : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
+        };
 
         if (tbody) {
           tbody.innerHTML = rows.map(r => `
