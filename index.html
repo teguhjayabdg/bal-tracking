@@ -992,15 +992,18 @@
         </div>
       </div>
 
-      <!-- REKAP SAYA - PEGAWAI, BULAN BERJALAN, TANPA RUPIAH -->
+      <!-- REKAP SAYA - PEGAWAI -->
       <div id="tab-mywork" class="tab-content">
         <div class="card">
           <div class="section-title">Rekap Saya</div>
-          <p class="sub-note">Menampilkan pekerjaan akun ini saja untuk bulan berjalan.</p>
-          <div class="alert alert-info" id="myWorkInfo">Memuat periode...</div>
-          <div class="actions" style="margin-top:10px">
+          <p class="sub-note">Menampilkan pekerjaan akun ini.</p>
+          <div class="filter-bar">
+            <input id="myWorkFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
+            <input id="myWorkFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
+            <input id="myWorkFilterJenis" placeholder="Filter jenis barang..." oninput="renderMyWork()">
             <button class="btn-outline btn-sm" onclick="renderMyWork()">🔄 Refresh</button>
           </div>
+          <div class="alert alert-info" id="myWorkInfo">Memuat periode...</div>
         </div>
 
         <div id="myWorkSummary" class="stat-grid"></div>
@@ -1013,6 +1016,7 @@
                 <tr>
                   <th>Tanggal</th>
                   <th>Tahap</th>
+                  <th>Pegawai</th>
                   <th>Foto</th>
                   <th>Bal / PO</th>
                   <th>Jenis</th>
@@ -4486,6 +4490,14 @@ Alasan: ${cleanReason}`)) return;
       if (e && !e.value) e.value = range.end;
     }
 
+    function ensureMyWorkFilterDefaults() {
+      const range = getLocalMonthRange();
+      const s = document.getElementById("myWorkFilterStart");
+      const e = document.getElementById("myWorkFilterEnd");
+      if (s && !s.value) s.value = range.start;
+      if (e && !e.value) e.value = range.end;
+    }
+
     function switchWorkSub(sub) {
       currentWorkSub = sub || "obras";
       ["obras", "setting", "packing", "checker"].forEach(s => {
@@ -4524,7 +4536,7 @@ Alasan: ${cleanReason}`)) return;
       const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
       const stats = showWorkerCount
         ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
-        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Periode", "Bulan ini"]];
+        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Nama", currentUser?.nama || "-"]];
       el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
     }
 
@@ -4619,13 +4631,17 @@ Alasan: ${cleanReason}`)) return;
 
     async function renderMyWork() {
       try {
+        ensureMyWorkFilterDefaults();
         const mySub = workSubForRole();
-        const res = await apiListWorkRekap({ scope: "mine", tahap: mySub });
-        const rows = res.rows || [];
+        const start = document.getElementById("myWorkFilterStart")?.value || "";
+        const end = document.getElementById("myWorkFilterEnd")?.value || "";
+        const jenis = document.getElementById("myWorkFilterJenis")?.value || "";
+        const res = await apiListWorkRekap({ scope: "mine", tahap: mySub, start_date: start, end_date: end });
+        const rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
         const info = document.getElementById("myWorkInfo");
-        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode bulan berjalan: ${safe(formatPeriodID(res.start_date, res.end_date))}.`;
+        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode: ${safe(formatPeriodID(res.start_date, res.end_date))}.`;
         renderWorkSummary("myWorkSummary", rows, false);
-        renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: false });
+        renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: true });
       } catch (e) {
         toast("Gagal load Rekap Saya: " + e.message, "error");
       }
