@@ -996,7 +996,7 @@
       <div id="tab-mywork" class="tab-content">
         <div class="card">
           <div class="section-title">Rekap Saya</div>
-          <p class="sub-note">Menampilkan pekerjaan akun ini.</p>
+          <p class="sub-note">Menampilkan pekerjaan tahap akun ini.</p>
           <div class="filter-bar">
             <input id="myWorkFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
             <input id="myWorkFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
@@ -1009,7 +1009,7 @@
         <div id="myWorkSummary" class="stat-grid"></div>
 
         <div class="card">
-          <div class="section-title">Daftar Pekerjaan Saya</div>
+          <div class="section-title">Daftar Pekerjaan</div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -3023,8 +3023,8 @@ Alasan: ${cleanReason}`)) return;
           payload.qty_aktual = qtyAktual;
           payload.qty_note = document.getElementById("verifyQtyNote")?.value.trim() || "";
         }
-        // Nama pekerja obras (khusus akun Obras) — Title Case (pola A)
-        if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
+        // Nama pekerja obras — Title Case. Berlaku untuk Obras/Admin/Owner agar rekap masuk ke orang yang benar.
+        if (action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") {
           const wEl = document.getElementById("obrasWorkerName");
           const wName = titleCase(wEl?.value.trim() || "");
           if (action === "MULAI_OBRAS" && !wName) {
@@ -4514,18 +4514,13 @@ Alasan: ${cleanReason}`)) return;
       });
 
       const workerFilter = document.getElementById("workFilterWorker");
-      if (workerFilter && !full) {
-        workerFilter.innerHTML = `<option value="${safe(currentUser?.nama || "")}" selected>${safe(currentUser?.nama || "Saya")}</option>`;
-        workerFilter.disabled = true;
-      } else if (workerFilter) {
-        workerFilter.disabled = false;
-      }
+      if (workerFilter) workerFilter.disabled = false;
 
       const note = document.getElementById("workRecapNote");
       if (note) {
         note.textContent = full
           ? "Menampilkan rekap pekerjaan semua pegawai."
-          : "Menampilkan rekap pekerjaan akun ini.";
+          : `Menampilkan rekap ${workSubLabel(roleSub)} untuk akun ini.`;
       }
     }
 
@@ -4649,16 +4644,14 @@ Alasan: ${cleanReason}`)) return;
         const start = document.getElementById("workFilterStart")?.value || "";
         const end = document.getElementById("workFilterEnd")?.value || "";
         const jenis = document.getElementById("workFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: full ? "all" : "mine", tahap: targetSub, start_date: start, end_date: end });
+        const res = await apiListWorkRekap({ scope: full ? "all" : "stage", tahap: targetSub, start_date: start, end_date: end });
         let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
-        if (full) {
-          fillWorkerOptions("workFilterWorker", rows);
-          const worker = document.getElementById("workFilterWorker")?.value || "";
-          if (worker) rows = rows.filter(r => r.pegawai === worker);
-        }
+        fillWorkerOptions("workFilterWorker", rows);
+        const worker = document.getElementById("workFilterWorker")?.value || "";
+        if (worker) rows = rows.filter(r => r.pegawai === worker);
         const info = document.getElementById("workPeriodInfo");
         if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
-        renderWorkSummary("workSummary", rows, full);
+        renderWorkSummary("workSummary", rows, true);
         renderWorkEmployeeRecap(rows);
         renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
       } catch (e) {
@@ -4673,11 +4666,11 @@ Alasan: ${cleanReason}`)) return;
         const start = document.getElementById("myWorkFilterStart")?.value || "";
         const end = document.getElementById("myWorkFilterEnd")?.value || "";
         const jenis = document.getElementById("myWorkFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: "mine", tahap: mySub, start_date: start, end_date: end });
+        const res = await apiListWorkRekap({ scope: "stage", tahap: mySub, start_date: start, end_date: end });
         const rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
         const info = document.getElementById("myWorkInfo");
         if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode: ${safe(formatPeriodID(res.start_date, res.end_date))}.`;
-        renderWorkSummary("myWorkSummary", rows, false);
+        renderWorkSummary("myWorkSummary", rows, true);
         renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: true });
       } catch (e) {
         toast("Gagal load Rekap Saya: " + e.message, "error");
