@@ -937,7 +937,7 @@
       <div id="tab-workrecap" class="tab-content">
         <div class="card">
           <div class="section-title">Rekap Produksi</div>
-          <p class="sub-note">Untuk Admin Produksi. Menampilkan rekap pekerjaan semua pegawai tanpa kolom harga, tarif, atau total rupiah.</p>
+          <p class="sub-note">Untuk Admin Produksi. Menampilkan rekap pekerjaan semua pegawai.</p>
           <div class="grid-4" style="margin-top:8px">
             <button class="btn-outline" id="workSubObrasBtn" onclick="switchWorkSub('obras')">🧵 Obras</button>
             <button class="btn-outline" id="workSubSettingBtn" onclick="switchWorkSub('setting')">⚙️ Setting</button>
@@ -996,7 +996,7 @@
       <div id="tab-mywork" class="tab-content">
         <div class="card">
           <div class="section-title">Rekap Saya</div>
-          <p class="sub-note">Menampilkan pekerjaan akun ini saja untuk bulan berjalan. Tidak ada harga, tarif, atau total rupiah.</p>
+          <p class="sub-note">Menampilkan pekerjaan akun ini saja untuk bulan berjalan.</p>
           <div class="alert alert-info" id="myWorkInfo">Memuat periode...</div>
           <div class="actions" style="margin-top:10px">
             <button class="btn-outline btn-sm" onclick="renderMyWork()">🔄 Refresh</button>
@@ -4608,7 +4608,7 @@ Alasan: ${cleanReason}`)) return;
         const worker = document.getElementById("workFilterWorker")?.value || "";
         if (worker) rows = rows.filter(r => r.pegawai === worker);
         const info = document.getElementById("workPeriodInfo");
-        if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}. Data rupiah tidak dikirim ke menu ini.`;
+        if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
         renderWorkSummary("workSummary", rows, true);
         renderWorkEmployeeRecap(rows);
         renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
@@ -4623,7 +4623,7 @@ Alasan: ${cleanReason}`)) return;
         const res = await apiListWorkRekap({ scope: "mine", tahap: mySub });
         const rows = res.rows || [];
         const info = document.getElementById("myWorkInfo");
-        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode bulan berjalan: ${safe(formatPeriodID(res.start_date, res.end_date))}. Data ini hanya qty pekerjaan, tanpa rupiah.`;
+        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode bulan berjalan: ${safe(formatPeriodID(res.start_date, res.end_date))}.`;
         renderWorkSummary("myWorkSummary", rows, false);
         renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: false });
       } catch (e) {
