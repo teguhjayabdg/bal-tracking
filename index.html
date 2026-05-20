@@ -811,6 +811,8 @@
           <button data-tab="list" class="tab-btn" onclick="switchTab('list')">📋 Daftar Bal</button>
           <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
           <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
+          <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
+          <button data-tab="mywork" class="tab-btn" onclick="switchTab('mywork')">📌 Rekap Saya</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
         </div>
@@ -928,6 +930,101 @@
         <div class="card">
           <div class="section-title">History Aktivitas</div>
           <div id="globalHistory"></div>
+        </div>
+      </div>
+
+      <!-- REKAP PRODUKSI - ADMIN / OWNER, TANPA RUPIAH -->
+      <div id="tab-workrecap" class="tab-content">
+        <div class="card">
+          <div class="section-title">Rekap Produksi</div>
+          <p class="sub-note">Untuk Admin Produksi. Menampilkan rekap pekerjaan semua pegawai tanpa kolom harga, tarif, atau total rupiah.</p>
+          <div class="grid-4" style="margin-top:8px">
+            <button class="btn-outline" id="workSubObrasBtn" onclick="switchWorkSub('obras')">🧵 Obras</button>
+            <button class="btn-outline" id="workSubSettingBtn" onclick="switchWorkSub('setting')">⚙️ Setting</button>
+            <button class="btn-outline" id="workSubPackingBtn" onclick="switchWorkSub('packing')">📦 Packing</button>
+            <button class="btn-outline" id="workSubCheckerBtn" onclick="switchWorkSub('checker')">✅ Checker/QC</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Filter</div>
+          <div class="filter-bar">
+            <select id="workFilterWorker" onchange="renderWorkRekap()"><option value="">Semua Pegawai</option></select>
+            <input id="workFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderWorkRekap()">
+            <input id="workFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderWorkRekap()">
+            <input id="workFilterJenis" placeholder="Filter jenis barang..." oninput="renderWorkRekap()">
+          </div>
+          <div class="small" id="workPeriodInfo" style="margin-top:8px"></div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn-outline btn-sm" onclick="renderWorkRekap()">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div id="workSummary" class="stat-grid"></div>
+
+        <div class="card">
+          <div class="section-title">Rekap per Pegawai</div>
+          <div id="workRekapPegawai"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Daftar Pekerjaan</div>
+          <p class="sub-note">Data ini hanya berisi qty pekerjaan. Nominal borongan tetap hanya Owner yang bisa melihat di menu HR Borongan.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Tahap</th>
+                  <th>Pegawai</th>
+                  <th>Foto</th>
+                  <th>Bal / PO</th>
+                  <th>Jenis</th>
+                  <th>Warna/Size</th>
+                  <th>Qty</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="workRows"></tbody>
+            </table>
+          </div>
+          <div id="workMobile" class="mobile-cards"></div>
+        </div>
+      </div>
+
+      <!-- REKAP SAYA - PEGAWAI, BULAN BERJALAN, TANPA RUPIAH -->
+      <div id="tab-mywork" class="tab-content">
+        <div class="card">
+          <div class="section-title">Rekap Saya</div>
+          <p class="sub-note">Menampilkan pekerjaan akun ini saja untuk bulan berjalan. Tidak ada harga, tarif, atau total rupiah.</p>
+          <div class="alert alert-info" id="myWorkInfo">Memuat periode...</div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn-outline btn-sm" onclick="renderMyWork()">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div id="myWorkSummary" class="stat-grid"></div>
+
+        <div class="card">
+          <div class="section-title">Daftar Pekerjaan Saya</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Tahap</th>
+                  <th>Foto</th>
+                  <th>Bal / PO</th>
+                  <th>Jenis</th>
+                  <th>Warna/Size</th>
+                  <th>Qty</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="myWorkRows"></tbody>
+            </table>
+          </div>
+          <div id="myWorkMobile" class="mobile-cards"></div>
         </div>
       </div>
 
@@ -1441,6 +1538,10 @@
       return await api("listBorongan", {}, { cache: true });
     }
 
+    async function apiListWorkRekap(payload = {}) {
+      return await api("listWorkRekap", payload, { cache: false });
+    }
+
     async function apiUpdateBoronganTarif(id, tarif) {
       clearApiCache("listBorongan");
       return await api("updateBoronganTarif", { id, tarif });
@@ -1564,19 +1665,24 @@
     function canAccess(tab) {
       const r = currentUser?.role;
       if (!r) return false;
+      if (tab === "mywork" && r === "Owner") return false;
+      // Owner tidak perlu Rekap Saya karena sudah punya HR Borongan lengkap.
+      // Taruh sebelum wildcard Owner supaya tab mywork tidak ikut terbuka.
       if (r === "Owner") return true;
       if (tab === "dashboard") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "input") return ["Admin Produksi", "Operator Mesin"].includes(r);
       if (tab === "list") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "history") return ["Admin Produksi"].includes(r);
+      if (tab === "workrecap") return ["Admin Produksi"].includes(r);
+      if (tab === "mywork") return ["Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
       return false;
     }
 
     function setupNavByRole() {
-      document.querySelectorAll(".tab-btn").forEach(btn => {
+      document.querySelectorAll(".nav-inner .tab-btn[data-tab]").forEach(btn => {
         btn.classList.toggle("hidden", !canAccess(btn.dataset.tab));
       });
     }
@@ -2110,7 +2216,7 @@
       stopScan();
       document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
       document.getElementById(`tab-${tab}`).classList.add("active");
-      document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+      document.querySelectorAll(".nav-inner .tab-btn[data-tab]").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
       refreshAll();
     }
 
@@ -2127,6 +2233,16 @@
 
   if (currentTab === "history") {
     await renderGlobalHistory();
+    return;
+  }
+
+  if (currentTab === "workrecap") {
+    await switchWorkSub(currentWorkSub);
+    return;
+  }
+
+  if (currentTab === "mywork") {
+    await renderMyWork();
     return;
   }
 
@@ -4320,6 +4436,200 @@ Alasan: ${cleanReason}`)) return;
        Tarif tersimpan di sheet 'tarif' di server, lookup otomatis.
        Owner edit tarif via tabel di tab HR → API auto-propagate.
        ============================================================ */
+
+    let currentWorkSub = "obras";
+
+    function workSubLabel(sub) {
+      if (sub === "obras") return "Obras";
+      if (sub === "setting") return "Setting";
+      if (sub === "packing") return "Packing";
+      if (sub === "checker") return "Checker/QC";
+      return sub || "-";
+    }
+
+    function workSubForRole(role = currentUser?.role) {
+      if (role === "Obras") return "obras";
+      if (role === "Setting / Steam") return "setting";
+      if (role === "Packing") return "packing";
+      if (role === "Checker / QC") return "checker";
+      return "obras";
+    }
+
+    function getLocalMonthRange() {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const toKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      return { start: toKey(start), end: toKey(end) };
+    }
+
+    function formatPeriodID(startKey, endKey) {
+      const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+      const parseKey = key => {
+        const m = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return null;
+        return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+      };
+      const s = parseKey(startKey);
+      const e = parseKey(endKey);
+      if (!s || !e) return `${startKey || "-"} s/d ${endKey || "-"}`;
+      if (s.y === e.y && s.m === e.m) return `${s.d} – ${e.d} ${bulan[s.m - 1]} ${s.y}`;
+      if (s.y === e.y) return `${s.d} ${bulan[s.m - 1]} – ${e.d} ${bulan[e.m - 1]} ${s.y}`;
+      return `${s.d} ${bulan[s.m - 1]} ${s.y} – ${e.d} ${bulan[e.m - 1]} ${e.y}`;
+    }
+
+    function ensureWorkFilterDefaults() {
+      const range = getLocalMonthRange();
+      const s = document.getElementById("workFilterStart");
+      const e = document.getElementById("workFilterEnd");
+      if (s && !s.value) s.value = range.start;
+      if (e && !e.value) e.value = range.end;
+    }
+
+    function switchWorkSub(sub) {
+      currentWorkSub = sub || "obras";
+      ["obras", "setting", "packing", "checker"].forEach(s => {
+        const btn = document.getElementById(`workSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
+        if (!btn) return;
+        if (s === currentWorkSub) {
+          btn.style.background = "var(--primary)";
+          btn.style.color = "white";
+        } else {
+          btn.style.background = "white";
+          btn.style.color = "var(--primary)";
+        }
+      });
+      renderWorkRekap();
+    }
+
+    function sanitizeWorkRowsByJenis(rows, jenisText) {
+      const j = String(jenisText || "").toLowerCase().trim();
+      if (!j) return rows;
+      return rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
+    }
+
+    function fillWorkerOptions(selectId, rows) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const cur = sel.value;
+      const workers = [...new Set((rows || []).map(r => r.pegawai).filter(Boolean))].sort();
+      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${cur === n ? "selected" : ""}>${safe(n)}</option>`).join("");
+      if (cur && !workers.includes(cur)) sel.value = "";
+    }
+
+    function renderWorkSummary(summaryId, rows, showWorkerCount = true) {
+      const el = document.getElementById(summaryId);
+      if (!el) return;
+      const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
+      const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
+      const stats = showWorkerCount
+        ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
+        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Periode", "Bulan ini"]];
+      el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
+    }
+
+    function renderWorkRows(tbodyId, mobileId, rows, options = {}) {
+      const tbody = document.getElementById(tbodyId);
+      const mobile = document.getElementById(mobileId);
+      const showPegawai = options.showPegawai !== false;
+      const colSpan = showPegawai ? 9 : 8;
+      const fotoCell = (foto, balId) => {
+        const src = normalizeDriveImageUrl(foto || "");
+        return src
+          ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
+          : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
+      };
+
+      if (!rows.length) {
+        const empty = `<div class="empty">Belum ada data rekap untuk periode ini.</div>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="${colSpan}">${empty}</td></tr>`;
+        if (mobile) mobile.innerHTML = empty;
+        return;
+      }
+
+      if (tbody) {
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${safe(r.tanggal)}</td>
+            <td>${safe(r.tahap)}</td>
+            ${showPegawai ? `<td><strong>${safe(r.pegawai)}</strong></td>` : ""}
+            <td>${fotoCell(r.foto_url, r.bal_id)}</td>
+            <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
+            <td>${safe(r.jenis || "-")}</td>
+            <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
+            <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
+            <td><span class="small">${safe(r.catatan || "-")}</span></td>
+          </tr>
+        `).join("");
+      }
+
+      if (mobile) {
+        mobile.innerHTML = rows.map(r => `
+          <div class="bal-card">
+            ${fotoCell(r.foto_url, r.bal_id)}
+            <div class="bal-card-body">
+              <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
+              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""}</div>
+              <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
+              <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
+              <div class="small">${safe(r.catatan || "")}</div>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    function renderWorkEmployeeRecap(rows) {
+      const el = document.getElementById("workRekapPegawai");
+      if (!el) return;
+      const map = new Map();
+      for (const r of rows) {
+        const k = r.pegawai || "-";
+        if (!map.has(k)) map.set(k, { pegawai: k, qty: 0, count: 0 });
+        const e = map.get(k);
+        e.qty += Number(r.qty || 0);
+        e.count += 1;
+      }
+      const arr = [...map.values()].sort((a,b) => b.qty - a.qty);
+      el.innerHTML = arr.length
+        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td></tr>`).join("")}</tbody></table></div>`
+        : `<div class="empty">Belum ada data.</div>`;
+    }
+
+    async function renderWorkRekap() {
+      try {
+        ensureWorkFilterDefaults();
+        const start = document.getElementById("workFilterStart")?.value || "";
+        const end = document.getElementById("workFilterEnd")?.value || "";
+        const jenis = document.getElementById("workFilterJenis")?.value || "";
+        const res = await apiListWorkRekap({ scope: "all", tahap: currentWorkSub, start_date: start, end_date: end });
+        let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
+        fillWorkerOptions("workFilterWorker", rows);
+        const worker = document.getElementById("workFilterWorker")?.value || "";
+        if (worker) rows = rows.filter(r => r.pegawai === worker);
+        const info = document.getElementById("workPeriodInfo");
+        if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}. Data rupiah tidak dikirim ke menu ini.`;
+        renderWorkSummary("workSummary", rows, true);
+        renderWorkEmployeeRecap(rows);
+        renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
+      } catch (e) {
+        toast("Gagal load Rekap Produksi: " + e.message, "error");
+      }
+    }
+
+    async function renderMyWork() {
+      try {
+        const mySub = workSubForRole();
+        const res = await apiListWorkRekap({ scope: "mine", tahap: mySub });
+        const rows = res.rows || [];
+        const info = document.getElementById("myWorkInfo");
+        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode bulan berjalan: ${safe(formatPeriodID(res.start_date, res.end_date))}. Data ini hanya qty pekerjaan, tanpa rupiah.`;
+        renderWorkSummary("myWorkSummary", rows, false);
+        renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: false });
+      } catch (e) {
+        toast("Gagal load Rekap Saya: " + e.message, "error");
+      }
+    }
 
 
     function hrSubLabel(sub) {
