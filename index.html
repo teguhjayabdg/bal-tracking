@@ -212,6 +212,9 @@
     .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; white-space: nowrap; }
     .st-SELESAI_MESIN { background: #fef3c7; color: #92400e; }
     .st-QTY_TERVERIFIKASI { background: #dbeafe; color: #1e40af; }
+    .st-MAKLON_OBRAS_SETTING_PACKING { background: #fde047; color: #713f12; }
+    .st-MAKLON_SETTING_PACKING { background: #facc15; color: #713f12; }
+    .st-MAKLON_SETTING_ONLY { background: #fef08a; color: #854d0e; }
     .st-MULAI_OBRAS { background: #ede9fe; color: #5b21b6; }
     .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
     .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
@@ -812,7 +815,6 @@
           <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
           <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
-          <button data-tab="mywork" class="tab-btn" onclick="switchTab('mywork')">📌 Rekap Saya</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
         </div>
@@ -992,46 +994,6 @@
         </div>
       </div>
 
-      <!-- REKAP SAYA - PEGAWAI -->
-      <div id="tab-mywork" class="tab-content">
-        <div class="card">
-          <div class="section-title">Rekap Saya</div>
-          <p class="sub-note">Menampilkan pekerjaan tahap akun ini.</p>
-          <div class="filter-bar">
-            <input id="myWorkFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
-            <input id="myWorkFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderMyWork()">
-            <input id="myWorkFilterJenis" placeholder="Filter jenis barang..." oninput="renderMyWork()">
-            <button class="btn-outline btn-sm" onclick="renderMyWork()">🔄 Refresh</button>
-          </div>
-          <div class="alert alert-info" id="myWorkInfo">Memuat periode...</div>
-        </div>
-
-        <div id="myWorkSummary" class="stat-grid"></div>
-
-        <div class="card">
-          <div class="section-title">Daftar Pekerjaan</div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tanggal</th>
-                  <th>Tahap</th>
-                  <th>Pegawai</th>
-                  <th>Foto</th>
-                  <th>Bal / PO</th>
-                  <th>Jenis</th>
-                  <th>Warna/Size</th>
-                  <th>Qty</th>
-                  <th>Catatan</th>
-                </tr>
-              </thead>
-              <tbody id="myWorkRows"></tbody>
-            </table>
-          </div>
-          <div id="myWorkMobile" class="mobile-cards"></div>
-        </div>
-      </div>
-
       <!-- HR BORONGAN SETTING - OWNER ONLY -->
       <div id="tab-hr" class="tab-content">
         <div class="card">
@@ -1145,7 +1107,8 @@
       "splitBal", "deleteBal", "manualSelesaiSetting", "ownerOverride",
       "updateBoronganTarif", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
-      "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped"
+      "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
+      "startMaklonEksternal", "finishMaklonEksternal"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1170,7 +1133,9 @@
     const LABEL_BAL_PRINT_SIZE = "100x78";
 
     const STATUS_ORDER = [
-      "SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS",
+      "SELESAI_MESIN", "QTY_TERVERIFIKASI",
+      "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY",
+      "MULAI_OBRAS", "SELESAI_OBRAS",
       "MULAI_SETTING", "SELESAI_SETTING",
       "SIAP_PACKING",
       "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
@@ -1180,6 +1145,9 @@
     const STATUS_LABEL = {
       SELESAI_MESIN: "Selesai Mesin",
       QTY_TERVERIFIKASI: "Qty Terverifikasi",
+      MAKLON_OBRAS_SETTING_PACKING: "Maklon Eks: Obras+Setting+Packing",
+      MAKLON_SETTING_PACKING: "Maklon Eks: Setting+Packing",
+      MAKLON_SETTING_ONLY: "Maklon Eks: Setting saja",
       MULAI_OBRAS: "Mulai Obras",
       SELESAI_OBRAS: "Selesai Obras",
       MULAI_SETTING: "Mulai Setting",
@@ -1192,6 +1160,16 @@
       SIAP_KIRIM: "Siap Kirim",
       TERKIRIM: "Terkirim",
       DIPECAH: "Dipecah"
+    };
+
+    // Constant untuk Maklon Eksternal. Cermin dari Code.gs MAKLON_VENDORS.
+    // Bisa juga di-fetch via apiListMaklonVendors() supaya tidak perlu sinkron manual,
+    // tapi untuk MVP hardcoded saja. Kalau owner tambah vendor di Code.gs, edit di sini juga.
+    const MAKLON_VENDORS = ["Nanjung", "Margaasih"];
+    const MAKLON_EKS_TIPE_LABEL = {
+      OBRAS_SETTING_PACKING: "Obras + Setting + Packing",
+      SETTING_PACKING: "Setting + Packing (Obras dilewati)",
+      SETTING_ONLY: "Setting saja (Obras dilewati, Packing internal)"
     };
 
     const JENIS_BARANG_LIST = [
@@ -1611,6 +1589,23 @@
           return await api("markShipped", payload);
         }
 
+    // Phase 2 — Maklon eksternal (full-stage vendor: Nanjung, Margaasih, dll)
+    async function apiListMaklonVendors() {
+      // Cache di session — list jarang berubah
+      return await api("listMaklonVendors", {}, { cache: true });
+    }
+    async function apiStartMaklonEksternal(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("startMaklonEksternal", payload);
+    }
+    async function apiFinishMaklonEksternal(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      clearApiCache("listBorongan");
+      return await api("finishMaklonEksternal", payload);
+    }
+
     async function apiUploadFoto(base64, bal_id = "") {
       return await api("uploadFoto", { base64, bal_id });
     }
@@ -1669,9 +1664,6 @@
     function canAccess(tab) {
       const r = currentUser?.role;
       if (!r) return false;
-      if (tab === "mywork" && r === "Owner") return false;
-      // Owner tidak perlu Rekap Saya karena sudah punya HR Borongan lengkap.
-      // Taruh sebelum wildcard Owner supaya tab mywork tidak ikut terbuka.
       if (r === "Owner") return true;
       if (tab === "dashboard") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "input") return ["Admin Produksi", "Operator Mesin"].includes(r);
@@ -1679,7 +1671,6 @@
       if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "history") return ["Admin Produksi"].includes(r);
       if (tab === "workrecap") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
-      if (tab === "mywork") return ["Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
       return false;
@@ -1737,6 +1728,11 @@
         .filter(Boolean)
         .map(w => w.charAt(0).toLocaleUpperCase("id-ID") + w.slice(1))
         .join(" ");
+    }
+
+    function isGenericWorkerName(name) {
+      const n = String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+      return ["operator obras", "operator setting", "operator packing"].includes(n);
     }
 
     function roleFocusStatuses(role = currentUser?.role) {
@@ -2245,11 +2241,6 @@
     return;
   }
 
-  if (currentTab === "mywork") {
-    await renderMyWork();
-    return;
-  }
-
   if (currentTab === "hr") {
     await switchHrSub(currentHrSub);
     return;
@@ -2518,16 +2509,20 @@
       `).join("");
     }
 
-    function normalizeDriveImageUrl(url) {
+    /**
+     * Build URL thumbnail Google Drive dengan ukuran spesifik.
+     * Default size = 500 (cukup untuk detail foto). Untuk thumbnail kecil (tabel/list)
+     * pakai size = 160. Drive support format: thumbnail?id=FILE_ID&sz=wXXX
+     *
+     * Param:
+     *   url  - string URL Drive (format apa saja: uc?id=, file/d/, thumbnail?id=)
+     *   size - lebar dalam px (default 500). Drive akan return gambar di-resize ke
+     *          lebar tersebut, lebih ringan dari w1000.
+     */
+    function driveThumbUrl(url, size = 500) {
       const s = String(url || "").trim();
       if (!s) return "";
       if (s.startsWith("data:image/")) return s;
-
-      // Normalisasi berbagai format Google Drive agar lebih aman untuk <img>.
-      // Mendukung:
-      // - https://drive.google.com/uc?export=view&id=FILE_ID
-      // - https://drive.google.com/file/d/FILE_ID/view
-      // - https://drive.google.com/thumbnail?id=FILE_ID&sz=w1000
       if (s.includes("drive.google.com")) {
         let id = "";
         const mThumb = s.match(/thumbnail\?id=([^&]+)/);
@@ -2536,14 +2531,25 @@
         if (mThumb) id = mThumb[1];
         else if (mId) id = mId[1];
         else if (mFile) id = mFile[1];
-        if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+        if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`;
       }
-
       return s;
     }
 
-    function photoSrc(b) {
-      return normalizeDriveImageUrl(b?.foto_url || b?.foto_bal_url || b?.foto_bal_base64_demo || "");
+    // Backward-compat alias — kalau ada code lama yang reference fungsi ini.
+    // Default jadi 500 (lebih ringan dari w1000 lama, tetap cukup jelas untuk detail).
+    function normalizeDriveImageUrl(url) {
+      return driveThumbUrl(url, 500);
+    }
+
+    // Foto untuk detail bal (display besar). Default w500 cukup jelas, tidak boros.
+    function photoSrc(b, size = 500) {
+      return driveThumbUrl(b?.foto_url || b?.foto_bal_url || b?.foto_bal_base64_demo || "", size);
+    }
+
+    // Foto thumbnail untuk tabel/list (kotak 40-72 px). w160 cukup, hemat bandwidth.
+    function photoThumbSrc(b) {
+      return driveThumbUrl(b?.foto_url || b?.foto_bal_url || b?.foto_bal_base64_demo || "", 160);
     }
 
     function photoFallbackHtml(extraStyle = "") {
@@ -2569,14 +2575,14 @@
     }
 
     function photoImg(b) {
-      const src = photoSrc(b);
+      const src = photoThumbSrc(b);
       return src
         ? `<img src="${safe(src)}" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
         : photoFallbackHtml();
     }
 
     function photoThumb(b) {
-      const src = photoSrc(b);
+      const src = photoThumbSrc(b);
       return src
         ? `<img src="${safe(src)}" class="thumb" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
         : photoFallbackHtml();
@@ -2659,6 +2665,7 @@ Alasan: ${cleanReason}`)) return;
           </div>
           ${b.catatan ? `<div class="alert alert-info"><strong>Catatan:</strong> ${safe(b.catatan)}</div>` : ""}
           ${b.edit_count ? `<div class="alert alert-warn"><strong>EDIT 1</strong><br>Diedit oleh ${safe(b.edited_by || "-")} pada ${fmtDate(b.edited_at)}<br>Alasan: ${safe(b.edit_note || "-")}</div>` : ""}
+          ${b.maklon_eks_tipe ? `<div class="alert alert-warn"><strong>🏭 Maklon Eksternal</strong><br>Vendor: <strong>${safe(b.maklon_eks_vendor || "-")}</strong> · Tipe: <strong>${safe(MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe] || b.maklon_eks_tipe)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_kembali_at ? `<br>Kembali: ${fmtDate(b.maklon_eks_kembali_at)} oleh ${safe(b.maklon_eks_kembali_by || "-")} · qty: ${safe(b.maklon_eks_qty_kembali || "-")} ${safe(b.satuan)}` : ""}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>` : ""}
           ${outputLabelsHtml(b)}
           <div id="detailActions" style="margin-top:12px">${detailActions(b)}</div>
           <div class="card" style="margin-top:12px">
@@ -2742,6 +2749,22 @@ Alasan: ${cleanReason}`)) return;
       // Edit 1x (saat SELESAI_MESIN)
       if (b.status === "SELESAI_MESIN" && Number(b.edit_count || 0) < 1 && ["Owner", "Admin Produksi", "Operator Mesin"].includes(currentUser.role)) {
         html += `<button class="btn-outline btn-block" style="margin-bottom:8px" onclick="openEditBal('${b.bal_id}')">✏️ Edit Data Bal 1x</button>`;
+      }
+
+      // ===== MAKLON EKSTERNAL (Phase 2) =====
+      // Di QTY_TERVERIFIKASI, Admin/Owner bisa kirim ke vendor maklon (Nanjung/Margaasih)
+      // sebagai alternatif dari MULAI_OBRAS internal. Tombol muncul setelah action MULAI_OBRAS.
+      // Status MAKLON_* punya tombol khusus "Selesai Maklon (Barang Kembali)".
+      if (["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY"].includes(b.status)) {
+        const tipeLabel = (typeof MAKLON_EKS_TIPE_LABEL !== "undefined" && MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe]) || b.maklon_eks_tipe;
+        html += `<div class="alert alert-warn">🏭 Sedang di maklon eksternal: <strong>${safe(b.maklon_eks_vendor || "-")}</strong><br>Tipe: <strong>${safe(tipeLabel)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishMaklonEksternal('${b.bal_id}')">📥 Selesai Maklon (Barang Kembali)</button>`;
+        } else {
+          html += `<div class="alert alert-info">Menunggu admin terima barang kembali dari vendor.</div>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
       }
 
       // ===== FLOW PACKING BARU =====
@@ -2828,6 +2851,11 @@ Alasan: ${cleanReason}`)) return;
       } else {
         html += `<div class="alert alert-warn">Bal ini belum masuk tahap kerja Anda.</div>`;
       }
+      // Maklon Eksternal — opsi cabang dari QTY_TERVERIFIKASI ke vendor luar.
+      // Admin/Owner saja yang bisa kirim ke vendor.
+      if (b.status === "QTY_TERVERIFIKASI" && ["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        html += `<button class="btn-warning btn-block" style="margin-top:8px; background:#eab308; color:#422006" onclick="openMaklonEksternal('${b.bal_id}')">🏭 Maklon Eksternal (Nanjung/Margaasih)</button>`;
+      }
       if (["MULAI_SETTING", "SELESAI_SETTING"].includes(b.status) && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
         html += `<button class="btn-primary btn-block" style="margin-top:8px" onclick="openOutputSetting('${b.bal_id}')">🏷 Buat Label Plastik Baru / Output Setting</button>`;
       }
@@ -2899,8 +2927,9 @@ Alasan: ${cleanReason}`)) return;
         qtyEl?.classList.remove("field-error");
 
         if (!name) { nameEl?.classList.add("field-error"); ok = false; }
+        if (name && isGenericWorkerName(name)) { nameEl?.classList.add("field-error"); ok = false; }
         if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); ok = false; }
-        if (name && qty > 0) workers.push({ name, qty });
+        if (name && !isGenericWorkerName(name) && qty > 0) workers.push({ name, qty });
       });
 
       const target = Number(document.getElementById("packingWorkersBox")?.dataset.targetQty || 0);
@@ -2953,17 +2982,18 @@ Alasan: ${cleanReason}`)) return;
         `;
       }
 
-      // Field nama pekerja obras: hanya tampil untuk akun Obras.
-      // Owner/Admin tidak perlu isi (mereka supervisor, bukan yang ngerjain).
+      // Field nama pekerja obras: tampil untuk SEMUA role yang allowed (Owner, Admin Produksi, Obras).
+      // Akun "Obras" sering shared banyak orang, dan Admin/Owner juga sering bantu klik atas nama pekerja.
+      // WAJIB diisi saat MULAI_OBRAS supaya nama pekerja sebenarnya yang tercatat (bukan nama akun login).
       let obrasHtml = "";
-      if ((action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") && currentUser.role === "Obras") {
+      if (action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") {
         const hint = action === "SELESAI_OBRAS" && bal.obras_by
           ? `Sudah tercatat dimulai oleh <strong>${safe(bal.obras_by)}</strong>. Kosongkan jika orangnya sama, isi jika beda (ganti shift).`
           : `Nama tukang obras yang ngerjain bal ini.`;
         obrasHtml = `
           <div class="form-group">
             <label>Nama Pekerja Obras ${action === "MULAI_OBRAS" ? '<span class="required">*</span>' : '(opsional)'}</label>
-            <input id="obrasWorkerName" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}">
+            <input id="obrasWorkerName" value="${action === "SELESAI_OBRAS" ? safe(bal.obras_by || "") : ""}" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}">
             <div class="small" style="margin-top:4px; color:var(--muted)">${hint}</div>
           </div>
         `;
@@ -3023,13 +3053,18 @@ Alasan: ${cleanReason}`)) return;
           payload.qty_aktual = qtyAktual;
           payload.qty_note = document.getElementById("verifyQtyNote")?.value.trim() || "";
         }
-        // Nama pekerja obras — Title Case. Berlaku untuk Obras/Admin/Owner agar rekap masuk ke orang yang benar.
+        // Nama pekerja obras — wajib untuk MULAI_OBRAS dari SEMUA role yang allowed (Owner/Admin/Obras).
+        // Title Case (pola A: nama orang).
         if (action === "MULAI_OBRAS" || action === "SELESAI_OBRAS") {
           const wEl = document.getElementById("obrasWorkerName");
           const wName = titleCase(wEl?.value.trim() || "");
           if (action === "MULAI_OBRAS" && !wName) {
             wEl?.classList.add("field-error");
             return alert("Nama pekerja obras wajib diisi saat MULAI OBRAS.");
+          }
+          if (wName && isGenericWorkerName(wName)) {
+            wEl?.classList.add("field-error");
+            return alert("Isi nama pekerja asli, bukan " + wName + ".");
           }
           if (wName) payload.worker_name = wName;
         }
@@ -3751,8 +3786,8 @@ Alasan: ${cleanReason}`)) return;
       // Nama pekerja → Title Case (pola A)
       const workers = names.map((el,i)=>({ name: titleCase(el.value.trim()), qty: Number(qtys[i].value || 0) }));
       let ok = true;
-      workers.forEach((w,i)=>{ if(!w.name){names[i].classList.add("field-error");ok=false;} if(!w.qty||w.qty<=0){qtys[i].classList.add("field-error");ok=false;} });
-      if (!ok) return alert("Nama dan qty pekerja wajib diisi.");
+      workers.forEach((w,i)=>{ if(!w.name || isGenericWorkerName(w.name)){names[i].classList.add("field-error");ok=false;} if(!w.qty||w.qty<=0){qtys[i].classList.add("field-error");ok=false;} });
+      if (!ok) return alert("Nama pekerja asli dan qty pekerja wajib diisi.");
       const sum = workers.reduce((s,w)=>s+w.qty,0);
       if (Math.abs(sum-qty)>.0001) return alert("Total qty pekerja harus sama dengan qty plastik baru.");
       try {
@@ -3950,6 +3985,7 @@ Alasan: ${cleanReason}`)) return;
             ? titleCase(document.getElementById("sp_maklon_by").value.trim())
             : document.getElementById("sp_maklon_by").value.trim());
           if (!mby) return alert("Untuk MAKLON, nama pekerja wajib diisi.");
+          if (isGenericWorkerName(mby)) return alert(`Nama pekerja harus nama asli, bukan '${mby}'. Ketik nama orang yang sebenarnya bawa pulang.`);
           payload.maklon_by = mby;
           payload.maklon_target_kembali = document.getElementById("sp_target_kembali").value;
         }
@@ -4058,12 +4094,13 @@ Alasan: ${cleanReason}`)) return;
             const rawName = (nameEl?.value || "").trim();
             const nm = (typeof titleCase === "function" ? titleCase(rawName) : rawName);
             const qt = Number(qtyEl?.value || 0);
-            nameEl?.classList.toggle("field-error", !nm);
+            const generic = !!nm && isGenericWorkerName(nm);
+            nameEl?.classList.toggle("field-error", !nm || generic);
             qtyEl?.classList.toggle("field-error", !qt || qt <= 0);
-            if (!nm || qt <= 0) { invalid = true; return; }
+            if (!nm || generic || qt <= 0) { invalid = true; return; }
             workers.push({ name: nm, qty: qt });
           });
-          if (invalid) return alert("Semua pekerja wajib punya nama dan qty > 0.");
+          if (invalid) return alert("Semua pekerja wajib punya nama asli (bukan 'Operator Packing') dan qty > 0.");
           payload.packing_workers = workers;
         }
         await apiFinishPacking(payload);
@@ -4233,6 +4270,151 @@ Alasan: ${cleanReason}`)) return;
         await renderList();
         await renderDashboard();
         try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       MAKLON EKSTERNAL (Phase 2) — full-stage vendor maklon
+       Dari QTY_TERVERIFIKASI → admin pilih tipe + vendor → barang dikirim.
+       Saat barang kembali → admin input qty hasil → status lanjut:
+         - Tipe OBRAS_SETTING_PACKING / SETTING_PACKING → SELESAI_PACKING (lanjut QC)
+         - Tipe SETTING_ONLY                          → SIAP_PACKING (packing internal/maklon-biasa)
+       ============================================================ */
+
+    async function openMaklonEksternal(bal_id) {
+      if (!["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        return alert("Hanya Admin Produksi / Owner yang boleh kirim ke maklon eksternal.");
+      }
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "QTY_TERVERIFIKASI") {
+        return alert("Maklon eksternal hanya bisa dari status QTY_TERVERIFIKASI.");
+      }
+      // Ambil vendor list dari server (fallback ke constant lokal kalau gagal)
+      let vendors = MAKLON_VENDORS;
+      try {
+        const serverVendors = await apiListMaklonVendors();
+        if (Array.isArray(serverVendors) && serverVendors.length) vendors = serverVendors;
+      } catch (_) { /* fallback ke MAKLON_VENDORS constant */ }
+
+      const vendorOpts = vendors.map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
+      const qtyOff = officialQty(bal);
+
+      document.getElementById("actionTitle").textContent = "Maklon Eksternal";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong><br>
+          Jenis: ${safe(bal.jenis_barang || "-")} · ${safe(bal.warna || "-")} / ${safe(bal.size || "-")}
+        </div>
+        <div class="form-group">
+          <label>Tipe Maklon <span class="required">*</span></label>
+          <div style="display:grid; gap:8px; margin-top:6px">
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="me_tipe" value="OBRAS_SETTING_PACKING" checked style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Obras + Setting + Packing</strong><br><span class="small" style="color:var(--muted)">Vendor kerjakan semua 3 tahap. Setelah kembali langsung ke QC.</span></div>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="me_tipe" value="SETTING_PACKING" style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Setting + Packing</strong><br><span class="small" style="color:var(--muted)">Obras dilewati (tidak butuh / dikerjakan terpisah). Vendor kerjakan setting & packing. Kembali langsung ke QC.</span></div>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="me_tipe" value="SETTING_ONLY" style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Setting saja</strong><br><span class="small" style="color:var(--muted)">Obras dilewati, vendor cuma setting. Setelah kembali masuk SIAP_PACKING (packing internal/maklon-biasa).</span></div>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Vendor Maklon <span class="required">*</span></label>
+          <select id="me_vendor">
+            <option value="">-- Pilih vendor --</option>
+            ${vendorOpts}
+          </select>
+          <div class="small" style="margin-top:4px; color:var(--muted)">Untuk tambah vendor baru, edit constant <code>MAKLON_VENDORS</code> di Code.gs + Deploy ulang.</div>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="me_note" placeholder="Kondisi awal, target kembali, instruksi khusus..."></textarea>
+        </div>
+        <button class="btn-warning btn-block" style="background:#eab308; color:#422006" onclick="guardedClick(this, () => confirmMaklonEksternal('${bal_id}'), 'Memproses...')">🏭 Kirim ke Maklon Eksternal</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmMaklonEksternal(bal_id) {
+      const tipeEl = document.querySelector('input[name="me_tipe"]:checked');
+      const vendorEl = document.getElementById("me_vendor");
+      const noteEl = document.getElementById("me_note");
+      const tipe = tipeEl ? tipeEl.value : "";
+      const vendor = vendorEl?.value || "";
+      const note = String(noteEl?.value || "").trim();
+
+      if (!tipe) return alert("Tipe maklon wajib dipilih.");
+      if (!vendor) { vendorEl?.classList.add("field-error"); return alert("Vendor wajib dipilih."); }
+
+      try {
+        await apiStartMaklonEksternal({ bal_id, tipe, vendor, note });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        toast(`Bal ${bal_id} dikirim ke ${vendor} (${tipe}).`, "success");
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openFinishMaklonEksternal(bal_id) {
+      if (!["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        return alert("Hanya Admin Produksi / Owner yang boleh terima barang maklon.");
+      }
+      const bal = await apiGetBal(bal_id);
+      const validStatuses = ["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY"];
+      if (!validStatuses.includes(bal.status)) {
+        return alert("Bal harus di status MAKLON_*. Sekarang: " + bal.status);
+      }
+      const qtyOff = officialQty(bal);
+      const tipeLabel = MAKLON_EKS_TIPE_LABEL[bal.maklon_eks_tipe] || bal.maklon_eks_tipe;
+      const nextStatusLabel = bal.maklon_eks_tipe === "SETTING_ONLY"
+        ? "SIAP_PACKING (packing internal lanjut)"
+        : "SELESAI_PACKING (langsung lanjut QC)";
+
+      document.getElementById("actionTitle").textContent = "Selesai Maklon Eksternal";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Vendor: <strong>${safe(bal.maklon_eks_vendor || "-")}</strong> · Tipe: <strong>${safe(tipeLabel)}</strong><br>
+          Qty resmi (kirim): <strong>${qtyOff} ${safe(bal.satuan)}</strong><br>
+          Keluar: ${fmtDate(bal.maklon_eks_keluar_at)} oleh ${safe(bal.maklon_eks_keluar_by || "-")}
+        </div>
+        <div class="form-group">
+          <label>Qty Hasil yang Vendor Kembalikan <span class="required">*</span></label>
+          <input id="fme_qty_kembali" type="number" step="any" value="${qtyOff}" placeholder="Boleh berbeda dari qty kirim kalau ada loss">
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="fme_note" placeholder="Kondisi barang, hasil, catatan vendor..."></textarea>
+        </div>
+        <div class="alert alert-warn">Setelah submit, status bal jadi: <strong>${safe(nextStatusLabel)}</strong></div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmFinishMaklonEksternal('${bal_id}'), 'Memproses...')">📥 Konfirmasi Barang Kembali</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmFinishMaklonEksternal(bal_id) {
+      const qtyEl = document.getElementById("fme_qty_kembali");
+      const noteEl = document.getElementById("fme_note");
+      const qty = Number(qtyEl?.value || 0);
+      const note = String(noteEl?.value || "").trim();
+      if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty hasil wajib > 0."); }
+
+      try {
+        await apiFinishMaklonEksternal({ bal_id, qty_kembali: qty, note });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        toast(`Bal ${bal_id} kembali dari maklon. Qty: ${qty}.`, "success");
         await openDetail(bal_id);
       } catch (e) { alert(e.message); }
     }
@@ -4490,14 +4672,6 @@ Alasan: ${cleanReason}`)) return;
       if (e && !e.value) e.value = range.end;
     }
 
-    function ensureMyWorkFilterDefaults() {
-      const range = getLocalMonthRange();
-      const s = document.getElementById("myWorkFilterStart");
-      const e = document.getElementById("myWorkFilterEnd");
-      if (s && !s.value) s.value = range.start;
-      if (e && !e.value) e.value = range.end;
-    }
-
     function isFullWorkRecapRole(role = currentUser?.role) {
       return ["Owner", "Admin Produksi"].includes(role);
     }
@@ -4514,13 +4688,15 @@ Alasan: ${cleanReason}`)) return;
       });
 
       const workerFilter = document.getElementById("workFilterWorker");
-      if (workerFilter) workerFilter.disabled = false;
+      if (workerFilter) {
+        workerFilter.disabled = false;
+      }
 
       const note = document.getElementById("workRecapNote");
       if (note) {
         note.textContent = full
           ? "Menampilkan rekap pekerjaan semua pegawai."
-          : `Menampilkan rekap ${workSubLabel(roleSub)} untuk akun ini.`;
+          : "Menampilkan semua pekerja pada tahap akun ini.";
       }
     }
 
@@ -4573,7 +4749,7 @@ Alasan: ${cleanReason}`)) return;
       const showPegawai = options.showPegawai !== false;
       const colSpan = showPegawai ? 9 : 8;
       const fotoCell = (foto, balId) => {
-        const src = normalizeDriveImageUrl(foto || "");
+        const src = driveThumbUrl(foto || "", 160);
         return src
           ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
           : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
@@ -4644,7 +4820,7 @@ Alasan: ${cleanReason}`)) return;
         const start = document.getElementById("workFilterStart")?.value || "";
         const end = document.getElementById("workFilterEnd")?.value || "";
         const jenis = document.getElementById("workFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: full ? "all" : "stage", tahap: targetSub, start_date: start, end_date: end });
+        const res = await apiListWorkRekap({ scope: full ? "all" : "role_stage", tahap: targetSub, start_date: start, end_date: end });
         let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
         fillWorkerOptions("workFilterWorker", rows);
         const worker = document.getElementById("workFilterWorker")?.value || "";
@@ -4656,24 +4832,6 @@ Alasan: ${cleanReason}`)) return;
         renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
       } catch (e) {
         toast("Gagal load Rekap Produksi: " + e.message, "error");
-      }
-    }
-
-    async function renderMyWork() {
-      try {
-        ensureMyWorkFilterDefaults();
-        const mySub = workSubForRole();
-        const start = document.getElementById("myWorkFilterStart")?.value || "";
-        const end = document.getElementById("myWorkFilterEnd")?.value || "";
-        const jenis = document.getElementById("myWorkFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: "stage", tahap: mySub, start_date: start, end_date: end });
-        const rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
-        const info = document.getElementById("myWorkInfo");
-        if (info) info.innerHTML = `<strong>${safe(workSubLabel(mySub))} Saya</strong><br>Periode: ${safe(formatPeriodID(res.start_date, res.end_date))}.`;
-        renderWorkSummary("myWorkSummary", rows, true);
-        renderWorkRows("myWorkRows", "myWorkMobile", rows, { showPegawai: true });
-      } catch (e) {
-        toast("Gagal load Rekap Saya: " + e.message, "error");
       }
     }
 
@@ -4773,7 +4931,7 @@ Alasan: ${cleanReason}`)) return;
           return;
         }
         const fotoCell = (foto, balId) => {
-          const src = normalizeDriveImageUrl(foto || "");
+          const src = driveThumbUrl(foto || "", 160);
           return src
             ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
             : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
