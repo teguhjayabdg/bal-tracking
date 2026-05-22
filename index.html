@@ -208,6 +208,37 @@
     .small { font-size: 12px; color: var(--muted); }
     .actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 
+    /* MENU CEPAT / BULK ACTION */
+    .bulk-quick-bar {
+      margin-top: 12px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .bulk-quick-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .bulk-quick-title { font-weight: 900; color: #1e3a8a; }
+    .bulk-check-cell { width: 42px; text-align: center; }
+    .bulk-check {
+      width: 20px;
+      min-height: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+    .bulk-card-check {
+      align-self: flex-start;
+      margin-top: 2px;
+    }
+    .bulk-help { font-size: 12px; color: #475569; }
+
     /* BADGES */
     .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 900; white-space: nowrap; }
     .st-SELESAI_MESIN { background: #fef3c7; color: #92400e; }
@@ -895,13 +926,34 @@
             <select id="filterStatus" onchange="onListFilterChange()"><option value="">Semua Status</option></select>
             <select id="filterSort" onchange="onListFilterChange()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
           </div>
+
+          <div id="bulkQuickBar" class="bulk-quick-bar">
+            <div class="bulk-quick-head">
+              <div>
+                <div class="bulk-quick-title">☑️ Menu Cepat / Pilih Banyak</div>
+                <div id="bulkSelectedInfo" class="bulk-help">Belum ada bal dipilih.</div>
+              </div>
+              <div class="actions" style="margin-top:0">
+                <button class="btn-outline btn-sm" type="button" onclick="guardedClick(this, bulkSelectVisible, 'Memilih...')">Pilih terlihat</button>
+                <button class="btn-secondary btn-sm" type="button" onclick="clearBulkSelection()">Bersihkan</button>
+              </div>
+            </div>
+            <div class="actions">
+              <button id="bulkBtnVerify" class="btn-success btn-sm" type="button" onclick="openBulkVerifyQty()">✓ Verifikasi Qty OK</button>
+              <button id="bulkBtnObras" class="btn-primary btn-sm" type="button" onclick="openBulkMulaiObras()">▶ Mulai Obras</button>
+              <button id="bulkBtnMaklon" class="btn-warning btn-sm" type="button" onclick="openBulkMaklonEksternal()">🏭 Kirim Maklon Eksternal</button>
+              <button id="bulkBtnAntislip" class="btn-warning btn-sm" type="button" onclick="openBulkMaklonAntislip()">🧦 Kirim Antislip</button>
+            </div>
+            <div class="bulk-help" style="margin-top:8px">Centang bal yang statusnya sama, lalu pilih aksi. QC Packing tetap satu-satu dulu supaya qty reject dan stok tidak salah.</div>
+          </div>
+
           <div class="small" id="listCount" style="margin-top:8px"></div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Foto</th><th>ID Bal</th><th>PO / No Bal</th><th>Tanggal</th><th>Line / MC</th><th>Operator</th><th>Jenis/Warna/Size</th><th>Qty</th><th>Status</th><th>Hal/Buku</th><th>Aksi</th>
+                <th class="bulk-check-cell">Pilih</th><th>Foto</th><th>ID Bal</th><th>PO / No Bal</th><th>Tanggal</th><th>Line / MC</th><th>Operator</th><th>Jenis/Warna/Size</th><th>Qty</th><th>Status</th><th>Hal/Buku</th><th>Aksi</th>
               </tr>
             </thead>
             <tbody id="balTableBody"></tbody>
@@ -1147,6 +1199,9 @@
     // Pagination Daftar Bal: default render 50 data dulu, lalu tombol Load More.
     const LIST_PAGE_SIZE = 50;
     let listRenderLimit = LIST_PAGE_SIZE;
+
+    // Menu Cepat / Bulk Action: simpan ID bal yang dicentang di Daftar Bal.
+    const bulkSelectedBalIds = new Set();
 
     const STATUS_ORDER = [
       "SELESAI_MESIN", "QTY_TERVERIFIKASI",
@@ -2580,13 +2635,15 @@
       const tbody = document.getElementById("balTableBody");
       const cards = document.getElementById("mobileCards");
       if (!bals.length) {
-        tbody.innerHTML = `<tr><td colspan="11"><div class="empty">Belum ada bal</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12"><div class="empty">Belum ada bal</div></td></tr>`;
         cards.innerHTML = `<div class="empty">Belum ada bal</div>`;
         setLoadMoreVisibility(false);
+        updateBulkToolbar();
         return;
       }
       tbody.innerHTML = visible.map(b => `
         <tr>
+          <td class="bulk-check-cell"><input type="checkbox" class="bulk-check" data-bal-id="${safe(b.bal_id)}" ${bulkSelectedBalIds.has(String(b.bal_id)) ? "checked" : ""} onchange="toggleBulkSelect(this.dataset.balId, this.checked)"></td>
           <td>${photoThumb(b)}</td>
           <td><span class="mono">${safe(b.bal_id)}</span><br>${splitBadges(b)}</td>
           <td><strong>${safe(b.po_id)}</strong><br><span class="small">Bal #${safe(b.nomor_bal)}</span></td>
@@ -2602,6 +2659,7 @@
       `).join("");
       cards.innerHTML = visible.map(b => `
         <div class="bal-card">
+          <input type="checkbox" class="bulk-check bulk-card-check" data-bal-id="${safe(b.bal_id)}" ${bulkSelectedBalIds.has(String(b.bal_id)) ? "checked" : ""} onchange="toggleBulkSelect(this.dataset.balId, this.checked)">
           ${photoImg(b)}
           <div class="bal-card-body">
             <div class="small mono">${safe(b.bal_id)}</div>
@@ -2614,6 +2672,7 @@
         </div>
       `).join("");
       setLoadMoreVisibility(hasMore, remaining);
+      updateBulkToolbar();
     }
 
     // Helper untuk show/hide tombol Load More di bawah daftar bal.
@@ -2638,8 +2697,358 @@
     // Reset limit ke 50 lalu re-render. Dipanggil dari filter handlers supaya user
     // tidak bingung kalau filter aktif tapi sudah scroll Load More banyak kali.
     function onListFilterChange() {
+      // Saat filter/search/sort berubah, kosongkan pilihan massal supaya tidak
+      // ada bal lama yang tersembunyi tetapi masih ikut terpilih.
+      if (typeof bulkSelectedBalIds !== "undefined") bulkSelectedBalIds.clear();
       listRenderLimit = LIST_PAGE_SIZE;
       renderList();
+    }
+
+    /* ============================================================
+       MENU CEPAT / BULK ACTION
+       - Frontend-only: memakai API yang sudah ada satu per satu.
+       - Aman untuk patch kecil karena Code.gs tidak perlu diubah.
+       ============================================================ */
+
+    function toggleBulkSelect(balId, checked) {
+      const id = String(balId || "").trim();
+      if (!id) return;
+      if (checked) bulkSelectedBalIds.add(id);
+      else bulkSelectedBalIds.delete(id);
+      updateBulkToolbar();
+    }
+
+    async function bulkSelectVisible() {
+      const bals = await filteredBals();
+      bals.slice(0, listRenderLimit).forEach(b => bulkSelectedBalIds.add(String(b.bal_id)));
+      await renderList();
+      toast(`${Math.min(bals.length, listRenderLimit)} bal terlihat sudah dipilih.`, "info");
+    }
+
+    async function clearBulkSelection() {
+      bulkSelectedBalIds.clear();
+      await renderList();
+    }
+
+    function updateBulkToolbar() {
+      const n = bulkSelectedBalIds.size;
+      const info = document.getElementById("bulkSelectedInfo");
+      if (info) info.textContent = n ? `${n} bal dipilih.` : "Belum ada bal dipilih.";
+      ["bulkBtnVerify", "bulkBtnObras", "bulkBtnMaklon", "bulkBtnAntislip"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = n === 0;
+      });
+    }
+
+    async function getBulkSelectedBals() {
+      const all = await apiListBals();
+      const map = new Map((all || []).map(b => [String(b.bal_id), b]));
+      const selected = Array.from(bulkSelectedBalIds).map(id => map.get(String(id))).filter(Boolean);
+      // Bersihkan ID yang sudah tidak ada di data aktif.
+      Array.from(bulkSelectedBalIds).forEach(id => { if (!map.has(String(id))) bulkSelectedBalIds.delete(id); });
+      return selected;
+    }
+
+    function bulkListPreview(bals, max = 12) {
+      const shown = bals.slice(0, max).map(b => `<li><span class="mono">${safe(b.bal_id)}</span> · ${safe(b.po_id || "-")} · ${statusBadge(b.status)} · ${safe(officialQty(b))} ${safe(b.satuan || "")}</li>`).join("");
+      const more = bals.length > max ? `<li>...dan ${bals.length - max} bal lainnya</li>` : "";
+      return `<ol style="margin-left:18px; line-height:1.7">${shown}${more}</ol>`;
+    }
+
+    function bulkStatusSummary(bals) {
+      const counts = {};
+      bals.forEach(b => { counts[b.status] = (counts[b.status] || 0) + 1; });
+      return Object.keys(counts).map(st => `${statusText(st)}: ${counts[st]}`).join(" · ");
+    }
+
+    function assertBulkNotEmpty(bals) {
+      if (!bals.length) {
+        alert("Belum ada bal yang dipilih.");
+        return false;
+      }
+      return true;
+    }
+
+    function assertBulkRole(roles, label) {
+      if (!roles.includes(currentUser.role)) {
+        alert(`${label} tidak boleh untuk role ${currentUser.role}.`);
+        return false;
+      }
+      return true;
+    }
+
+    function assertBulkAllStatus(bals, status, label) {
+      const bad = bals.filter(b => b.status !== status);
+      if (bad.length) {
+        alert(`${label} hanya bisa untuk status ${statusText(status)}.\n\nStatus terpilih sekarang: ${bulkStatusSummary(bals)}`);
+        return false;
+      }
+      return true;
+    }
+
+    function assertBulkNoSplit(bals) {
+      const bad = bals.filter(b => b.is_parent_split || b.status === "DIPECAH");
+      if (bad.length) {
+        alert(`Ada ${bad.length} bal yang sudah dipecah/induk pecah. Bal seperti ini tidak bisa diproses massal.`);
+        return false;
+      }
+      return true;
+    }
+
+    async function runBulkSequential(bals, label, handler) {
+      const ok = [];
+      const fail = [];
+      showLoading(`${label}: 0/${bals.length}`);
+      try {
+        for (let i = 0; i < bals.length; i++) {
+          const b = bals[i];
+          const loadingText = document.getElementById("globalLoadingText");
+          if (loadingText) loadingText.textContent = `${label}: ${i + 1}/${bals.length} · ${b.bal_id}`;
+          try {
+            await handler(b);
+            ok.push(b.bal_id);
+          } catch (err) {
+            fail.push({ bal_id: b.bal_id, error: err.message || String(err) });
+          }
+        }
+      } finally {
+        hideLoading();
+      }
+
+      ok.forEach(id => bulkSelectedBalIds.delete(String(id)));
+      clearApiCache();
+      closeModal("actionModal");
+      try { await renderList(); } catch (_) {}
+      try { await renderDashboard(); } catch (_) {}
+      try { await renderGlobalHistory(); } catch (_) {}
+
+      if (fail.length) {
+        const msg = `${label} selesai sebagian. Berhasil: ${ok.length}. Gagal: ${fail.length}.\n\n` + fail.slice(0, 8).map(f => `${f.bal_id}: ${f.error}`).join("\n");
+        alert(msg + (fail.length > 8 ? `\n...dan ${fail.length - 8} error lain.` : ""));
+      } else {
+        toast(`${label} berhasil untuk ${ok.length} bal.`, "success", 5000);
+      }
+    }
+
+    async function openBulkVerifyQty() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Checker / QC", "Admin Produksi", "Owner"], "Verifikasi Qty massal")) return;
+      if (!assertBulkAllStatus(bals, "SELESAI_MESIN", "Verifikasi Qty massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      document.getElementById("actionTitle").textContent = "Menu Cepat — Verifikasi Qty OK";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          <strong>${bals.length} bal</strong> akan diverifikasi dengan qty aktual = qty operator masing-masing bal.<br>
+          Gunakan ini hanya kalau semua bal yang dicentang sudah dicek fisik dan OK.
+        </div>
+        ${bulkListPreview(bals)}
+        <div class="form-group">
+          <label>Catatan History</label>
+          <textarea id="bulkNote">Bulk verifikasi qty OK</textarea>
+        </div>
+        <label style="display:flex; gap:8px; align-items:flex-start; margin:10px 0; font-size:12px; color:#374151; line-height:1.4">
+          <input
+            type="checkbox"
+            id="bulkVerifyAck"
+            style="width:auto; min-height:auto; margin-top:2px"
+            onchange="document.getElementById('bulkVerifyBtn').disabled = !this.checked"
+          >
+          <span>Saya sudah cek fisik semua bal di atas dan qty-nya cocok dengan input operator.</span>
+        </label>
+        <button
+          id="bulkVerifyBtn"
+          class="btn-success btn-block"
+          disabled
+          onclick="guardedClick(this, confirmBulkVerifyQty, 'Memproses...')"
+        >✓ Konfirmasi Verifikasi ${bals.length} Bal</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmBulkVerifyQty() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Checker / QC", "Admin Produksi", "Owner"], "Verifikasi Qty massal")) return;
+      if (!assertBulkAllStatus(bals, "SELESAI_MESIN", "Verifikasi Qty massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      const ack = document.getElementById("bulkVerifyAck")?.checked;
+      if (!ack) return alert("Centang konfirmasi bahwa semua bal sudah dicek fisik dan qty-nya cocok.");
+
+      const note = document.getElementById("bulkNote")?.value.trim() || "Bulk verifikasi qty OK";
+      await runBulkSequential(bals, "Verifikasi qty massal", async (b) => {
+        await apiUpdateStatus({
+          bal_id: b.bal_id,
+          action: "VERIFIKASI_QTY",
+          qty_aktual: Number(b.jumlah || 0),
+          qty_note: "Bulk OK",
+          catatan: note
+        });
+      });
+    }
+
+    async function openBulkMulaiObras() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Obras", "Admin Produksi", "Owner"], "Mulai Obras massal")) return;
+      if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Mulai Obras massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      document.getElementById("actionTitle").textContent = "Menu Cepat — Mulai Obras";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info"><strong>${bals.length} bal</strong> akan masuk tahap Mulai Obras.</div>
+        ${bulkListPreview(bals)}
+        <div class="form-group">
+          <label>Nama Pekerja Obras <span class="required">*</span></label>
+          <input id="bulkObrasWorker" placeholder="Contoh: Sandi">
+        </div>
+        <div class="form-group">
+          <label>Catatan History</label>
+          <textarea id="bulkNote">Bulk mulai obras</textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, confirmBulkMulaiObras, 'Memproses...')">▶ Konfirmasi Mulai Obras ${bals.length} Bal</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmBulkMulaiObras() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Obras", "Admin Produksi", "Owner"], "Mulai Obras massal")) return;
+      if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Mulai Obras massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      const workerEl = document.getElementById("bulkObrasWorker");
+      const worker = titleCase(workerEl?.value.trim() || "");
+      if (!worker) { workerEl?.classList.add("field-error"); return alert("Nama pekerja obras wajib diisi."); }
+      if (isGenericWorkerName(worker)) { workerEl?.classList.add("field-error"); return alert("Isi nama pekerja asli, bukan " + worker + "."); }
+      const note = document.getElementById("bulkNote")?.value.trim() || "Bulk mulai obras";
+      await runBulkSequential(bals, "Mulai obras massal", async (b) => {
+        await apiUpdateStatus({
+          bal_id: b.bal_id,
+          action: "MULAI_OBRAS",
+          worker_name: worker,
+          catatan: note
+        });
+      });
+    }
+
+    async function openBulkMaklonEksternal() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Admin Produksi", "Owner"], "Kirim Maklon Eksternal massal")) return;
+      if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Kirim Maklon Eksternal massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      let vendors = [];
+      try { vendors = await apiListMaklonVendors(); } catch (_) { vendors = MAKLON_VENDORS.slice(); }
+      const vendorOptions = (vendors || []).map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
+      const tipeOptions = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${safe(k)}">${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
+
+      document.getElementById("actionTitle").textContent = "Menu Cepat — Kirim Maklon Eksternal";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-warn"><strong>${bals.length} bal</strong> akan dikirim ke vendor maklon eksternal yang sama.</div>
+        ${bulkListPreview(bals)}
+        <div class="form-group">
+          <label>Tipe Maklon <span class="required">*</span></label>
+          <select id="bulkMaklonTipe">${tipeOptions}</select>
+        </div>
+        <div class="form-group">
+          <label>Vendor <span class="required">*</span></label>
+          <select id="bulkMaklonVendor"><option value="">-- Pilih Vendor --</option>${vendorOptions}</select>
+        </div>
+        <div class="form-group">
+          <label>Catatan</label>
+          <textarea id="bulkNote">Bulk kirim maklon eksternal</textarea>
+        </div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmBulkMaklonEksternal, 'Memproses...')">🏭 Konfirmasi Kirim Maklon ${bals.length} Bal</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmBulkMaklonEksternal() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Admin Produksi", "Owner"], "Kirim Maklon Eksternal massal")) return;
+      if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Kirim Maklon Eksternal massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      const tipe = document.getElementById("bulkMaklonTipe")?.value || "";
+      const vendorEl = document.getElementById("bulkMaklonVendor");
+      const vendor = vendorEl?.value || "";
+      const note = document.getElementById("bulkNote")?.value.trim() || "Bulk kirim maklon eksternal";
+      if (!tipe) return alert("Tipe maklon wajib dipilih.");
+      if (!vendor) { vendorEl?.classList.add("field-error"); return alert("Vendor wajib dipilih."); }
+
+      await runBulkSequential(bals, "Kirim maklon eksternal massal", async (b) => {
+        await apiStartMaklonEksternal({ bal_id: b.bal_id, tipe, vendor, note });
+      });
+    }
+
+    async function openBulkMaklonAntislip() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Admin Produksi", "Owner"], "Kirim Antislip massal")) return;
+      if (!assertBulkAllStatus(bals, "SIAP_PACKING", "Kirim Antislip massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+      const already = bals.filter(b => b.antislip_keluar_at || b.antislip_kembali_at);
+      if (already.length) return alert(`${already.length} bal sudah/sedang pernah masuk antislip. Proses ulang harus lewat Owner Override, bukan bulk.`);
+      const noQty = bals.filter(b => bulkAntislipQtyCap(b) <= 0);
+      if (noQty.length) return alert(`${noQty.length} bal tidak punya qty tersedia untuk antislip.`);
+
+      document.getElementById("actionTitle").textContent = "Menu Cepat — Kirim Sablon Antislip";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          <strong>${bals.length} bal</strong> akan dikirim ke vendor/pekerja antislip yang sama.<br>
+          Qty kirim otomatis memakai qty tersedia masing-masing bal.
+        </div>
+        ${bulkListPreview(bals)}
+        <div class="form-group">
+          <label>Vendor / Pekerja Antislip <span class="required">*</span></label>
+          <input id="bulkAntislipVendor" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
+        </div>
+        <div class="form-group">
+          <label>Catatan</label>
+          <textarea id="bulkNote">Bulk kirim sablon antislip</textarea>
+        </div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmBulkMaklonAntislip, 'Memproses...')">🧦 Konfirmasi Kirim Antislip ${bals.length} Bal</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    function bulkAntislipQtyCap(b) {
+      const qtyOff = officialQty(b);
+      const qtySettingOut = settingOutputQty(b);
+      return qtySettingOut > 0 ? Math.min(qtyOff || qtySettingOut, qtySettingOut) : qtyOff;
+    }
+
+    async function confirmBulkMaklonAntislip() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Admin Produksi", "Owner"], "Kirim Antislip massal")) return;
+      if (!assertBulkAllStatus(bals, "SIAP_PACKING", "Kirim Antislip massal")) return;
+      if (!assertBulkNoSplit(bals)) return;
+
+      const already = bals.filter(b => b.antislip_keluar_at || b.antislip_kembali_at);
+      if (already.length) return alert(`${already.length} bal sudah/sedang pernah masuk antislip. Proses ulang harus lewat Owner Override, bukan bulk.`);
+      const noQty = bals.filter(b => bulkAntislipQtyCap(b) <= 0);
+      if (noQty.length) return alert(`${noQty.length} bal tidak punya qty tersedia untuk antislip.`);
+
+      const vendorEl = document.getElementById("bulkAntislipVendor");
+      const vendor = String(vendorEl?.value || "").trim();
+      const note = document.getElementById("bulkNote")?.value.trim() || "Bulk kirim sablon antislip";
+      if (!vendor) { vendorEl?.classList.add("field-error"); return alert("Vendor / pekerja antislip wajib diisi."); }
+
+      await runBulkSequential(bals, "Kirim antislip massal", async (b) => {
+        await apiStartMaklonAntislip({
+          bal_id: b.bal_id,
+          vendor,
+          qty_kirim: bulkAntislipQtyCap(b),
+          note
+        });
+      });
     }
 
     /**
