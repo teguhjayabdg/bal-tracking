@@ -221,6 +221,7 @@
     .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
     .st-SELESAI_SETTING { background: #fbcfe8; color: #831843; }
     .st-SIAP_PACKING { background: #fed7aa; color: #9a3412; }
+    .st-MAKLON_SABLON_ANTISLIP { background: #ccfbf1; color: #115e59; }
     .st-PROSES_PACKING_INTERNAL { background: #fde68a; color: #78350f; }
     .st-PROSES_PACKING_MAKLON { background: #fbbf24; color: #78350f; }
     .st-SELESAI_PACKING { background: #d1fae5; color: #065f46; }
@@ -996,15 +997,20 @@
         </div>
       </div>
 
-      <!-- HR BORONGAN SETTING - OWNER ONLY -->
+      <!-- HR BORONGAN - OWNER ONLY -->
       <div id="tab-hr" class="tab-content">
         <div class="card">
           <div class="section-title">HR Borongan</div>
-          <p class="sub-note">Rekap upah borongan otomatis dari aktivitas produksi. Record dibuat saat bal mencapai status SELESAI_PACKING. Owner mengisi tarif sekali per kombinasi tahap+jenis, sistem ingat untuk record berikutnya.</p>
-          <div class="grid-3" style="margin-top:8px">
-            <button class="tab-btn ${''}" id="hrSubObrasBtn" data-sub="obras" onclick="switchHrSub('obras')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">🧵 Rekap Obras</button>
-            <button class="tab-btn" id="hrSubSettingBtn" data-sub="setting" onclick="switchHrSub('setting')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">⚙️ Rekap Setting</button>
-            <button class="tab-btn" id="hrSubPackingBtn" data-sub="packing" onclick="switchHrSub('packing')" style="border-radius:8px; border:1px solid var(--line); padding:10px;">📦 Rekap Packing</button>
+          <p class="sub-note">Struktur dibuat sejajar dengan Rekap Produksi. Bedanya: HR Borongan tidak menampilkan Checker/QC, dan menambahkan kolom tarif + total rupiah.</p>
+          <div class="grid-4" style="margin-top:8px">
+            <button class="btn-outline" id="hrSubObrasBtn" data-sub="obras" onclick="switchHrSub('obras')">🧵 Obras</button>
+            <button class="btn-outline" id="hrSubSettingBtn" data-sub="setting" onclick="switchHrSub('setting')">⚙️ Setting</button>
+            <button class="btn-outline" id="hrSubPackingBtn" data-sub="packing" onclick="switchHrSub('packing')">📦 Packing</button>
+            <button class="btn-outline" id="hrSubMaklonAntislipBtn" data-sub="maklon_antislip" onclick="switchHrSub('maklon_antislip')">🧦 Maklon Antislip</button>
+            <button class="btn-outline" id="hrSubMaklonObrasBtn" data-sub="maklon_obras" onclick="switchHrSub('maklon_obras')">🏭 Maklon Obras</button>
+            <button class="btn-outline" id="hrSubMaklonSettingBtn" data-sub="maklon_setting" onclick="switchHrSub('maklon_setting')">🏭 Maklon Setting</button>
+            <button class="btn-outline" id="hrSubMaklonSettingPackingBtn" data-sub="maklon_setting_packing" onclick="switchHrSub('maklon_setting_packing')">🏭 Maklon Setting+Packing</button>
+            <button class="btn-outline" id="hrSubMaklonObrasSettingPackingBtn" data-sub="maklon_obras_setting_packing" onclick="switchHrSub('maklon_obras_setting_packing')">🏭 Maklon Obras+Setting+Packing</button>
           </div>
         </div>
 
@@ -1016,6 +1022,7 @@
             <input id="hrFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderBorongan()">
             <input id="hrFilterJenis" placeholder="Filter jenis barang..." oninput="renderBorongan()">
           </div>
+          <div class="small" id="hrPeriodInfo" style="margin-top:8px"></div>
           <div class="actions" style="margin-top:10px">
             <button class="btn-outline btn-sm" onclick="exportBoronganCSV()">📥 Export CSV</button>
             <button class="btn-outline btn-sm" onclick="renderBorongan()">🔄 Refresh</button>
@@ -1031,18 +1038,20 @@
 
         <div class="card">
           <div class="section-title">Daftar Pekerjaan</div>
-          <p class="sub-note">Klik kolom tarif untuk isi/edit. Tarif disimpan per kombinasi tahap+jenis dan auto-fill di pekerjaan berikutnya.</p>
+          <p class="sub-note">Format disamakan dengan Rekap Produksi. Klik kolom tarif untuk isi/edit; tarif tersimpan per kombinasi tahap+jenis.</p>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Tanggal</th>
+                  <th>Tahap</th>
                   <th>Pegawai</th>
                   <th>Foto</th>
                   <th>Bal / PO</th>
                   <th>Jenis</th>
                   <th>Warna/Size</th>
                   <th>Qty</th>
+                  <th>Catatan</th>
                   <th>Tarif</th>
                   <th>Total</th>
                   <th>Aksi</th>
@@ -1110,7 +1119,8 @@
       "updateBoronganTarif", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
-      "startMaklonEksternal", "finishMaklonEksternal"
+      "startMaklonEksternal", "finishMaklonEksternal",
+      "startMaklonAntislip", "finishMaklonAntislip"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1144,6 +1154,7 @@
       "MULAI_OBRAS", "SELESAI_OBRAS",
       "MULAI_SETTING", "SELESAI_SETTING",
       "SIAP_PACKING",
+      "MAKLON_SABLON_ANTISLIP",
       "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
       "SELESAI_PACKING",
       "STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"
@@ -1160,6 +1171,7 @@
       MULAI_SETTING: "Mulai Setting",
       SELESAI_SETTING: "Selesai Setting",
       SIAP_PACKING: "Siap Packing",
+      MAKLON_SABLON_ANTISLIP: "Maklon Sablon Antislip",
       PROSES_PACKING_INTERNAL: "Proses Packing Internal",
       PROSES_PACKING_MAKLON: "Proses Packing Maklon",
       SELESAI_PACKING: "Selesai Packing (Menunggu QC)",
@@ -1492,6 +1504,9 @@
         mode: payload.mode || "REUSE_MAIN_QR",
         qty: payload.qty,
         workers: payload.workers || payload.worker_lines || [],
+        reject_qty: payload.reject_qty || 0,
+        reject_unit: payload.reject_unit || "pcs",
+        reject_note: payload.reject_note || "",
         catatan: payload.catatan || payload.note || ""
       });
 
@@ -1612,6 +1627,18 @@
       clearApiCache("listHistory");
       clearApiCache("listBorongan");
       return await api("finishMaklonEksternal", payload);
+    }
+
+    async function apiStartMaklonAntislip(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      return await api("startMaklonAntislip", payload);
+    }
+    async function apiFinishMaklonAntislip(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      clearApiCache("listBorongan");
+      return await api("finishMaklonAntislip", payload);
     }
 
     async function apiUploadFoto(base64, bal_id = "") {
@@ -2149,6 +2176,55 @@
       return Number((b && b.qty_verifikasi) || (b && b.jumlah) || 0);
     }
 
+    function settingOutputQty(b) {
+      const outs = Array.isArray(b && b.output_labels) ? b.output_labels : [];
+      return outs.reduce((sum, o) => sum + Number(o.qty || 0), 0);
+    }
+
+
+    function rejectQtyToPcs(qty, unit) {
+      const q = Number(qty || 0);
+      const u = String(unit || "pcs").toLowerCase().trim();
+      if (q <= 0) return 0;
+      if (u === "lusin") return q * 24;   // 1 lusin = 12 pasang = 24 pcs
+      if (u === "pasang") return q * 2;
+      return q;
+    }
+
+    function rejectPcsToSatuan(pcs, satuan) {
+      const p = Number(pcs || 0);
+      const s = String(satuan || "lusin").toLowerCase().trim();
+      if (p <= 0) return 0;
+      if (s === "pcs") return p;
+      if (s === "pasang") return p / 2;
+      return p / 24;
+    }
+
+    function rejectQtyToSatuan(qty, unit, satuan) {
+      return Math.round(rejectPcsToSatuan(rejectQtyToPcs(qty, unit), satuan) * 10000) / 10000;
+    }
+
+    function rejectUnitSelect(id, onchange = "") {
+      return `<select id="${id}" ${onchange ? `onchange="${onchange}"` : ""}>
+        <option value="pcs">pcs</option>
+        <option value="lusin">lusin</option>
+      </select>`;
+    }
+
+    function updateRejectHint(qtyId, unitId, satuan, hintId) {
+      const qty = Number(document.getElementById(qtyId)?.value || 0);
+      const unit = document.getElementById(unitId)?.value || "pcs";
+      const hint = document.getElementById(hintId);
+      if (!hint) return;
+      if (!qty || qty <= 0) {
+        hint.textContent = "Kosongkan / 0 jika tidak ada reject.";
+        return;
+      }
+      const pcs = rejectQtyToPcs(qty, unit);
+      const satuanQty = rejectQtyToSatuan(qty, unit, satuan);
+      hint.textContent = `= ${pcs} pcs ≈ ${satuanQty} ${satuan}`;
+    }
+
     /**
      * Populate select element with JENIS_BARANG_LIST + "Lainnya" option.
      * If selected value is not in list (legacy bal data), preserve it as a custom option.
@@ -2287,7 +2363,7 @@
       const inObras = bals.filter(b => b.status === "MULAI_OBRAS").length;
       const inSetting = bals.filter(b => b.status === "MULAI_SETTING").length;
       const inPacking = bals.filter(b => ["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(b.status)).length;
-      const inMaklon = bals.filter(b => b.status === "PROSES_PACKING_MAKLON").length;
+      const inMaklon = bals.filter(b => String(b.status || "").includes("MAKLON") || b.status === "PROSES_PACKING_MAKLON").length;
       const dipecah = bals.filter(b => b.status === "DIPECAH" || b.is_parent_split).length;
       const stats = [
         ["Total Fokus", bals.length],
@@ -2723,6 +2799,7 @@ Alasan: ${cleanReason}`)) return;
           ${b.catatan ? `<div class="alert alert-info"><strong>Catatan:</strong> ${safe(b.catatan)}</div>` : ""}
           ${b.edit_count ? `<div class="alert alert-warn"><strong>EDIT 1</strong><br>Diedit oleh ${safe(b.edited_by || "-")} pada ${fmtDate(b.edited_at)}<br>Alasan: ${safe(b.edit_note || "-")}</div>` : ""}
           ${b.maklon_eks_tipe ? `<div class="alert alert-warn"><strong>🏭 Maklon Eksternal</strong><br>Vendor: <strong>${safe(b.maklon_eks_vendor || "-")}</strong> · Tipe: <strong>${safe(MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe] || b.maklon_eks_tipe)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_kembali_at ? `<br>Kembali: ${fmtDate(b.maklon_eks_kembali_at)} oleh ${safe(b.maklon_eks_kembali_by || "-")} · qty: ${safe(b.maklon_eks_qty_kembali || "-")} ${safe(b.satuan)}` : ""}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>` : ""}
+          ${b.antislip_vendor ? `<div class="alert alert-info"><strong>🧦 Maklon Sablon Antislip</strong><br>Vendor/Pekerja: <strong>${safe(b.antislip_vendor || "-")}</strong><br>Qty kirim: <strong>${safe(b.antislip_qty_kirim || "-")} ${safe(b.satuan)}</strong> · Keluar: ${fmtDate(b.antislip_keluar_at)} oleh ${safe(b.antislip_keluar_by || "-")}${b.antislip_kembali_at ? `<br>Kembali: ${fmtDate(b.antislip_kembali_at)} oleh ${safe(b.antislip_kembali_by || "-")} · qty kembali: <strong>${safe(b.antislip_qty_kembali || "-")} ${safe(b.satuan)}</strong>` : ""}${b.antislip_note ? `<br>Catatan: ${safe(b.antislip_note)}` : ""}</div>` : ""}
           ${outputLabelsHtml(b)}
           <div id="detailActions" style="margin-top:12px">${detailActions(b)}</div>
           <div class="card" style="margin-top:12px">
@@ -2794,6 +2871,7 @@ Alasan: ${cleanReason}`)) return;
       // Status final: TERKIRIM
       if (b.status === "TERKIRIM") {
         const info = [
+          b.shipped_qty ? `Total terkirim: ${safe(b.shipped_qty)} ${safe(b.satuan)}` : "",
           b.shipped_to ? `Tujuan: ${safe(b.shipped_to)}` : "",
           b.surat_jalan_no ? `SJ: ${safe(b.surat_jalan_no)}` : "",
           b.shipped_at ? `Dikirim: ${fmtDate(b.shipped_at)}` : ""
@@ -2824,6 +2902,18 @@ Alasan: ${cleanReason}`)) return;
         return html;
       }
 
+      // ===== MAKLON SABLON ANTISLIP — setelah setting, sebelum packing =====
+      if (b.status === "MAKLON_SABLON_ANTISLIP") {
+        html += `<div class="alert alert-info">🧦 Sedang di maklon sablon antislip: <strong>${safe(b.antislip_vendor || "-")}</strong><br>Qty kirim: <strong>${safe(b.antislip_qty_kirim || "-")} ${safe(b.satuan)}</strong><br>Keluar: ${fmtDate(b.antislip_keluar_at)} oleh ${safe(b.antislip_keluar_by || "-")}${b.antislip_note ? `<br>Catatan: ${safe(b.antislip_note)}` : ""}</div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+          html += `<button class="btn-success btn-block" onclick="openFinishMaklonAntislip('${b.bal_id}')">📥 Selesai Sablon Antislip (Barang Kembali)</button>`;
+        } else {
+          html += `<div class="alert alert-info">Menunggu admin menerima barang kembali dari sablon antislip.</div>`;
+        }
+        if (currentUser.role === "Owner") html += ownerOverrideButton(b);
+        return html;
+      }
+
       // ===== FLOW PACKING BARU =====
 
       // SIAP_PACKING → Mulai Packing (pilih INTERNAL/MAKLON)
@@ -2832,6 +2922,9 @@ Alasan: ${cleanReason}`)) return;
           html += `<button class="btn-success btn-block" onclick="openStartPacking('${b.bal_id}')">▶ Mulai Packing</button>`;
         } else {
           html += `<div class="alert alert-warn">Bal siap packing. Akun Packing yang akan mulai.</div>`;
+        }
+        if (["Admin Produksi", "Owner"].includes(currentUser.role) && !b.antislip_keluar_at) {
+          html += `<button class="btn-warning btn-block" style="margin-top:8px; background:#14b8a6; color:white" onclick="openStartMaklonAntislip('${b.bal_id}')">🧦 Maklon Sablon Antislip</button>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
@@ -2875,23 +2968,31 @@ Alasan: ${cleanReason}`)) return;
         return html;
       }
 
-      // STOK_BARANG → Pindah ke Siap Kirim atau Langsung Kirim
+      // STOK_BARANG → kirim sebagian / semua. Status SIAP_KIRIM tidak dipakai lagi di flow baru.
       if (b.status === "STOK_BARANG") {
-        html += `<div class="alert alert-info">📦 Di stok gudang. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
-        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
-          html += `<button class="btn-primary btn-block" onclick="openToggleStokKirim('${b.bal_id}','SIAP_KIRIM')">📤 Pindah ke Siap Kirim</button>`;
+        const qcOk = Number(b.qc_qty_ok || 0);
+        const shippedQty = Number(b.shipped_qty || 0);
+        const stokQty = b.stok_qty !== "" && b.stok_qty !== undefined && b.stok_qty !== null
+          ? Number(b.stok_qty || 0)
+          : Math.max(0, qcOk - shippedQty);
+        html += `<div class="alert alert-info">📦 Di stok gudang.<br>QC OK: <strong>${safe(qcOk || "-")} ${safe(b.satuan)}</strong>${shippedQty > 0 ? `<br>Sudah terkirim: <strong>${safe(shippedQty)} ${safe(b.satuan)}</strong>` : ""}<br>Sisa stok: <strong>${safe(stokQty)} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role) && stokQty > 0) {
           html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
 
-      // SIAP_KIRIM → Mark Terkirim atau Kembalikan ke Stok
+      // SIAP_KIRIM hanya legacy dari data lama. Flow baru langsung pakai Mark Terkirim dari STOK_BARANG.
       if (b.status === "SIAP_KIRIM") {
-        html += `<div class="alert alert-info">🚛 Siap kirim. QC OK: <strong>${safe(b.qc_qty_ok || "-")} ${safe(b.satuan)}</strong></div>`;
-        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        const qcOk = Number(b.qc_qty_ok || 0);
+        const shippedQty = Number(b.shipped_qty || 0);
+        const stokQty = b.stok_qty !== "" && b.stok_qty !== undefined && b.stok_qty !== null
+          ? Number(b.stok_qty || 0)
+          : Math.max(0, qcOk - shippedQty);
+        html += `<div class="alert alert-warn">🚛 Status lama: SIAP KIRIM.<br>QC OK: <strong>${safe(qcOk || "-")} ${safe(b.satuan)}</strong><br>Sisa tersedia: <strong>${safe(stokQty)} ${safe(b.satuan)}</strong></div>`;
+        if (["Admin Produksi", "Owner"].includes(currentUser.role) && stokQty > 0) {
           html += `<button class="btn-success btn-block" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
-          html += `<button class="btn-outline btn-block" style="margin-top:8px" onclick="openToggleStokKirim('${b.bal_id}','STOK_BARANG')">⬅ Kembalikan ke Stok Barang</button>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
@@ -2934,7 +3035,8 @@ Alasan: ${cleanReason}`)) return;
       if (status === "SELESAI_MESIN") return "Tahap ini untuk Checker / QC.";
       if (["QTY_TERVERIFIKASI", "MULAI_OBRAS"].includes(status)) return "Tahap ini untuk Obras.";
       if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(status)) return "Tahap ini untuk Setting / Steam.";
-      if (status === "SIAP_PACKING") return "Tahap ini untuk Packing.";
+      if (status === "SIAP_PACKING") return "Tahap ini untuk Packing, atau Admin/Owner bisa kirim ke maklon sablon antislip.";
+      if (status === "MAKLON_SABLON_ANTISLIP") return "Tahap ini menunggu Admin/Owner menerima barang dari sablon antislip.";
       if (["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(status)) return "Tahap ini untuk Packing.";
       if (status === "SELESAI_PACKING") return "Tahap ini untuk Admin / Checker QC.";
       return "";
@@ -3047,12 +3149,31 @@ Alasan: ${cleanReason}`)) return;
         const hint = action === "SELESAI_OBRAS" && bal.obras_by
           ? `Sudah tercatat dimulai oleh <strong>${safe(bal.obras_by)}</strong>. Kosongkan jika orangnya sama, isi jika beda (ganti shift).`
           : `Nama tukang obras yang ngerjain bal ini.`;
+        const rejectObrasHtml = action === "SELESAI_OBRAS" ? `
+          <div class="alert alert-info">Reject obras hanya dicatat untuk evaluasi. Qty HR obras tetap mengikuti qty resmi yang dikerjakan.</div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Qty Reject Obras</label>
+              <input id="obrasRejectQty" type="number" step="any" value="0" oninput="updateRejectHint('obrasRejectQty','obrasRejectUnit','${safe(bal.satuan || 'lusin')}','obrasRejectHint')">
+              <div id="obrasRejectHint" class="small" style="margin-top:4px; color:var(--muted)">Kosongkan / 0 jika tidak ada reject.</div>
+            </div>
+            <div class="form-group">
+              <label>Satuan Reject</label>
+              ${rejectUnitSelect('obrasRejectUnit', `updateRejectHint('obrasRejectQty','obrasRejectUnit','${safe(bal.satuan || 'lusin')}','obrasRejectHint')`)}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Catatan Reject Obras</label>
+            <textarea id="obrasRejectNote" placeholder="Contoh: som bolong 3 pcs, obras lepas, dll"></textarea>
+          </div>
+        ` : "";
         obrasHtml = `
           <div class="form-group">
             <label>Nama Pekerja Obras ${action === "MULAI_OBRAS" ? '<span class="required">*</span>' : '(opsional)'}</label>
             <input id="obrasWorkerName" value="${action === "SELESAI_OBRAS" ? safe(bal.obras_by || "") : ""}" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}">
             <div class="small" style="margin-top:4px; color:var(--muted)">${hint}</div>
           </div>
+          ${rejectObrasHtml}
         `;
       }
 
@@ -3124,6 +3245,11 @@ Alasan: ${cleanReason}`)) return;
             return alert("Isi nama pekerja asli, bukan " + wName + ".");
           }
           if (wName) payload.worker_name = wName;
+          if (action === "SELESAI_OBRAS") {
+            payload.reject_qty = Number(document.getElementById("obrasRejectQty")?.value || 0);
+            payload.reject_unit = document.getElementById("obrasRejectUnit")?.value || "pcs";
+            payload.reject_note = document.getElementById("obrasRejectNote")?.value.trim() || "";
+          }
         }
         // Packing multi-pekerja
         if (action === "SELESAI_PACKING") {
@@ -3553,7 +3679,7 @@ Alasan: ${cleanReason}`)) return;
           ${kv("Sisa Belum Label", `<strong>${sisa} ${safe(b.satuan)}</strong>`)}
           ${kv("Jumlah Label", `<strong>${outs.length}</strong>`)}
         </div>
-        ${outs.length ? outs.map(o=>`<div class="history-item"><strong>${safe(o.mode === "REUSE_MAIN_QR" ? "QR BAL UTAMA" : o.ticket_id)}</strong> · ${safe(o.qty)} ${safe(o.satuan)}<br><span class="small">${safe((o.workers||[]).map(w=>w.name+" "+w.qty).join(", "))}</span><br><span class="small">${safe(o.mode === "REUSE_MAIN_QR" ? "Pakai ulang/cetak ulang QR utama ke plastik baru. QR di plastik lama wajib dicopot/dicoret/dibuang." : "QR tiket packing untuk plastik baru.")}</span><div class="actions"><button class="btn-primary btn-sm" onclick="printOutputLabel('${b.bal_id}','${o.output_id}')">Cetak Tiket</button></div></div>`).join("") : `<div class="empty">Belum ada output setting / label plastik baru.</div>`}
+        ${outs.length ? outs.map(o=>`<div class="history-item"><strong>${safe(o.mode === "REUSE_MAIN_QR" ? "QR BAL UTAMA" : o.ticket_id)}</strong> · ${safe(o.qty)} ${safe(o.satuan)}<br><span class="small">${safe((o.workers||[]).map(w=>w.name+" "+w.qty).join(", "))}</span>${Number(o.reject_qty_input || 0) > 0 ? `<br><span class="small">Reject setting: ${safe(o.reject_qty_input)} ${safe(o.reject_qty_unit || 'pcs')} (${safe(o.reject_qty_pcs || 0)} pcs)</span>` : ""}<br><span class="small">${safe(o.mode === "REUSE_MAIN_QR" ? "Pakai ulang/cetak ulang QR utama ke plastik baru. QR di plastik lama wajib dicopot/dicoret/dibuang." : "QR tiket packing untuk plastik baru.")}</span><div class="actions"><button class="btn-primary btn-sm" onclick="printOutputLabel('${b.bal_id}','${o.output_id}')">Cetak Tiket</button></div></div>`).join("") : `<div class="empty">Belum ada output setting / label plastik baru.</div>`}
       </div>`;
     }
 
@@ -3789,6 +3915,19 @@ Alasan: ${cleanReason}`)) return;
         <div id="outWorkers">${outputWorkerRow("","")}</div>
         <button class="btn-outline btn-sm" onclick="addOutputWorker()">+ Tambah Pekerja</button>
         <div id="outWorkerTotal" class="alert alert-info" style="margin-top:8px">Total pekerja: 0</div>
+        <div class="alert alert-info">Reject setting hanya dicatat untuk evaluasi. Qty HR setting tetap mengikuti qty output/pekerjaan.</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Qty Reject Setting</label>
+            <input id="outRejectQty" type="number" step="any" value="0" oninput="updateRejectHint('outRejectQty','outRejectUnit','${safe(b.satuan || 'lusin')}','outRejectHint')">
+            <div id="outRejectHint" class="small" style="margin-top:4px; color:var(--muted)">Kosongkan / 0 jika tidak ada reject.</div>
+          </div>
+          <div class="form-group">
+            <label>Satuan Reject</label>
+            ${rejectUnitSelect('outRejectUnit', `updateRejectHint('outRejectQty','outRejectUnit','${safe(b.satuan || 'lusin')}','outRejectHint')`)}
+          </div>
+        </div>
+        <div class="form-group"><label>Catatan Reject Setting</label><textarea id="outRejectNote" placeholder="Contoh: steam kurang, setting miring, dll"></textarea></div>
         <div class="form-group"><label>Catatan</label><textarea id="outNote"></textarea></div>
         <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmOutputSetting('${b.bal_id}'), 'Menyimpan...')">Simpan & Cetak Label</button>
       `;
@@ -3849,7 +3988,17 @@ Alasan: ${cleanReason}`)) return;
       if (Math.abs(sum-qty)>.0001) return alert("Total qty pekerja harus sama dengan qty plastik baru.");
       try {
         const bal = await apiGetBal(bal_id);
-        const out = await apiCreateOutputLabel({ bal_id, status_lama: bal.status, mode: document.getElementById("outMode").value, qty, worker_lines: workers, note: document.getElementById("outNote").value.trim() });
+        const out = await apiCreateOutputLabel({
+          bal_id,
+          status_lama: bal.status,
+          mode: document.getElementById("outMode").value,
+          qty,
+          worker_lines: workers,
+          reject_qty: Number(document.getElementById("outRejectQty")?.value || 0),
+          reject_unit: document.getElementById("outRejectUnit")?.value || "pcs",
+          reject_note: document.getElementById("outRejectNote")?.value.trim() || "",
+          note: document.getElementById("outNote").value.trim()
+        });
         closeModal("outputModal"); closeModal("detailModal"); renderList(); renderDashboard(); renderGlobalHistory();
         if (out.mode === "REUSE_MAIN_QR") labelById(bal_id); else printOutputLabel(bal_id, out.output_id);
       } catch(e) { alert(e.message); }
@@ -4175,23 +4324,43 @@ Alasan: ${cleanReason}`)) return;
       if (bal.status !== "SELESAI_PACKING") return alert("Bal harus di status SELESAI_PACKING.");
       if (bal.qc_at) return alert("Bal ini sudah pernah di-QC. Untuk koreksi, pakai Owner Override.");
       document.getElementById("actionTitle").textContent = "QC Packing";
-      const qtyPacking = Number(bal.qty_packing || 0);
+      const qtyOfficial = officialQty(bal);
+      const qtyPackingRaw = Number(bal.qty_packing || 0);
+      const qtyAntislipBack = Number(bal.antislip_qty_kembali || 0);
+      const capParts = [];
+      if (qtyOfficial > 0) capParts.push(qtyOfficial);
+      if (qtyPackingRaw > 0) capParts.push(qtyPackingRaw);
+      if (qtyAntislipBack > 0) capParts.push(qtyAntislipBack);
+      const maxCheck = capParts.length ? Math.min(...capParts) : 0;
+      const qtyPacking = qtyPackingRaw > 0 ? Math.min(qtyPackingRaw, maxCheck || qtyPackingRaw) : maxCheck;
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
           Bal <strong>${safe(bal.bal_id)}</strong><br>
-          Qty packing: <strong>${qtyPacking} ${safe(bal.satuan)}</strong>${bal.tipe_packing === "MAKLON" && bal.maklon_by ? `<br>Dari maklon: ${safe(bal.maklon_by)}` : ""}
+          Qty resmi bal: <strong>${qtyOfficial} ${safe(bal.satuan)}</strong><br>
+          Qty packing tercatat: <strong>${qtyPackingRaw || "-"} ${safe(bal.satuan)}</strong>${qtyAntislipBack > 0 ? `<br>Qty kembali antislip: <strong>${qtyAntislipBack} ${safe(bal.satuan)}</strong>` : ""}${bal.tipe_packing === "MAKLON" && bal.maklon_by ? `<br>Dari maklon: ${safe(bal.maklon_by)}` : ""}<br>
+          <span class="small">Qty check tidak boleh melebihi fisik tersedia.</span>
         </div>
         <div class="form-group">
           <label>Qty Check (yang diperiksa) <span class="required">*</span></label>
-          <input id="qc_qty_check" type="number" step="any" value="${qtyPacking}" oninput="recalcQcOk()">
+          <input id="qc_qty_check" type="number" step="any" min="0" max="${maxCheck}" value="${qtyPacking}" oninput="recalcQcOk()">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Maksimal: ${maxCheck} ${safe(bal.satuan)}</div>
         </div>
-        <div class="form-group">
-          <label>Qty Reject (rusak / cacat)</label>
-          <input id="qc_qty_reject" type="number" step="any" value="0" oninput="recalcQcOk()">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Qty Reject (rusak / cacat)</label>
+            <input id="qc_qty_reject" type="number" step="any" min="0" value="0" oninput="recalcQcOk()">
+            <div id="qcRejectHint" class="small" style="margin-top:4px; color:var(--muted)">Kosongkan / 0 jika tidak ada reject.</div>
+          </div>
+          <div class="form-group">
+            <label>Satuan Reject</label>
+            ${rejectUnitSelect('qc_qty_reject_unit', 'recalcQcOk()')}
+          </div>
         </div>
+        <input id="qc_satuan" type="hidden" value="${safe(bal.satuan || 'lusin')}">
+        <input id="qc_max_check" type="hidden" value="${maxCheck}">
         <div class="form-group">
           <label>Qty Selisih (kurang dari check, biasanya untuk maklon)</label>
-          <input id="qc_qty_selisih" type="number" step="any" value="0" oninput="recalcQcOk()">
+          <input id="qc_qty_selisih" type="number" step="any" min="0" value="0" oninput="recalcQcOk()">
         </div>
         <div class="form-group">
           <label>Qty OK (otomatis dihitung)</label>
@@ -4202,11 +4371,27 @@ Alasan: ${cleanReason}`)) return;
           <textarea id="qc_note" placeholder="Alasan reject / kondisi barang"></textarea>
         </div>
         <div class="form-group">
-          <label>Setelah QC, masuk ke <span class="required">*</span></label>
-          <select id="qc_target">
-            <option value="STOK_BARANG">STOK BARANG (belum ada customer)</option>
-            <option value="SIAP_KIRIM">SIAP KIRIM (sudah ada pesanan)</option>
+          <label>Setelah QC <span class="required">*</span></label>
+          <select id="qc_target" onchange="onQcTargetChange()">
+            <option value="STOK_BARANG">Masuk STOK BARANG</option>
+            <option value="TERKIRIM">Langsung MARK TERKIRIM</option>
           </select>
+          <div class="small" style="margin-top:4px; color:var(--muted)">Status SIAP KIRIM tidak dipakai lagi agar tidak perlu 2x klik.</div>
+        </div>
+        <div id="qcShipFields" class="hidden" style="border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:12px; background:#f8fafc">
+          <div class="form-group">
+            <label>Qty Terkirim Sekarang <span class="required">*</span></label>
+            <input id="qc_shipped_qty" type="number" step="any" min="0" value="0" oninput="recalcQcOk()">
+            <div id="qcShipHint" class="small" style="margin-top:4px; color:var(--muted)">Isi qty yang langsung dikirim. Sisa otomatis masuk stok.</div>
+          </div>
+          <div class="form-group">
+            <label>Tujuan / Customer (opsional)</label>
+            <input id="qc_shipped_to" placeholder="Nama customer atau tujuan kirim">
+          </div>
+          <div class="form-group">
+            <label>No. Surat Jalan (opsional, dari Accurate)</label>
+            <input id="qc_sj_no" placeholder="SJ-2026-XXX">
+          </div>
         </div>
         <button class="btn-success btn-block" onclick="confirmQcPacking('${bal_id}')">🔍 Simpan Hasil QC</button>
       `;
@@ -4214,34 +4399,72 @@ Alasan: ${cleanReason}`)) return;
       recalcQcOk();
     }
 
+    function onQcTargetChange() {
+      const target = document.getElementById("qc_target")?.value || "STOK_BARANG";
+      const box = document.getElementById("qcShipFields");
+      if (box) box.classList.toggle("hidden", target !== "TERKIRIM");
+      recalcQcOk();
+    }
+
     function recalcQcOk() {
+      const satuan = document.getElementById("qc_satuan")?.value || "lusin";
       const check = Number(document.getElementById("qc_qty_check")?.value || 0);
-      const reject = Number(document.getElementById("qc_qty_reject")?.value || 0);
+      const maxCheck = Number(document.getElementById("qc_max_check")?.value || 0);
+      const rejectInput = Number(document.getElementById("qc_qty_reject")?.value || 0);
+      const rejectUnit = document.getElementById("qc_qty_reject_unit")?.value || "pcs";
+      const reject = rejectQtyToSatuan(rejectInput, rejectUnit, satuan);
       const selisih = Number(document.getElementById("qc_qty_selisih")?.value || 0);
-      const ok = Math.max(0, check - reject - selisih);
+      const ok = Math.max(0, Math.round((check - reject - selisih) * 10000) / 10000);
       const okEl = document.getElementById("qc_qty_ok");
       if (okEl) okEl.value = ok;
+      const checkEl = document.getElementById("qc_qty_check");
+      if (checkEl && maxCheck > 0 && check > maxCheck) {
+        checkEl.classList.add("field-error");
+      } else if (checkEl) {
+        checkEl.classList.remove("field-error");
+      }
+      const hint = document.getElementById("qcRejectHint");
+      if (hint) hint.textContent = rejectInput > 0 ? `= ${rejectQtyToPcs(rejectInput, rejectUnit)} pcs ≈ ${reject} ${satuan}` : "Kosongkan / 0 jika tidak ada reject.";
       const reqEl = document.getElementById("qc_note_req");
-      if (reqEl) reqEl.style.display = reject > 0 ? "inline" : "none";
+      if (reqEl) reqEl.style.display = rejectInput > 0 ? "inline" : "none";
+      const shipQty = Number(document.getElementById("qc_shipped_qty")?.value || 0);
+      const shipHint = document.getElementById("qcShipHint");
+      if (shipHint) shipHint.textContent = `Maksimal terkirim: ${ok} ${satuan}. Sisa otomatis stok: ${Math.max(0, Math.round((ok - shipQty) * 10000) / 10000)} ${satuan}.`;
     }
 
     async function confirmQcPacking(bal_id) {
       try {
+        const satuan = document.getElementById("qc_satuan")?.value || "lusin";
         const qtyCheck = Number(document.getElementById("qc_qty_check").value || 0);
-        const qtyReject = Number(document.getElementById("qc_qty_reject").value || 0);
+        const maxCheck = Number(document.getElementById("qc_max_check")?.value || 0);
+        const qtyRejectInput = Number(document.getElementById("qc_qty_reject").value || 0);
+        const qtyRejectUnit = document.getElementById("qc_qty_reject_unit")?.value || "pcs";
+        const qtyReject = rejectQtyToSatuan(qtyRejectInput, qtyRejectUnit, satuan);
         const qtySelisih = Number(document.getElementById("qc_qty_selisih").value || 0);
-        const qtyOk = Math.max(0, qtyCheck - qtyReject - qtySelisih);
+        const qtyOk = Math.max(0, Math.round((qtyCheck - qtyReject - qtySelisih) * 10000) / 10000);
         const qcNote = document.getElementById("qc_note").value.trim();
+        const target = document.getElementById("qc_target").value;
+        const shippedQty = target === "TERKIRIM" ? Number(document.getElementById("qc_shipped_qty")?.value || 0) : 0;
         if (qtyCheck <= 0) return alert("Qty check wajib > 0.");
-        if (qtyReject > 0 && !qcNote) return alert("Catatan QC wajib diisi kalau ada reject.");
+        if (maxCheck > 0 && qtyCheck > maxCheck) return alert(`Qty check tidak boleh melebihi fisik tersedia: ${maxCheck} ${satuan}.`);
+        if (qtyRejectInput > 0 && !qcNote) return alert("Catatan QC wajib diisi kalau ada reject.");
+        if (target === "TERKIRIM") {
+          if (shippedQty <= 0) return alert("Qty terkirim wajib > 0.");
+          if (shippedQty > qtyOk) return alert(`Qty terkirim tidak boleh melebihi Qty OK: ${qtyOk} ${satuan}.`);
+        }
         await apiQcPacking({
           bal_id,
           qty_check: qtyCheck,
           qty_ok: qtyOk,
           qty_reject: qtyReject,
+          qty_reject_input: qtyRejectInput,
+          qty_reject_unit: qtyRejectUnit,
           qty_selisih: qtySelisih,
           qc_note: qcNote,
-          target_status: document.getElementById("qc_target").value
+          target_status: target,
+          shipped_qty: shippedQty,
+          shipped_to: target === "TERKIRIM" ? document.getElementById("qc_shipped_to").value.trim() : "",
+          surat_jalan_no: target === "TERKIRIM" ? document.getElementById("qc_sj_no").value.trim() : ""
         });
         closeModal("actionModal"); closeModal("detailModal");
         clearApiCache();
@@ -4290,12 +4513,25 @@ Alasan: ${cleanReason}`)) return;
     async function openMarkShipped(bal_id) {
       const bal = await apiGetBal(bal_id);
       if (!["STOK_BARANG", "SIAP_KIRIM"].includes(bal.status)) {
-        return alert("Mark Terkirim hanya bisa dari STOK_BARANG atau SIAP_KIRIM.");
+        return alert("Mark Terkirim hanya bisa dari STOK_BARANG setelah QC packing.");
       }
+      const qtyOk = Number(bal.qc_qty_ok || 0);
+      const shippedQty = Number(bal.shipped_qty || 0);
+      const stokQty = bal.stok_qty !== "" && bal.stok_qty !== undefined && bal.stok_qty !== null
+        ? Number(bal.stok_qty || 0)
+        : Math.max(0, qtyOk - shippedQty);
+      if (stokQty <= 0) return alert("Tidak ada sisa stok yang bisa dikirim.");
       document.getElementById("actionTitle").textContent = "Mark Terkirim";
       document.getElementById("actionContent").innerHTML = `
-        <div class="alert alert-warn">
-          ⚠️ Status akan berubah ke <strong>TERKIRIM</strong> (final, tidak bisa di-revert kecuali Owner Override).
+        <div class="alert alert-info">
+          QC OK: <strong>${safe(qtyOk)} ${safe(bal.satuan)}</strong><br>
+          Sudah terkirim: <strong>${safe(shippedQty)} ${safe(bal.satuan)}</strong><br>
+          Sisa stok tersedia: <strong>${safe(stokQty)} ${safe(bal.satuan)}</strong>
+        </div>
+        <div class="form-group">
+          <label>Qty Terkirim Sekarang <span class="required">*</span></label>
+          <input id="ms_shipped_qty" type="number" step="any" min="0" max="${stokQty}" value="${stokQty}" oninput="recalcMarkShip('${safe(bal.satuan)}')">
+          <div id="msShipHint" class="small" style="margin-top:4px; color:var(--muted)">Sisa setelah kirim: 0 ${safe(bal.satuan)}</div>
         </div>
         <div class="form-group">
           <label>Tujuan / Customer (opsional)</label>
@@ -4309,15 +4545,31 @@ Alasan: ${cleanReason}`)) return;
           <label>Catatan (opsional)</label>
           <textarea id="ms_note"></textarea>
         </div>
+        <input id="ms_stock_available" type="hidden" value="${stokQty}">
         <button class="btn-success btn-block" onclick="confirmMarkShipped('${bal_id}')">🚚 Konfirmasi Terkirim</button>
       `;
       document.getElementById("actionModal").classList.add("show");
     }
 
+    function recalcMarkShip(satuan) {
+      const available = Number(document.getElementById("ms_stock_available")?.value || 0);
+      const shipQty = Number(document.getElementById("ms_shipped_qty")?.value || 0);
+      const hint = document.getElementById("msShipHint");
+      if (hint) hint.textContent = `Sisa setelah kirim: ${Math.max(0, Math.round((available - shipQty) * 10000) / 10000)} ${satuan || ""}`;
+      const input = document.getElementById("ms_shipped_qty");
+      if (input && shipQty > available) input.classList.add("field-error");
+      else if (input) input.classList.remove("field-error");
+    }
+
     async function confirmMarkShipped(bal_id) {
       try {
+        const available = Number(document.getElementById("ms_stock_available")?.value || 0);
+        const shippedQty = Number(document.getElementById("ms_shipped_qty")?.value || 0);
+        if (shippedQty <= 0) return alert("Qty terkirim wajib > 0.");
+        if (shippedQty > available) return alert(`Qty terkirim tidak boleh melebihi stok tersedia: ${available}.`);
         await apiMarkShipped({
           bal_id,
+          shipped_qty: shippedQty,
           shipped_to: document.getElementById("ms_shipped_to").value.trim(),
           surat_jalan_no: document.getElementById("ms_sj_no").value.trim(),
           shipped_note: document.getElementById("ms_note").value.trim()
@@ -4429,7 +4681,7 @@ Alasan: ${cleanReason}`)) return;
         return alert("Hanya Admin Produksi / Owner yang boleh terima barang maklon.");
       }
       const bal = await apiGetBal(bal_id);
-      const validStatuses = ["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY"];
+      const validStatuses = ["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY"];
       if (!validStatuses.includes(bal.status)) {
         return alert("Bal harus di status MAKLON_*. Sekarang: " + bal.status);
       }
@@ -4453,6 +4705,19 @@ Alasan: ${cleanReason}`)) return;
           <label>Qty Hasil yang Vendor Kembalikan <span class="required">*</span></label>
           <input id="fme_qty_kembali" type="number" step="any" value="${qtyOff}" placeholder="Boleh berbeda dari qty kirim kalau ada loss">
         </div>
+        <div class="alert alert-info">Reject maklon eksternal dicatat untuk evaluasi vendor. Potongan upah tetap bisa diputuskan manual oleh owner.</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Qty Reject Maklon</label>
+            <input id="fme_reject_qty" type="number" step="any" value="0" oninput="updateRejectHint('fme_reject_qty','fme_reject_unit','${safe(bal.satuan || 'lusin')}','fmeRejectHint')">
+            <div id="fmeRejectHint" class="small" style="margin-top:4px; color:var(--muted)">Kosongkan / 0 jika tidak ada reject.</div>
+          </div>
+          <div class="form-group">
+            <label>Satuan Reject</label>
+            ${rejectUnitSelect('fme_reject_unit', `updateRejectHint('fme_reject_qty','fme_reject_unit','${safe(bal.satuan || 'lusin')}','fmeRejectHint')`)}
+          </div>
+        </div>
+        <div class="form-group"><label>Catatan Reject Maklon</label><textarea id="fme_reject_note" placeholder="Contoh: kurang steam, obras lepas, cacat 6 pcs"></textarea></div>
         <div class="form-group">
           <label>Catatan (opsional)</label>
           <textarea id="fme_note" placeholder="Kondisi barang, hasil, catatan vendor..."></textarea>
@@ -4471,13 +4736,163 @@ Alasan: ${cleanReason}`)) return;
       if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty hasil wajib > 0."); }
 
       try {
-        await apiFinishMaklonEksternal({ bal_id, qty_kembali: qty, note });
+        await apiFinishMaklonEksternal({
+          bal_id,
+          qty_kembali: qty,
+          reject_qty: Number(document.getElementById("fme_reject_qty")?.value || 0),
+          reject_unit: document.getElementById("fme_reject_unit")?.value || "pcs",
+          reject_note: document.getElementById("fme_reject_note")?.value.trim() || "",
+          note
+        });
         closeModal("actionModal"); closeModal("detailModal");
         clearApiCache();
         await renderList();
         await renderDashboard();
         try { await renderGlobalHistory(); } catch (_) {}
         toast(`Bal ${bal_id} kembali dari maklon. Qty: ${qty}.`, "success");
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+
+    /* ============================================================
+       MAKLON SABLON ANTISLIP — setelah setting, sebelum packing
+       ============================================================ */
+
+    async function openStartMaklonAntislip(bal_id) {
+      if (!["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        return alert("Hanya Admin Produksi / Owner yang boleh kirim ke maklon sablon antislip.");
+      }
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "SIAP_PACKING") {
+        return alert("Maklon sablon antislip hanya bisa setelah setting selesai / status SIAP_PACKING.");
+      }
+      if (bal.antislip_keluar_at && !bal.antislip_kembali_at) {
+        return alert("Bal ini sedang di maklon sablon antislip.");
+      }
+      if (bal.antislip_kembali_at) {
+        return alert("Bal ini sudah pernah selesai sablon antislip. Pakai Owner Override kalau memang harus ulang.");
+      }
+      const qtyOff = officialQty(bal);
+      const qtySettingOut = settingOutputQty(bal);
+      const qtyCap = qtySettingOut > 0 ? Math.min(qtyOff || qtySettingOut, qtySettingOut) : qtyOff;
+      document.getElementById("actionTitle").textContent = "Maklon Sablon Antislip";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Qty resmi bal: <strong>${qtyOff} ${safe(bal.satuan)}</strong><br>
+          Qty output setting tercatat: <strong>${qtySettingOut || "-"} ${safe(bal.satuan)}</strong><br>
+          Maksimal kirim antislip: <strong>${qtyCap || "-"} ${safe(bal.satuan)}</strong><br>
+          Fitur ini dipakai setelah setting selesai dan sebelum packing.
+        </div>
+        <div class="form-group">
+          <label>Vendor / Pekerja Sablon Antislip <span class="required">*</span></label>
+          <input id="as_vendor" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
+        </div>
+        <div class="form-group">
+          <label>Qty Dikirim ke Antislip <span class="required">*</span></label>
+          <input id="as_qty_kirim" type="number" step="any" min="0" max="${qtyCap}" value="${qtyCap}">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Maksimal: ${qtyCap} ${safe(bal.satuan)}.</div>
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="as_note" placeholder="Instruksi antislip, target kembali, warna sablon, dll"></textarea>
+        </div>
+        <button class="btn-warning btn-block" style="background:#14b8a6; color:white" onclick="guardedClick(this, () => confirmStartMaklonAntislip('${bal_id}'), 'Memproses...')">🧦 Kirim ke Sablon Antislip</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmStartMaklonAntislip(bal_id) {
+      const vendorEl = document.getElementById("as_vendor");
+      const qtyEl = document.getElementById("as_qty_kirim");
+      const vendorRaw = String(vendorEl?.value || "").trim();
+      const vendor = typeof titleCase === "function" ? titleCase(vendorRaw) : vendorRaw;
+      const qty = Number(qtyEl?.value || 0);
+      const maxQty = Number(qtyEl?.max || 0);
+      if (!vendor) { vendorEl?.classList.add("field-error"); return alert("Vendor / pekerja sablon antislip wajib diisi."); }
+      if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty dikirim wajib > 0."); }
+      if (maxQty > 0 && qty > maxQty) { qtyEl?.classList.add("field-error"); return alert(`Qty dikirim tidak boleh melebihi maksimal antislip: ${maxQty}.`); }
+      try {
+        await apiStartMaklonAntislip({
+          bal_id,
+          vendor,
+          qty_kirim: qty,
+          note: document.getElementById("as_note")?.value.trim() || ""
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        toast(`Bal ${bal_id} dikirim ke sablon antislip.`, "success");
+        await openDetail(bal_id);
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openFinishMaklonAntislip(bal_id) {
+      if (!["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        return alert("Hanya Admin Produksi / Owner yang boleh terima barang sablon antislip.");
+      }
+      const bal = await apiGetBal(bal_id);
+      if (bal.status !== "MAKLON_SABLON_ANTISLIP") {
+        return alert("Bal harus sedang di status MAKLON_SABLON_ANTISLIP.");
+      }
+      const qtyKirim = Number(bal.antislip_qty_kirim || officialQty(bal) || 0);
+      document.getElementById("actionTitle").textContent = "Selesai Sablon Antislip";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Bal <strong>${safe(bal.bal_id)}</strong><br>
+          Vendor/Pekerja: <strong>${safe(bal.antislip_vendor || "-")}</strong><br>
+          Qty dikirim: <strong>${qtyKirim} ${safe(bal.satuan)}</strong><br>
+          Setelah kembali, status bal kembali ke <strong>SIAP PACKING</strong>.
+        </div>
+        <div class="form-group">
+          <label>Qty Kembali dari Antislip <span class="required">*</span></label>
+          <input id="asf_qty_kembali" type="number" step="any" min="0" max="${qtyKirim}" value="${qtyKirim}">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Tidak boleh melebihi qty yang dikirim.</div>
+        </div>
+        <div class="alert alert-info">Reject antislip dicatat untuk evaluasi vendor. Potongan upah tetap bisa diputuskan manual oleh owner.</div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Qty Reject Antislip</label>
+            <input id="asf_reject_qty" type="number" step="any" value="0" oninput="updateRejectHint('asf_reject_qty','asf_reject_unit','${safe(bal.satuan || 'lusin')}','asfRejectHint')">
+            <div id="asfRejectHint" class="small" style="margin-top:4px; color:var(--muted)">Kosongkan / 0 jika tidak ada reject.</div>
+          </div>
+          <div class="form-group">
+            <label>Satuan Reject</label>
+            ${rejectUnitSelect('asf_reject_unit', `updateRejectHint('asf_reject_qty','asf_reject_unit','${safe(bal.satuan || 'lusin')}','asfRejectHint')`)}
+          </div>
+        </div>
+        <div class="form-group"><label>Catatan Reject Antislip</label><textarea id="asf_reject_note" placeholder="Contoh: sablon kurang nempel, cacat 5 pcs"></textarea></div>
+        <div class="form-group">
+          <label>Catatan Kembali (opsional)</label>
+          <textarea id="asf_note" placeholder="Kondisi barang saat kembali"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmFinishMaklonAntislip('${bal_id}'), 'Memproses...')">📥 Konfirmasi Kembali dari Antislip</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmFinishMaklonAntislip(bal_id) {
+      const qtyEl = document.getElementById("asf_qty_kembali");
+      const qty = Number(qtyEl?.value || 0);
+      if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty kembali wajib > 0."); }
+      try {
+        await apiFinishMaklonAntislip({
+          bal_id,
+          qty_kembali: qty,
+          reject_qty: Number(document.getElementById("asf_reject_qty")?.value || 0),
+          reject_unit: document.getElementById("asf_reject_unit")?.value || "pcs",
+          reject_note: document.getElementById("asf_reject_note")?.value.trim() || "",
+          note: document.getElementById("asf_note")?.value.trim() || ""
+        });
+        closeModal("actionModal"); closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        toast(`Bal ${bal_id} kembali dari sablon antislip.`, "success");
         await openDetail(bal_id);
       } catch (e) { alert(e.message); }
     }
@@ -4899,64 +5314,117 @@ Alasan: ${cleanReason}`)) return;
     }
 
 
+    const HR_SUBS = [
+      { key: "obras", label: "Obras", aliases: ["obras"], btnId: "hrSubObrasBtn" },
+      { key: "setting", label: "Setting", aliases: ["setting"], btnId: "hrSubSettingBtn" },
+      { key: "packing", label: "Packing", aliases: ["packing", "packing maklon"], btnId: "hrSubPackingBtn" },
+      { key: "maklon_antislip", label: "Maklon Sablon Antislip", aliases: ["maklon sablon antislip", "sablon antislip", "maklon antislip"], btnId: "hrSubMaklonAntislipBtn" },
+      { key: "maklon_obras", label: "Maklon Obras Saja", aliases: ["maklon obras saja", "maklon obras only"], btnId: "hrSubMaklonObrasBtn" },
+      { key: "maklon_setting", label: "Maklon Setting Saja", aliases: ["maklon setting saja", "maklon setting only"], btnId: "hrSubMaklonSettingBtn" },
+      { key: "maklon_setting_packing", label: "Maklon Setting Packing", aliases: ["maklon setting packing", "maklon setting+packing", "maklon setting + packing"], btnId: "hrSubMaklonSettingPackingBtn" },
+      { key: "maklon_obras_setting_packing", label: "Maklon Obras Setting Packing", aliases: ["maklon obras setting packing", "maklon obras+setting+packing", "maklon obras + setting + packing"], btnId: "hrSubMaklonObrasSettingPackingBtn" }
+    ];
+
+    function getHrSubConfig(sub = currentHrSub) {
+      return HR_SUBS.find(x => x.key === sub) || HR_SUBS[0];
+    }
+
     function hrSubLabel(sub) {
-      if (sub === "obras") return "Obras";
-      if (sub === "setting") return "Setting";
-      if (sub === "packing") return "Packing";
-      return sub || "-";
+      return getHrSubConfig(sub).label;
+    }
+
+    function ensureHrFilterDefaults() {
+      const range = getLocalMonthRange();
+      const s = document.getElementById("hrFilterStart");
+      const e = document.getElementById("hrFilterEnd");
+      if (s && !s.value) s.value = range.start;
+      if (e && !e.value) e.value = range.end;
+    }
+
+    function normalizeHrTahapName(value) {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s*\+\s*/g, "+")
+        .replace(/\s+/g, " ");
+    }
+
+    function hrTahapMatches(row, sub = currentHrSub) {
+      const cfg = getHrSubConfig(sub);
+      const tahap = normalizeHrTahapName(row.tahap);
+      return cfg.aliases.map(normalizeHrTahapName).includes(tahap);
+    }
+
+    function hrRowCatatan(r) {
+      const parts = [];
+      if (r.ticket_id) parts.push("Ticket: " + r.ticket_id);
+      else if (r.output_id) parts.push("Output: " + r.output_id);
+      if (r.reject_info) parts.push(r.reject_info);
+      if (normalizeHrTahapName(r.tahap).startsWith("maklon")) parts.push("Vendor maklon eksternal");
+      return parts.join(". ") || "Final borongan";
     }
 
     function switchHrSub(sub) {
-      currentHrSub = sub;
-      ["obras", "setting", "packing"].forEach(s => {
-        const btn = document.getElementById(`hrSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
+      currentHrSub = getHrSubConfig(sub).key;
+      HR_SUBS.forEach(cfg => {
+        const btn = document.getElementById(cfg.btnId);
         if (!btn) return;
-        if (s === sub) {
+        if (cfg.key === currentHrSub) {
           btn.style.background = "var(--primary)";
           btn.style.color = "white";
           btn.classList.add("active");
         } else {
           btn.style.background = "white";
-          btn.style.color = "var(--text)";
+          btn.style.color = "var(--primary)";
           btn.classList.remove("active");
         }
       });
       renderBorongan();
     }
 
-    async function getFilteredBorongan() {
+    async function getHrBaseRows() {
+      ensureHrFilterDefaults();
       const all = await apiListBorongan();
-      let rows = (all || []).filter(r => String(r.tahap).toLowerCase() === currentHrSub.toLowerCase());
-      const w = document.getElementById("hrFilterWorker")?.value || "";
+      let rows = (all || []).filter(r => hrTahapMatches(r, currentHrSub));
       const s = document.getElementById("hrFilterStart")?.value || "";
       const e = document.getElementById("hrFilterEnd")?.value || "";
       const j = (document.getElementById("hrFilterJenis")?.value || "").toLowerCase().trim();
-      if (w) rows = rows.filter(r => r.pegawai === w);
-      if (s) rows = rows.filter(r => String(r.tanggal) >= s);
-      if (e) rows = rows.filter(r => String(r.tanggal) <= e);
+
+      if (s) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) >= s);
+      if (e) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) <= e);
       if (j) rows = rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
-      rows.sort((a,b) => String(b.tanggal + (b.created_at || "")).localeCompare(String(a.tanggal + (a.created_at || ""))));
+
+      rows.sort((a,b) => String((b.tanggal || "") + (b.created_at || "")).localeCompare(String((a.tanggal || "") + (a.created_at || ""))));
       return rows;
     }
 
-    async function refreshHrWorkerFilter() {
-      const all = await apiListBorongan();
-      const rows = (all || []).filter(r => String(r.tahap).toLowerCase() === currentHrSub.toLowerCase());
-      const workers = [...new Set(rows.map(r => r.pegawai).filter(Boolean))].sort();
-      const sel = document.getElementById("hrFilterWorker");
-      if (!sel) return;
-      const current = sel.value;
-      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${current === n ? "selected" : ""}>${safe(n)}</option>`).join("");
+    async function getFilteredBorongan() {
+      let rows = await getHrBaseRows();
+      const w = document.getElementById("hrFilterWorker")?.value || "";
+      if (w) rows = rows.filter(r => r.pegawai === w);
+      return rows;
+    }
+
+    function refreshHrWorkerFilter(rows) {
+      fillWorkerOptions("hrFilterWorker", rows || []);
     }
 
     async function renderBorongan() {
       try {
-        await refreshHrWorkerFilter();
-        const rows = await getFilteredBorongan();
+        const baseRows = await getHrBaseRows();
+        refreshHrWorkerFilter(baseRows);
+        const worker = document.getElementById("hrFilterWorker")?.value || "";
+        const rows = worker ? baseRows.filter(r => r.pegawai === worker) : baseRows;
+
+        const start = document.getElementById("hrFilterStart")?.value || "";
+        const end = document.getElementById("hrFilterEnd")?.value || "";
+        const info = document.getElementById("hrPeriodInfo");
+        if (info) info.textContent = `Periode: ${formatPeriodID(start, end)}.`;
+
         const totalQty = rows.reduce((s,r)=>s + Number(r.qty||0), 0);
         const totalRp = rows.reduce((s,r)=>s + Number(r.total||0), 0);
         const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
-        const uniqueWorkers = new Set(rows.map(r => r.pegawai)).size;
+        const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
 
         const summary = document.getElementById("hrSummary");
         if (summary) {
@@ -4964,14 +5432,15 @@ Alasan: ${cleanReason}`)) return;
             ["Pekerjaan", rows.length],
             ["Pegawai", uniqueWorkers],
             ["Total Qty", totalQty],
+            ["Tahap", hrSubLabel(currentHrSub)],
             ["Total Borongan", rupiah(totalRp)],
             ["Belum Ada Tarif", totalUntarif]
-          ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+          ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
         }
 
         const rekapMap = new Map();
         for (const r of rows) {
-          const k = r.pegawai;
+          const k = r.pegawai || "-";
           if (!rekapMap.has(k)) rekapMap.set(k, { pegawai: k, qty: 0, total: 0, count: 0 });
           const e = rekapMap.get(k);
           e.qty += Number(r.qty || 0);
@@ -4983,16 +5452,18 @@ Alasan: ${cleanReason}`)) return;
         if (rekapEl) {
           rekapEl.innerHTML = rekapArr.length
             ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th><th>Total Borongan</th></tr></thead><tbody>${rekapArr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td><td><strong>${rupiah(r.total)}</strong></td></tr>`).join("")}</tbody></table></div>`
-            : `<div class="empty">Belum ada data borongan untuk ${hrSubLabel(currentHrSub)}.</div>`;
+            : `<div class="empty">Belum ada data borongan untuk ${safe(hrSubLabel(currentHrSub))}.</div>`;
         }
 
         const tbody = document.getElementById("hrRows");
         const mobile = document.getElementById("hrMobile");
         if (!rows.length) {
-          if (tbody) tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Belum ada pekerjaan ${hrSubLabel(currentHrSub)}. Data otomatis muncul saat bal mencapai SELESAI_PACKING.</div></td></tr>`;
-          if (mobile) mobile.innerHTML = `<div class="empty">Belum ada pekerjaan ${hrSubLabel(currentHrSub)}.</div>`;
+          const empty = `<div class="empty">Belum ada pekerjaan ${safe(hrSubLabel(currentHrSub))} untuk periode ini.</div>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="12">${empty}</td></tr>`;
+          if (mobile) mobile.innerHTML = empty;
           return;
         }
+
         const fotoCell = (foto, balId) => {
           const src = driveThumbUrl(foto || "", 160);
           return src
@@ -5004,12 +5475,14 @@ Alasan: ${cleanReason}`)) return;
           tbody.innerHTML = rows.map(r => `
             <tr>
               <td>${safe(r.tanggal)}</td>
+              <td>${safe(r.tahap || hrSubLabel(currentHrSub))}</td>
               <td><strong>${safe(r.pegawai)}</strong></td>
               <td>${fotoCell(r.foto_url || r.foto, r.bal_id)}</td>
               <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
               <td>${safe(r.jenis || "-")}</td>
               <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
-              <td>${safe(r.qty)} ${safe(r.satuan)}</td>
+              <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
+              <td><span class="small">${safe(hrRowCatatan(r))}</span></td>
               <td>
                 <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:90px; min-height:32px; padding:4px 6px">
               </td>
@@ -5018,15 +5491,17 @@ Alasan: ${cleanReason}`)) return;
             </tr>
           `).join("");
         }
+
         if (mobile) {
           mobile.innerHTML = rows.map(r => `
             <div class="bal-card">
               ${fotoCell(r.foto_url || r.foto, r.bal_id)}
               <div class="bal-card-body">
                 <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
-                <div class="bal-title">${safe(r.pegawai)}</div>
+                <div class="bal-title">${safe(r.tahap || hrSubLabel(currentHrSub))} · ${safe(r.pegawai)}</div>
                 <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
                 <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
+                <div class="small">${safe(hrRowCatatan(r))}</div>
                 <div style="margin-top:6px">
                   <label class="small">Tarif/${safe(r.satuan)}</label>
                   <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:120px; min-height:32px; padding:4px 6px">
@@ -5041,6 +5516,7 @@ Alasan: ${cleanReason}`)) return;
         toast("Gagal load HR Borongan: " + e.message, "error");
       }
     }
+
 
     async function updateBoronganTarif(inputEl) {
       const id = inputEl.getAttribute("data-bor-id");
@@ -5066,7 +5542,7 @@ Alasan: ${cleanReason}`)) return;
       try {
         const rows = await getFilteredBorongan();
         if (!rows.length) { toast("Tidak ada data untuk di-export.", "warn"); return; }
-        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Tarif","Total"];
+        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total"];
         const escapeCsv = v => {
           const s = String(v ?? "");
           if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -5076,7 +5552,7 @@ Alasan: ${cleanReason}`)) return;
         for (const r of rows) {
           lines.push([
             r.tanggal, r.tahap, r.pegawai, r.bal_id, r.po_id, r.jenis,
-            r.warna, r.size, r.qty, r.satuan, r.tarif, r.total
+            r.warna, r.size, r.qty, r.satuan, hrRowCatatan(r), r.tarif, r.total
           ].map(escapeCsv).join(","));
         }
         const csv = "\uFEFF" + lines.join("\n");
