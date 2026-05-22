@@ -215,6 +215,7 @@
     .st-MAKLON_OBRAS_SETTING_PACKING { background: #fde047; color: #713f12; }
     .st-MAKLON_SETTING_PACKING { background: #facc15; color: #713f12; }
     .st-MAKLON_SETTING_ONLY { background: #fef08a; color: #854d0e; }
+    .st-MAKLON_OBRAS_ONLY { background: #fef9c3; color: #713f12; }
     .st-MULAI_OBRAS { background: #ede9fe; color: #5b21b6; }
     .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
     .st-MULAI_SETTING { background: #fce7f3; color: #9d174d; }
@@ -887,11 +888,11 @@
         <div class="card">
           <div class="section-title">Daftar Bal</div>
           <div class="filter-bar">
-            <input id="filterSearch" placeholder="🔍 Cari ID/PO/operator/mesin..." oninput="renderList()">
-            <input id="filterDate" type="text" placeholder="📅 Filter tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderList()">
-            <input id="filterLine" placeholder="Filter Line (A/B/1...)" oninput="renderList()">
-            <select id="filterStatus" onchange="renderList()"><option value="">Semua Status</option></select>
-            <select id="filterSort" onchange="renderList()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
+            <input id="filterSearch" placeholder="🔍 Cari ID/PO/operator/mesin..." oninput="onListFilterChange()">
+            <input id="filterDate" type="text" placeholder="📅 Filter tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="onListFilterChange()">
+            <input id="filterLine" placeholder="Filter Line (A/B/1...)" oninput="onListFilterChange()">
+            <select id="filterStatus" onchange="onListFilterChange()"><option value="">Semua Status</option></select>
+            <select id="filterSort" onchange="onListFilterChange()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
           </div>
           <div class="small" id="listCount" style="margin-top:8px"></div>
         </div>
@@ -906,6 +907,7 @@
           </table>
         </div>
         <div id="mobileCards" class="mobile-cards"></div>
+        <button id="loadMoreBtn" class="btn-outline btn-block" style="display:none; margin-top:12px" onclick="loadMoreList()">↓ Load 50 berikutnya</button>
       </div>
 
       <!-- SCAN -->
@@ -1132,9 +1134,13 @@
     const THERMAL_PAPER_SIZE = "100x150";
     const LABEL_BAL_PRINT_SIZE = "100x78";
 
+    // Pagination Daftar Bal: default render 50 data dulu, lalu tombol Load More.
+    const LIST_PAGE_SIZE = 50;
+    let listRenderLimit = LIST_PAGE_SIZE;
+
     const STATUS_ORDER = [
       "SELESAI_MESIN", "QTY_TERVERIFIKASI",
-      "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY",
+      "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY",
       "MULAI_OBRAS", "SELESAI_OBRAS",
       "MULAI_SETTING", "SELESAI_SETTING",
       "SIAP_PACKING",
@@ -1148,6 +1154,7 @@
       MAKLON_OBRAS_SETTING_PACKING: "Maklon Eks: Obras+Setting+Packing",
       MAKLON_SETTING_PACKING: "Maklon Eks: Setting+Packing",
       MAKLON_SETTING_ONLY: "Maklon Eks: Setting saja",
+      MAKLON_OBRAS_ONLY: "Maklon Eks: Obras saja",
       MULAI_OBRAS: "Mulai Obras",
       SELESAI_OBRAS: "Selesai Obras",
       MULAI_SETTING: "Mulai Setting",
@@ -1165,11 +1172,12 @@
     // Constant untuk Maklon Eksternal. Cermin dari Code.gs MAKLON_VENDORS.
     // Bisa juga di-fetch via apiListMaklonVendors() supaya tidak perlu sinkron manual,
     // tapi untuk MVP hardcoded saja. Kalau owner tambah vendor di Code.gs, edit di sini juga.
-    const MAKLON_VENDORS = ["Nanjung", "Margaasih"];
+    const MAKLON_VENDORS = ["Nanjung", "Margaasih", "Obras NJG"];
     const MAKLON_EKS_TIPE_LABEL = {
       OBRAS_SETTING_PACKING: "Obras + Setting + Packing",
       SETTING_PACKING: "Setting + Packing (Obras dilewati)",
-      SETTING_ONLY: "Setting saja (Obras dilewati, Packing internal)"
+      SETTING_ONLY: "Setting saja (Obras dilewati, Packing internal)",
+      OBRAS_ONLY: "Obras saja (Setting & Packing internal)"
     };
 
     const JENIS_BARANG_LIST = [
@@ -2212,6 +2220,11 @@
         alert("Akun Anda tidak memiliki akses ke menu ini.");
         return;
       }
+      // Reset pagination kalau user pindah ke tab list — supaya tidak bingung kembali
+      // di posisi limit lama (mis. 500). Auto-refresh saat sudah di tab list tidak reset.
+      if (tab === "list" && currentTab !== "list") {
+        listRenderLimit = LIST_PAGE_SIZE;
+      }
       currentTab = tab;
       stopScan();
       document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
@@ -2471,15 +2484,32 @@
     async function renderList() {
       const bals = await filteredBals();
       const all = await apiListBals();
-      document.getElementById("listCount").textContent = `${bals.length} bal ditampilkan dari total ${all.length} bal`;
+
+      // Pagination: render hanya `listRenderLimit` row pertama. Sisanya bisa dimuat
+      // via tombol "Load More" di bawah. Total bal yang match filter tetap di-show
+      // di listCount supaya user tahu jumlah totalnya, bukan jumlah yang di-render.
+      const visible = bals.slice(0, listRenderLimit);
+      const hasMore = bals.length > listRenderLimit;
+      const remaining = Math.max(0, bals.length - listRenderLimit);
+
+      const countEl = document.getElementById("listCount");
+      if (countEl) {
+        if (bals.length <= listRenderLimit) {
+          countEl.textContent = `${bals.length} bal ditampilkan (total ${all.length} bal aktif)`;
+        } else {
+          countEl.textContent = `${visible.length} dari ${bals.length} bal ditampilkan (total ${all.length} bal aktif). Klik "Load More" untuk lihat lebih banyak.`;
+        }
+      }
+
       const tbody = document.getElementById("balTableBody");
       const cards = document.getElementById("mobileCards");
       if (!bals.length) {
         tbody.innerHTML = `<tr><td colspan="11"><div class="empty">Belum ada bal</div></td></tr>`;
         cards.innerHTML = `<div class="empty">Belum ada bal</div>`;
+        setLoadMoreVisibility(false);
         return;
       }
-      tbody.innerHTML = bals.map(b => `
+      tbody.innerHTML = visible.map(b => `
         <tr>
           <td>${photoThumb(b)}</td>
           <td><span class="mono">${safe(b.bal_id)}</span><br>${splitBadges(b)}</td>
@@ -2494,7 +2524,7 @@
           <td>${actionButtons(b)}</td>
         </tr>
       `).join("");
-      cards.innerHTML = bals.map(b => `
+      cards.innerHTML = visible.map(b => `
         <div class="bal-card">
           ${photoImg(b)}
           <div class="bal-card-body">
@@ -2507,6 +2537,33 @@
           </div>
         </div>
       `).join("");
+      setLoadMoreVisibility(hasMore, remaining);
+    }
+
+    // Helper untuk show/hide tombol Load More di bawah daftar bal.
+    function setLoadMoreVisibility(show, remaining = 0) {
+      const btn = document.getElementById("loadMoreBtn");
+      if (!btn) return;
+      if (show) {
+        btn.style.display = "block";
+        const nextChunk = Math.min(LIST_PAGE_SIZE, remaining);
+        btn.textContent = `↓ Load ${nextChunk} berikutnya (${remaining} bal masih tersembunyi)`;
+      } else {
+        btn.style.display = "none";
+      }
+    }
+
+    // Naikkan limit render, lalu re-render. Tidak panggil API (data sudah ter-load di cache).
+    function loadMoreList() {
+      listRenderLimit += LIST_PAGE_SIZE;
+      renderList();
+    }
+
+    // Reset limit ke 50 lalu re-render. Dipanggil dari filter handlers supaya user
+    // tidak bingung kalau filter aktif tapi sudah scroll Load More banyak kali.
+    function onListFilterChange() {
+      listRenderLimit = LIST_PAGE_SIZE;
+      renderList();
     }
 
     /**
@@ -2577,14 +2634,14 @@
     function photoImg(b) {
       const src = photoThumbSrc(b);
       return src
-        ? `<img src="${safe(src)}" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
+        ? `<img src="${safe(src)}" loading="lazy" decoding="async" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
         : photoFallbackHtml();
     }
 
     function photoThumb(b) {
       const src = photoThumbSrc(b);
       return src
-        ? `<img src="${safe(src)}" class="thumb" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
+        ? `<img src="${safe(src)}" class="thumb" loading="lazy" decoding="async" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
         : photoFallbackHtml();
     }
     function splitBadges(b) {
@@ -2644,7 +2701,7 @@ Alasan: ${cleanReason}`)) return;
         if (b.is_child_bal && b.parent_bal_id) splitInfo += `<div class="alert alert-info">Bal anak dari <button class="btn-outline btn-sm" onclick="openDetail('${b.parent_bal_id}')">${b.parent_bal_id}</button></div>`;
         document.getElementById("detailContent").innerHTML = `
           ${splitInfo}
-          ${photoSrc(b) ? `<img src="${safe(photoSrc(b))}" class="detail-photo" onerror="handlePhotoError(this)">` : ""}
+          ${photoSrc(b) ? `<img src="${safe(photoSrc(b))}" class="detail-photo" loading="lazy" decoding="async" onerror="handlePhotoError(this)">` : ""}
           <div class="detail-grid">
             ${kv("ID Bal", `<span class="mono">${safe(b.bal_id)}</span>${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}`)}
             ${kv("Status", statusBadge(b.status))}
@@ -2755,7 +2812,7 @@ Alasan: ${cleanReason}`)) return;
       // Di QTY_TERVERIFIKASI, Admin/Owner bisa kirim ke vendor maklon (Nanjung/Margaasih)
       // sebagai alternatif dari MULAI_OBRAS internal. Tombol muncul setelah action MULAI_OBRAS.
       // Status MAKLON_* punya tombol khusus "Selesai Maklon (Barang Kembali)".
-      if (["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY"].includes(b.status)) {
+      if (["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY"].includes(b.status)) {
         const tipeLabel = (typeof MAKLON_EKS_TIPE_LABEL !== "undefined" && MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe]) || b.maklon_eks_tipe;
         html += `<div class="alert alert-warn">🏭 Sedang di maklon eksternal: <strong>${safe(b.maklon_eks_vendor || "-")}</strong><br>Tipe: <strong>${safe(tipeLabel)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>`;
         if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
@@ -4321,6 +4378,10 @@ Alasan: ${cleanReason}`)) return;
               <input type="radio" name="me_tipe" value="SETTING_ONLY" style="margin-top:3px; width:auto; min-height:0">
               <div><strong>Setting saja</strong><br><span class="small" style="color:var(--muted)">Obras dilewati, vendor cuma setting. Setelah kembali masuk SIAP_PACKING (packing internal/maklon-biasa).</span></div>
             </label>
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="me_tipe" value="OBRAS_ONLY" style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Obras saja</strong><br><span class="small" style="color:var(--muted)">Vendor cuma obras. Setting & packing dilakukan internal di pabrik. Setelah kembali masuk SELESAI_OBRAS (akun Setting tinggal MULAI_SETTING).</span></div>
+            </label>
           </div>
         </div>
         <div class="form-group">
@@ -4374,7 +4435,9 @@ Alasan: ${cleanReason}`)) return;
       }
       const qtyOff = officialQty(bal);
       const tipeLabel = MAKLON_EKS_TIPE_LABEL[bal.maklon_eks_tipe] || bal.maklon_eks_tipe;
-      const nextStatusLabel = bal.maklon_eks_tipe === "SETTING_ONLY"
+      const nextStatusLabel = bal.maklon_eks_tipe === "OBRAS_ONLY"
+        ? "SELESAI_OBRAS (siap setting internal)"
+        : bal.maklon_eks_tipe === "SETTING_ONLY"
         ? "SIAP_PACKING (packing internal lanjut)"
         : "SELESAI_PACKING (langsung lanjut QC)";
 
@@ -4751,7 +4814,7 @@ Alasan: ${cleanReason}`)) return;
       const fotoCell = (foto, balId) => {
         const src = driveThumbUrl(foto || "", 160);
         return src
-          ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
+          ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
           : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
       };
 
@@ -4933,7 +4996,7 @@ Alasan: ${cleanReason}`)) return;
         const fotoCell = (foto, balId) => {
           const src = driveThumbUrl(foto || "", 160);
           return src
-            ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
+            ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
             : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
         };
 
