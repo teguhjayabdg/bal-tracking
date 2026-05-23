@@ -1172,7 +1172,8 @@
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
       "startMaklonEksternal", "finishMaklonEksternal",
-      "startMaklonAntislip", "finishMaklonAntislip"
+      "startMaklonAntislip", "finishMaklonAntislip",
+      "finishSetting"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1572,6 +1573,15 @@
       clearApiCache("listBals");
       clearApiCache("listHistory");
       return await api("manualSelesaiSetting", payload);
+    }
+
+    // FIX v15: wrapper untuk endpoint Selesai Setting normal (tanpa buat output label baru).
+    // Server validasi: status MULAI_SETTING dan totalOut >= qty resmi. Role Setting/Admin/Owner.
+    async function apiFinishSetting(payload) {
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      clearApiCache("listBorongan");
+      return await api("finishSetting", payload);
     }
 
     async function apiSplitBal(payload) {
@@ -3429,6 +3439,17 @@ Alasan: ${cleanReason}`)) return;
       if (["SELESAI_OBRAS", "MULAI_SETTING"].includes(b.status) && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
         html += `<button class="btn-warning btn-block" style="margin-top:8px" onclick="openSplit('${b.bal_id}')">✂️ Pecah Bal Fisik</button>`;
       }
+      // FIX v15: tombol Selesai Setting normal (tanpa buat output label baru).
+      // Muncul saat sisa output sudah <= 0 (totalOut >= qty resmi). Role Setting/Admin/Owner.
+      // Skenario: owner sudah turunkan qty resmi padahal output label sudah memenuhi qty lama,
+      // atau output label kebetulan persis = qty resmi tapi auto-transisi tidak sempat trigger.
+      if (b.status === "MULAI_SETTING" && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+        const _fsTotalOut = (b.output_labels || []).reduce((s,o) => s + Number(o.qty || 0), 0);
+        const _fsQtyOff = officialQty(b);
+        if (_fsQtyOff > 0 && _fsTotalOut + 0.0001 >= _fsQtyOff) {
+          html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openFinishSetting('${b.bal_id}')">✓ Selesai Setting → Siap Packing</button>`;
+        }
+      }
       if (b.status === "MULAI_SETTING" && ["Owner", "Admin Produksi"].includes(currentUser.role)) {
         html += `<button class="btn-secondary btn-block" style="margin-top:8px; background: #6b7280" onclick="openManualSelesaiSetting('${b.bal_id}')">🔓 Selesai Setting Manual (Owner/Admin)</button>`;
       }
@@ -3675,6 +3696,59 @@ Alasan: ${cleanReason}`)) return;
         try { await renderGlobalHistory(); } catch (_) {}
         await openDetail(bal_id);
       } catch (e) { alert(e.message); }
+    }
+
+    /* ============================================================
+       SELESAI SETTING (Setting / Admin / Owner) — FIX v15
+       Untuk kasus output_label sudah memenuhi qty resmi tapi belum lanjut SIAP_PACKING.
+       Skenario umum:
+         - Owner menurunkan qty resmi setelah tiket sempat tercetak (mis. 25 → 24)
+         - Auto-transisi di apiCreateOutputLabel tidak sempat trigger
+       Tidak membuat output_label baru. Tidak butuh Owner Override.
+       Server validasi: status MULAI_SETTING dan totalOut >= qty resmi.
+       ============================================================ */
+    async function openFinishSetting(bal_id) {
+      if (!["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+        return alert("Hanya Setting / Admin / Owner yang boleh selesaikan setting.");
+      }
+      const b = await apiGetBal(bal_id);
+      if (b.status !== "MULAI_SETTING") return alert("Selesai Setting hanya bisa saat status MULAI_SETTING.");
+      const totalOut = (b.output_labels || []).reduce((s,o) => s + Number(o.qty || 0), 0);
+      const qtyOff = officialQty(b);
+      if (totalOut + 0.0001 < qtyOff) {
+        return alert(`Total output setting (${totalOut} ${safe(b.satuan)}) masih kurang dari qty resmi (${qtyOff} ${safe(b.satuan)}). Buat label dulu, atau pakai Pecah Bal kalau fisik memang kurang.`);
+      }
+      const over = totalOut - qtyOff;
+      const overInfo = over > 0.0001
+        ? `<div class="alert alert-warn">Output setting <strong>${totalOut} ${safe(b.satuan)}</strong> melebihi qty resmi (${qtyOff} ${safe(b.satuan)}) sebanyak <strong>${over} ${safe(b.satuan)}</strong>. Hal ini biasa terjadi kalau owner menurunkan qty resmi setelah tiket setting tercetak. HR setting tetap memakai qty yang sudah dikerjakan pekerja, tidak ada potongan otomatis.</div>`
+        : `<div class="alert alert-info">Total output setting <strong>${totalOut} ${safe(b.satuan)}</strong> sudah memenuhi qty resmi <strong>${qtyOff} ${safe(b.satuan)}</strong>. Bal akan lanjut ke <strong>SIAP_PACKING</strong>.</div>`;
+      document.getElementById("actionTitle").textContent = "Selesai Setting";
+      document.getElementById("actionContent").innerHTML = `
+        ${overInfo}
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="finishSettingNote" placeholder="Misal: tiket terlanjur tercetak 25 lusin, sudah dikoreksi owner ke 24"></textarea>
+        </div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmFinishSetting('${bal_id}'), 'Memproses...')">✓ Konfirmasi Selesai Setting</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmFinishSetting(bal_id) {
+      const note = document.getElementById("finishSettingNote")?.value.trim() || "";
+      try {
+        await apiFinishSetting({ bal_id, note });
+        closeModal("actionModal");
+        closeModal("detailModal");
+        clearApiCache();
+        await renderList();
+        await renderDashboard();
+        try { await renderGlobalHistory(); } catch (_) {}
+        await openDetail(bal_id);
+        toast(`Bal ${bal_id} selesai setting → siap packing.`, "success");
+      } catch (e) {
+        alert(e.message);
+      }
     }
 
     /* ============================================================
