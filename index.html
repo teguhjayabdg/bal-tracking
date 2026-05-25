@@ -879,7 +879,7 @@
             <div class="form-group"><label>Nomor Mesin / MC <span class="required">*</span></label><input id="f_no_mesin" type="number" /></div>
           </div>
           <div class="grid-2">
-            <div class="form-group"><label>Operator Mesin / Pembuat Bal <span class="required">*</span></label><input id="f_operator_mesin"></div>
+            <div class="form-group"><label>Operator Mesin / Pembuat Bal <span class="required">*</span></label><input id="f_operator_mesin" list="workerNames" autocomplete="off"></div>
             <div class="form-group">
               <label>Jenis Barang <span class="required">*</span></label>
               <select id="f_jenis_barang" onchange="onJenisChange(this, 'f_jenis_barang_lain')">
@@ -1124,6 +1124,7 @@
           <div class="actions" style="flex-wrap:wrap; gap:8px">
             <button class="btn-primary" onclick="ownerRunHealthCheck()">🔎 Cek Data</button>
             <button class="btn-primary" onclick="openUserManagement()">👥 Kelola User</button>
+            <button class="btn-primary" onclick="openVerifierManagement()">🔎 Kelola Verifier QC</button>
             <button class="btn-outline" onclick="ownerExportBackupJSON()">📥 Export Backup JSON</button>
             <button class="btn-warning" onclick="document.getElementById('ownerImportBackupInput').click()">📤 Import Backup JSON</button>
             <input id="ownerImportBackupInput" type="file" accept="application/json,.json" class="hidden" onchange="ownerImportBackupJSON(event)">
@@ -1136,6 +1137,11 @@
       </div>
     </main>
   </section>
+
+  <!-- FIX v17: shared datalist untuk autocomplete nama pegawai.
+       Diisi sekali via refreshWorkerNamesDatalist() saat app init.
+       Pakai dengan: <input list="workerNames"> -->
+  <datalist id="workerNames"></datalist>
 
   <!-- MODALS -->
   <div class="modal" id="detailModal"><div class="modal-content"><div class="modal-head"><strong>Detail Bal</strong><button class="close-btn" onclick="closeModal('detailModal')">×</button></div><div id="detailContent"></div></div></div>
@@ -1173,7 +1179,8 @@
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
       "startMaklonEksternal", "finishMaklonEksternal",
       "startMaklonAntislip", "finishMaklonAntislip",
-      "finishSetting"
+      "finishSetting",
+      "saveVerifier", "deleteVerifier"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1682,6 +1689,24 @@
       // Cache di session — list jarang berubah
       return await api("listMaklonVendors", {}, { cache: true });
     }
+    // FIX v17 — Verifier QC names (dropdown + settings page)
+    async function apiListVerifiers() {
+      return await api("listVerifiers", {}, { cache: true });
+    }
+    async function apiSaveVerifier(payload) {
+      clearApiCache("listVerifiers");
+      clearApiCache("listWorkerNames");
+      return await api("saveVerifier", payload);
+    }
+    async function apiDeleteVerifier(payload) {
+      clearApiCache("listVerifiers");
+      clearApiCache("listWorkerNames");
+      return await api("deleteVerifier", payload);
+    }
+    // FIX v17 — Worker names autocomplete (single fetch + cache, populate <datalist>)
+    async function apiListWorkerNames() {
+      return await api("listWorkerNames", {}, { cache: true });
+    }
     async function apiStartMaklonEksternal(payload) {
       clearApiCache("listBals");
       clearApiCache("listHistory");
@@ -1754,6 +1779,26 @@
       populateJenisSelect(document.getElementById("f_jenis_barang"));
       switchTab(defaultTabForRole());
       refreshAll();
+      // FIX v17: warm-up autocomplete pegawai. Async, jangan await — biar UI tidak ngeblok.
+      refreshWorkerNamesDatalist().catch(e => console.warn("refreshWorkerNamesDatalist:", e.message));
+    }
+
+    // FIX v17: populate <datalist id="workerNames"> dengan daftar unik nama pegawai.
+    // Dipanggil sekali saat showApp(), dan ulang setelah create/edit verifier (force=true).
+    let _workerNamesLoaded = false;
+    async function refreshWorkerNamesDatalist(force) {
+      if (_workerNamesLoaded && !force) return;
+      try {
+        const names = await apiListWorkerNames();
+        const dl = document.getElementById("workerNames");
+        if (!dl) return;
+        dl.innerHTML = (names || [])
+          .map(n => `<option value="${safe(n)}"></option>`)
+          .join("");
+        _workerNamesLoaded = true;
+      } catch (e) {
+        console.warn("Gagal load worker names:", e.message);
+      }
     }
 
     function defaultTabForRole() {
@@ -3017,7 +3062,7 @@
         ${bulkListPreview(bals)}
         <div class="form-group">
           <label>Vendor / Pekerja Antislip <span class="required">*</span></label>
-          <input id="bulkAntislipVendor" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
+          <input id="bulkAntislipVendor" list="workerNames" autocomplete="off" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
         </div>
         <div class="form-group">
           <label>Catatan</label>
@@ -3563,10 +3608,29 @@ Alasan: ${cleanReason}`)) return;
 
       let qtyHtml = "";
       if (action === "VERIFIKASI_QTY") {
+        // FIX v17 Bug C: ambil daftar verifier (Dika, Rizwan, atau yang diedit owner)
+        let verifiers = [];
+        try { verifiers = await apiListVerifiers(); }
+        catch (e) { console.warn("Gagal fetch verifiers, fallback ke text input:", e.message); }
+        const activeVerifiers = (verifiers || []).filter(v => v && v.active);
+        const verifierOpts = activeVerifiers.map(v => `<option value="${safe(v.nama)}">${safe(v.nama)}</option>`).join("");
+        // Kalau daftar verifier kosong, default ke "Lainnya" supaya user tetap bisa input.
+        const defaultIsOther = activeVerifiers.length === 0;
         qtyHtml = `
           <div class="alert alert-info">Qty menurut operator: <strong>${safe(bal.jumlah)} ${safe(bal.satuan)}</strong></div>
           <div class="form-group"><label>Qty Aktual Hasil Verifikasi <span class="required">*</span></label><input id="verifyQtyActual" type="number" step="any" value="${safe(bal.jumlah)}" oninput="previewVerifyQty('${bal.bal_id}')"></div>
           <div id="verifyQtyPreview" class="alert alert-success">Qty sesuai dengan jumlah operator.</div>
+          <div class="form-group">
+            <label>Nama Verifier <span class="required">*</span></label>
+            <select id="verifyVerifierSelect" onchange="onVerifierSelectChange()">
+              ${verifierOpts}
+              <option value="__OTHER__"${defaultIsOther ? " selected" : ""}>Lainnya (ketik manual)…</option>
+            </select>
+            <input id="verifyVerifierOther" type="text" placeholder="Nama verifier (pengganti)…"
+                   style="margin-top:6px; ${defaultIsOther ? "" : "display:none"}"
+                   autocomplete="off" list="workerNames">
+            <div class="small" style="margin-top:4px; color:var(--muted)">Default: pilih nama checker tetap. Pilih <em>Lainnya</em> kalau ada yang menggantikan / belum ada di daftar. Daftar nama bisa diedit di Pengaturan (Owner / Admin).</div>
+          </div>
           <div class="form-group"><label>Catatan Selisih / Verifikasi</label><textarea id="verifyQtyNote"></textarea></div>
         `;
       }
@@ -3600,7 +3664,7 @@ Alasan: ${cleanReason}`)) return;
         obrasHtml = `
           <div class="form-group">
             <label>Nama Pekerja Obras ${action === "MULAI_OBRAS" ? '<span class="required">*</span>' : '(opsional)'}</label>
-            <input id="obrasWorkerName" value="${action === "SELESAI_OBRAS" ? safe(bal.obras_by || "") : ""}" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}">
+            <input id="obrasWorkerName" value="${action === "SELESAI_OBRAS" ? safe(bal.obras_by || "") : ""}" placeholder="${action === "SELESAI_OBRAS" ? "Kosongkan jika sama dengan yang memulai" : "Nama pekerja obras"}" list="workerNames" autocomplete="off">
             <div class="small" style="margin-top:4px; color:var(--muted)">${hint}</div>
           </div>
           ${rejectObrasHtml}
@@ -3649,6 +3713,15 @@ Alasan: ${cleanReason}`)) return;
       else { box.className = "alert alert-danger"; box.textContent = `Qty kurang ${op - qty} ${bal.satuan} dari jumlah operator.`; }
     }
 
+    // FIX v17 Bug C: toggle "Lainnya" text input visibility saat dropdown verifier berubah
+    function onVerifierSelectChange() {
+      const sel = document.getElementById("verifyVerifierSelect");
+      const other = document.getElementById("verifyVerifierOther");
+      if (!sel || !other) return;
+      other.style.display = sel.value === "__OTHER__" ? "block" : "none";
+      if (sel.value === "__OTHER__") setTimeout(() => other.focus(), 50);
+    }
+
     async function confirmUpdateStatus(bal_id, action) {
       const note = document.getElementById("actionNote").value.trim();
       if (["Owner", "Admin Produksi"].includes(currentUser.role) && !note) return alert("Owner/Admin wajib isi alasan/catatan.");
@@ -3660,6 +3733,22 @@ Alasan: ${cleanReason}`)) return;
           if (!qtyAktual || qtyAktual <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty aktual verifikasi wajib diisi."); }
           payload.qty_aktual = qtyAktual;
           payload.qty_note = document.getElementById("verifyQtyNote")?.value.trim() || "";
+          // FIX v17 Bug C: nama verifier dari dropdown (atau Lainnya text)
+          const sel = document.getElementById("verifyVerifierSelect");
+          const other = document.getElementById("verifyVerifierOther");
+          let verifierName = "";
+          if (sel) {
+            if (sel.value === "__OTHER__") {
+              verifierName = titleCase((other?.value || "").trim());
+              if (!verifierName) { other?.classList.add("field-error"); return alert("Nama verifier (Lainnya) wajib diisi."); }
+              if (isGenericWorkerName(verifierName)) { other?.classList.add("field-error"); return alert("Isi nama asli verifier, bukan '" + verifierName + "'."); }
+              if (verifierName.length < 2) { other?.classList.add("field-error"); return alert("Nama verifier minimal 2 karakter."); }
+            } else {
+              verifierName = String(sel.value || "").trim();
+              if (!verifierName) { sel?.classList.add("field-error"); return alert("Nama verifier wajib dipilih."); }
+            }
+            payload.verifier_name = verifierName;
+          }
         }
         // Nama pekerja obras — wajib untuk MULAI_OBRAS dari SEMUA role yang allowed (Owner/Admin/Obras).
         // Title Case (pola A: nama orang).
@@ -3872,7 +3961,7 @@ Alasan: ${cleanReason}`)) return;
         <div class="grid-3">
           <div class="form-group"><label>Line</label><input id="oo_line" value="${safe(b.line || "")}"></div>
           <div class="form-group"><label>Nomor Mesin</label><input id="oo_no_mesin" type="number" value="${safe(b.no_mesin || "")}"></div>
-          <div class="form-group"><label>Operator Mesin</label><input id="oo_operator_mesin" value="${safe(b.operator_mesin || "")}"></div>
+          <div class="form-group"><label>Operator Mesin</label><input id="oo_operator_mesin" list="workerNames" autocomplete="off" value="${safe(b.operator_mesin || "")}"></div>
         </div>
         <div class="grid-3">
           <div class="form-group"><label>Jenis Barang</label>
@@ -4000,8 +4089,23 @@ Alasan: ${cleanReason}`)) return;
 
     /* ----- Tab 3: Rollback Status ----- */
     function renderOOTabStatus(b) {
-      // Daftar status valid sebagai target rollback (lebih rendah dari status sekarang)
-      const flowOrder = ["SELESAI_MESIN", "QTY_TERVERIFIKASI", "MULAI_OBRAS", "SELESAI_OBRAS", "MULAI_SETTING", "SELESAI_SETTING", "SELESAI_PACKING"];
+      // FIX v17 — Bug B: flowOrder dilengkapi supaya bal di status SIAP_PACKING,
+      // PROSES_PACKING_*, MAKLON_SABLON_ANTISLIP, STOK_BARANG, dll juga punya
+      // pilihan rollback. Sebelumnya hanya 7 status yang dikenali, sehingga
+      // indexOf gagal dan UI bilang "tidak ada status lebih rendah".
+      // List ini SINKRON dengan flowOrder di Code.gs apiOwnerOverride ROLLBACK_STATUS.
+      const flowOrder = [
+        "SELESAI_MESIN",
+        "QTY_TERVERIFIKASI",
+        "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY",
+        "MULAI_OBRAS", "SELESAI_OBRAS",
+        "MULAI_SETTING", "SELESAI_SETTING",
+        "SIAP_PACKING",
+        "MAKLON_SABLON_ANTISLIP",
+        "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON",
+        "SELESAI_PACKING",
+        "STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"
+      ];
       const currentIdx = flowOrder.indexOf(b.status);
       const targets = currentIdx > 0 ? flowOrder.slice(0, currentIdx) : [];
       const targetOpts = targets.map(s => `<option value="${s}">${statusText(s)}</option>`).join("");
@@ -4011,7 +4115,9 @@ Alasan: ${cleanReason}`)) return;
           <span class="small">Rollback bersifat <strong>SOFT</strong>: status berubah, tapi output_labels dan record borongan tidak dihapus otomatis. Owner harus hapus manual kalau perlu.</span>
         </div>
         ${targets.length === 0
-          ? `<div class="alert alert-warn">Tidak ada status yang lebih rendah untuk rollback. Bal ini sudah di status awal.</div>`
+          ? (currentIdx === -1
+              ? `<div class="alert alert-danger">Status <strong>${safe(b.status)}</strong> tidak dikenal di flowOrder. Hubungi developer.</div>`
+              : `<div class="alert alert-warn">Tidak ada status yang lebih rendah untuk rollback. Bal ini sudah di status awal.</div>`)
           : `
           <div class="form-group"><label>Rollback ke Status</label><select id="oo_status_target">${targetOpts}</select></div>
           <div class="form-group"><label>Alasan Rollback <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_status_reason" rows="2"></textarea></div>
@@ -4045,7 +4151,7 @@ Alasan: ${cleanReason}`)) return;
         <div class="card" style="margin-bottom:10px">
           <div class="section-title">Operator Mesin</div>
           <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
-            <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_op_mesin" value="${safe(b.operator_mesin || "")}"></div>
+            <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_op_mesin" list="workerNames" autocomplete="off" value="${safe(b.operator_mesin || "")}"></div>
             <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('op_mesin'), 'Menyimpan...')">Simpan</button>
           </div>
         </div>
@@ -4057,7 +4163,7 @@ Alasan: ${cleanReason}`)) return;
           <div class="section-title">Pekerja Obras</div>
           ${b.obras_by ? `
             <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
-              <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" value="${safe(b.obras_by)}"></div>
+              <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" list="workerNames" autocomplete="off" value="${safe(b.obras_by)}"></div>
               <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('obras'), 'Menyimpan...')">Simpan</button>
             </div>
             <div class="small" style="color:var(--muted); margin-top:4px">Saat nama diubah, record borongan Obras dengan nama lama akan di-sync ke nama baru.</div>
@@ -4078,7 +4184,7 @@ Alasan: ${cleanReason}`)) return;
           (out.workers || []).forEach((w, wi) => {
             html += `
               <div class="grid-2" style="grid-template-columns:1fr 80px auto; gap:8px; align-items:end; margin-bottom:6px">
-                <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_set_${oi}_${wi}_name" value="${safe(w.name || "")}"></div>
+                <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_set_${oi}_${wi}_name" list="workerNames" autocomplete="off" value="${safe(w.name || "")}"></div>
                 <div class="form-group" style="margin:0"><label>Qty</label><input id="oo_pkj_set_${oi}_${wi}_qty" type="number" step="any" value="${safe(w.qty || 0)}"></div>
                 <button class="btn-outline btn-sm" onclick="guardedClick(this, () => confirmOOEditPekerja('setting','${out.output_id}',${wi}), 'Menyimpan...')">Simpan</button>
               </div>
@@ -4445,7 +4551,7 @@ Alasan: ${cleanReason}`)) return;
       });
     }
 
-    function outputWorkerRow(name, qty) { return `<div class="worker-row"><div class="form-group"><label>Nama Pekerja <span class="required">*</span></label><input class="outWorkerName" value="${safe(name)}" placeholder="Nama pekerja setting"></div><div class="form-group"><label>Qty <span class="required">*</span></label><input class="outWorkerQty" type="number" step="any" value="${safe(qty)}" placeholder="Qty pekerja ini" oninput="updateOutputWorkerTotal()"></div><button class="btn-danger btn-sm" type="button" onclick="this.closest('.worker-row').remove();updateOutputWorkerTotal()">×</button></div>`; }
+    function outputWorkerRow(name, qty) { return `<div class="worker-row"><div class="form-group"><label>Nama Pekerja <span class="required">*</span></label><input class="outWorkerName" list="workerNames" autocomplete="off" value="${safe(name)}" placeholder="Nama pekerja setting"></div><div class="form-group"><label>Qty <span class="required">*</span></label><input class="outWorkerQty" type="number" step="any" value="${safe(qty)}" placeholder="Qty pekerja ini" oninput="updateOutputWorkerTotal()"></div><button class="btn-danger btn-sm" type="button" onclick="this.closest('.worker-row').remove();updateOutputWorkerTotal()">×</button></div>`; }
     function addOutputWorker() { document.getElementById("outWorkers").insertAdjacentHTML("beforeend", outputWorkerRow("","")); }
     function updateOutputWorkerTotal() {
       const total = [...document.querySelectorAll(".outWorkerQty")].reduce((s,el)=>s+Number(el.value||0),0);
@@ -4645,7 +4751,7 @@ Alasan: ${cleanReason}`)) return;
         <div id="sp_maklon_box" style="display:none">
           <div class="form-group">
             <label>Nama Pekerja Maklon <span class="required">*</span></label>
-            <input id="sp_maklon_by" placeholder="Nama lengkap pekerja yang bawa pulang">
+            <input id="sp_maklon_by" list="workerNames" autocomplete="off" placeholder="Nama lengkap pekerja yang bawa pulang">
           </div>
           <div class="form-group">
             <label>Target Kembali (opsional)</label>
@@ -4745,7 +4851,7 @@ Alasan: ${cleanReason}`)) return;
       div.className = "worker-row fp-worker-row";
       div.style.cssText = "display:grid; grid-template-columns:1fr 100px auto; gap:8px; align-items:end; margin-bottom:6px";
       div.innerHTML = `
-        <div class="form-group" style="margin:0"><label class="small">Nama <span class="required">*</span></label><input class="fpWorkerName" value="${safe(name)}" placeholder="Nama pekerja"></div>
+        <div class="form-group" style="margin:0"><label class="small">Nama <span class="required">*</span></label><input class="fpWorkerName" list="workerNames" autocomplete="off" value="${safe(name)}" placeholder="Nama pekerja"></div>
         <div class="form-group" style="margin:0"><label class="small">Qty <span class="required">*</span></label><input class="fpWorkerQty" type="number" step="any" value="${safe(qty)}" oninput="updateFinishPackingTotal()"></div>
         <button class="btn-danger btn-sm" type="button" onclick="this.parentElement.remove(); updateFinishPackingTotal();">×</button>
       `;
@@ -5270,7 +5376,7 @@ Alasan: ${cleanReason}`)) return;
         </div>
         <div class="form-group">
           <label>Vendor / Pekerja Sablon Antislip <span class="required">*</span></label>
-          <input id="as_vendor" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
+          <input id="as_vendor" list="workerNames" autocomplete="off" placeholder="Contoh: Vendor Antislip / Andri / Nanjung">
         </div>
         <div class="form-group">
           <label>Qty Dikirim ke Antislip <span class="required">*</span></label>
@@ -6321,6 +6427,129 @@ Alasan: ${cleanReason}`)) return;
       closeModal("actionModal");
     }
 
+    /* ============================================================
+       VERIFIER QC MANAGEMENT (Owner / Admin Produksi) — FIX v17
+       Daftar nama checker QC yang dipakai sebagai dropdown saat
+       Verifikasi Qty. Bisa tambah, edit nama, atau nonaktifkan.
+       Soft delete: nonaktif disembunyikan dari dropdown tapi tidak
+       dihapus supaya HR historis tetap link ke nama lama.
+       ============================================================ */
+    async function openVerifierManagement() {
+      if (!["Owner", "Admin Produksi"].includes(currentUser?.role)) {
+        return toast("Hanya Owner / Admin Produksi.", "warn");
+      }
+      try {
+        await withLoading("Memuat daftar verifier...", async () => {
+          const verifiers = await apiListVerifiers();
+          renderVerifierPanel(verifiers);
+        });
+      } catch (e) {
+        toast("Gagal load verifier: " + e.message, "error");
+      }
+    }
+
+    function renderVerifierPanel(verifiers) {
+      const panel = document.getElementById("ownerHealthPanel");
+      if (!panel) return;
+      const activeCount = (verifiers || []).filter(v => v.active).length;
+      const rows = (verifiers || []).map(v => `
+        <tr>
+          <td><strong>${safe(v.nama)}</strong></td>
+          <td>${v.active
+              ? '<span class="badge tag" style="background:#dcfce7; color:#166534">AKTIF</span>'
+              : '<span class="badge tag" style="background:#fee2e2; color:#991b1b">NONAKTIF</span>'}</td>
+          <td>
+            <button class="btn-outline btn-sm" onclick="openEditVerifierForm('${safe(v.id)}', ${JSON.stringify(safe(v.nama))}, ${v.active})">Edit</button>
+            ${v.active
+              ? `<button class="btn-outline btn-sm" onclick="toggleVerifierActive('${safe(v.id)}', '${safe(v.nama)}', false)">Nonaktifkan</button>`
+              : `<button class="btn-outline btn-sm" onclick="toggleVerifierActive('${safe(v.id)}', '${safe(v.nama)}', true)">Aktifkan kembali</button>`}
+          </td>
+        </tr>
+      `).join("");
+      panel.innerHTML = `
+        <div class="card">
+          <div class="section-title">🔎 Kelola Verifier QC (${activeCount} aktif)</div>
+          <p class="sub-note">Daftar nama checker yang muncul sebagai dropdown saat <strong>Verifikasi Qty</strong>. Pilih <em>"Lainnya (ketik manual)"</em> di modal verifikasi kalau perlu nama pengganti tanpa menambah ke daftar.</p>
+          <div class="alert alert-info">
+            <strong>Nonaktifkan ≠ hapus.</strong> Nama yang dinonaktifkan disembunyikan dari dropdown tapi tetap dipakai di record HR borongan historis.
+          </div>
+          <button class="btn-primary" style="margin-bottom:10px" onclick="openCreateVerifierForm()">➕ Tambah Verifier</button>
+          ${(verifiers || []).length === 0
+            ? `<div class="alert alert-warn">Belum ada verifier. Tambahkan nama checker (mis. Dika, Rizwan).</div>`
+            : `<div style="overflow-x:auto"><table class="data-table">
+                <thead><tr><th>Nama</th><th>Status</th><th>Aksi</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table></div>`}
+        </div>
+      `;
+    }
+
+    function openCreateVerifierForm() {
+      openSimpleModal("Tambah Verifier QC", `
+        <div class="form-group">
+          <label>Nama Verifier <span class="required">*</span></label>
+          <input id="verifNamaInput" type="text" placeholder="Mis. Dika, Rizwan" autocomplete="off">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Minimal 2 karakter, harus nama orang (bukan nama role / generic).</div>
+        </div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, confirmCreateVerifier, 'Menyimpan...')">💾 Simpan</button>
+      `);
+      setTimeout(() => document.getElementById("verifNamaInput")?.focus(), 100);
+    }
+
+    async function confirmCreateVerifier() {
+      const nama = titleCase((document.getElementById("verifNamaInput")?.value || "").trim());
+      if (!nama) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Nama wajib diisi."); }
+      if (nama.length < 2) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Nama minimal 2 karakter."); }
+      if (isGenericWorkerName(nama)) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Isi nama orang asli, bukan '" + nama + "'."); }
+      try {
+        await apiSaveVerifier({ nama, active: true });
+        toast(`Verifier '${nama}' ditambahkan.`, "success");
+        closeSimpleModal();
+        openVerifierManagement();
+        // refresh autocomplete dataset
+        try { refreshWorkerNamesDatalist(true); } catch (_) {}
+      } catch (e) { alert(e.message); }
+    }
+
+    function openEditVerifierForm(id, currentNama, active) {
+      const nm = String(currentNama || "").replace(/^"|"$/g, "");
+      openSimpleModal("Edit Verifier QC", `
+        <div class="form-group">
+          <label>Nama Verifier <span class="required">*</span></label>
+          <input id="verifNamaEditInput" type="text" value="${safe(nm)}" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label><input id="verifActiveCheck" type="checkbox" ${active ? "checked" : ""}> Aktif (tampil di dropdown verifikasi)</label>
+        </div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, () => confirmEditVerifier('${id}'), 'Menyimpan...')">💾 Simpan Perubahan</button>
+      `);
+    }
+
+    async function confirmEditVerifier(id) {
+      const nama = titleCase((document.getElementById("verifNamaEditInput")?.value || "").trim());
+      const active = !!document.getElementById("verifActiveCheck")?.checked;
+      if (!nama) return alert("Nama wajib diisi.");
+      if (nama.length < 2) return alert("Nama minimal 2 karakter.");
+      if (isGenericWorkerName(nama)) return alert("Isi nama orang asli, bukan '" + nama + "'.");
+      try {
+        await apiSaveVerifier({ id, nama, active });
+        toast(`Verifier '${nama}' diperbarui.`, "success");
+        closeSimpleModal();
+        openVerifierManagement();
+        try { refreshWorkerNamesDatalist(true); } catch (_) {}
+      } catch (e) { alert(e.message); }
+    }
+
+    async function toggleVerifierActive(id, nama, newActive) {
+      const verb = newActive ? "aktifkan kembali" : "nonaktifkan";
+      if (!confirm(`Yakin ${verb} verifier '${nama}'?`)) return;
+      try {
+        await apiSaveVerifier({ id, nama, active: newActive });
+        toast(`Verifier '${nama}' ${newActive ? "diaktifkan" : "dinonaktifkan"}.`, "success");
+        openVerifierManagement();
+        try { refreshWorkerNamesDatalist(true); } catch (_) {}
+      } catch (e) { toast(e.message, "error"); }
+    }
 
     /* ============================================================
        INIT
