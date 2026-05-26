@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v32 History Batch Read)</title>
+  <title>Bal Tracking 3.0 - Cloud (v34 HR Live Borongan)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1790,9 +1790,9 @@
       return await api("listWorkRekap", payload, { cache: false });
     }
 
-    async function apiUpdateBoronganTarif(id, tarif) {
+    async function apiUpdateBoronganTarif(id, tarif, tahap = "", jenis = "") {
       clearApiCache("listBorongan");
-      return await api("updateBoronganTarif", { id, tarif });
+      return await api("updateBoronganTarif", { id, tarif, tahap, jenis });
     }
 
     async function apiSetBoronganPaid(id, paid, note = "") {
@@ -6436,13 +6436,29 @@ Alasan: ${cleanReason}`)) return;
       return cfg.aliases.map(normalizeHrTahapName).includes(tahap);
     }
 
+    function isPendingBorongan(r) {
+      return String(r?.hr_status || "").toUpperCase() === "BELUM_FINAL" ||
+        String(r?.source || "") === "bals_live" ||
+        String(r?.id || "").indexOf("LIVE-") === 0;
+    }
+
+    function hrFinalBadge(r) {
+      if (isPendingBorongan(r)) {
+        return `<span class="badge" style="background:#fef3c7; color:#92400e">Belum final</span>`;
+      }
+      return `<span class="badge" style="background:#dcfce7; color:#166534">Final</span>`;
+    }
+
     function hrRowCatatan(r) {
       const parts = [];
+      const catatan = r.catatan_hr || r.catatan || "";
+      if (isPendingBorongan(r) && !String(catatan).toLowerCase().includes("belum final")) parts.push("Belum final / menunggu QC");
+      if (catatan) parts.push(catatan);
       if (r.ticket_id) parts.push("Ticket: " + r.ticket_id);
       else if (r.output_id) parts.push("Output: " + r.output_id);
       if (r.reject_info) parts.push(r.reject_info);
       if (normalizeHrTahapName(r.tahap).startsWith("maklon")) parts.push("Vendor maklon eksternal");
-      return parts.join(". ") || "Final borongan";
+      return [...new Set(parts.filter(Boolean))].join(". ") || "Final borongan";
     }
 
     function switchHrSub(sub) {
@@ -6491,17 +6507,25 @@ Alasan: ${cleanReason}`)) return;
     }
 
     function boronganPaidStatus(r) {
+      if (isPendingBorongan(r)) return "PENDING";
       const st = String(r.paid_status || "").toUpperCase().trim();
       if (st === "SUDAH" || r.paid_at) return "SUDAH";
       return "BELUM";
     }
 
     function boronganPaidBadge(r) {
-      const paid = boronganPaidStatus(r) === "SUDAH";
+      const st = boronganPaidStatus(r);
+      if (st === "PENDING") {
+        return `<span class="badge" style="background:#fef3c7; color:#92400e">Menunggu QC</span>`;
+      }
+      const paid = st === "SUDAH";
       return `<span class="badge" style="background:${paid ? '#dcfce7' : '#fee2e2'}; color:${paid ? '#166534' : '#991b1b'}">${paid ? 'Sudah dibayar' : 'Belum dibayar'}</span>`;
     }
 
     function boronganPaidCell(r) {
+      if (isPendingBorongan(r)) {
+        return `${boronganPaidBadge(r)}<br><button class="btn-secondary btn-sm" style="margin-top:5px" disabled title="Belum bisa dibayar sebelum final QC">Belum Final</button>`;
+      }
       const paid = boronganPaidStatus(r) === "SUDAH";
       const label = paid ? "↩ Belum" : "✓ Bayar";
       const cls = paid ? "btn-secondary" : "btn-success";
@@ -6537,6 +6561,8 @@ Alasan: ${cleanReason}`)) return;
         const totalQty = rows.reduce((s,r)=>s + Number(r.qty||0), 0);
         const totalRp = rows.reduce((s,r)=>s + Number(r.total||0), 0);
         const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
+        const pendingCount = rows.filter(isPendingBorongan).length;
+        const finalRows = rows.filter(r => !isPendingBorongan(r));
         const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
 
         const summary = document.getElementById("hrSummary");
@@ -6547,7 +6573,8 @@ Alasan: ${cleanReason}`)) return;
             ["Total Qty", totalQty],
             ["Tahap", hrSubLabel(currentHrSub)],
             ["Total Borongan", rupiah(totalRp)],
-            ["Belum Dibayar", rows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
+            ["Belum Dibayar", finalRows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
+            ["Belum Final", pendingCount],
             ["Belum Ada Tarif", totalUntarif]
           ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
         }
@@ -6589,7 +6616,7 @@ Alasan: ${cleanReason}`)) return;
           tbody.innerHTML = rows.map(r => `
             <tr>
               <td>${safe(r.tanggal)}</td>
-              <td>${safe(r.tahap || hrSubLabel(currentHrSub))}</td>
+              <td>${safe(r.tahap || hrSubLabel(currentHrSub))}<br>${hrFinalBadge(r)}</td>
               <td><strong>${safe(r.pegawai)}</strong></td>
               <td>${fotoCell(r.foto_url || r.foto, r.bal_id)}</td>
               <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
@@ -6598,11 +6625,11 @@ Alasan: ${cleanReason}`)) return;
               <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
               <td><span class="small">${safe(hrRowCatatan(r))}</span></td>
               <td>
-                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:90px; min-height:32px; padding:4px 6px">
+                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:90px; min-height:32px; padding:4px 6px">
               </td>
               <td><strong>${rupiah(r.total)}</strong></td>
               <td>${boronganPaidCell(r)}</td>
-              <td><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button></td>
+              <td>${isPendingBorongan(r) ? '<span class="small muted">-</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button>`}</td>
             </tr>
           `).join("");
         }
@@ -6613,17 +6640,17 @@ Alasan: ${cleanReason}`)) return;
               ${fotoCell(r.foto_url || r.foto, r.bal_id)}
               <div class="bal-card-body">
                 <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
-                <div class="bal-title">${safe(r.tahap || hrSubLabel(currentHrSub))} · ${safe(r.pegawai)}</div>
+                <div class="bal-title">${safe(r.tahap || hrSubLabel(currentHrSub))} · ${safe(r.pegawai)} ${hrFinalBadge(r)}</div>
                 <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
                 <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
                 <div class="small">${safe(hrRowCatatan(r))}</div>
                 <div style="margin-top:6px">
                   <label class="small">Tarif/${safe(r.satuan)}</label>
-                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:120px; min-height:32px; padding:4px 6px">
+                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:120px; min-height:32px; padding:4px 6px">
                 </div>
                 <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
                 <div style="margin-top:6px">${boronganPaidCell(r)}</div>
-                <div class="actions"><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button></div>
+                <div class="actions">${isPendingBorongan(r) ? '<span class="small muted">Belum final — tidak bisa dihapus/dibayar.</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button>`}</div>
               </div>
             </div>
           `).join("");
@@ -6636,10 +6663,13 @@ Alasan: ${cleanReason}`)) return;
 
     async function updateBoronganTarif(inputEl) {
       const id = inputEl.getAttribute("data-bor-id");
+      const tahap = inputEl.getAttribute("data-bor-tahap") || "";
+      const jenis = inputEl.getAttribute("data-bor-jenis") || "";
       const newTarif = Number(inputEl.value || 0);
       try {
-        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif));
-        if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain.`, "success");
+        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif, tahap, jenis));
+        if (res?.live_tarif_only) toast("Tarif disimpan ke master tarif. Row belum final akan ikut setelah refresh.", "success");
+        else if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain.`, "success");
         else toast("Tarif disimpan.", "success");
         renderBorongan();
       } catch (e) { toast(e.message, "error"); }
@@ -6658,7 +6688,7 @@ Alasan: ${cleanReason}`)) return;
       try {
         const rows = await getFilteredBorongan();
         if (!rows.length) { toast("Tidak ada data untuk di-export.", "warn"); return; }
-        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total","Status Bayar","Tanggal Bayar","Dibayar Oleh"];
+        const header = ["Tanggal","Tahap","Status Final","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total","Status Bayar","Tanggal Bayar","Dibayar Oleh"];
         const escapeCsv = v => {
           const s = String(v ?? "");
           if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -6667,7 +6697,7 @@ Alasan: ${cleanReason}`)) return;
         const lines = [header.join(",")];
         for (const r of rows) {
           lines.push([
-            r.tanggal, r.tahap, r.pegawai, r.bal_id, r.po_id, r.jenis,
+            r.tanggal, r.tahap, isPendingBorongan(r) ? "Belum Final" : "Final", r.pegawai, r.bal_id, r.po_id, r.jenis,
             r.warna, r.size, r.qty, r.satuan, hrRowCatatan(r), r.tarif, r.total,
             boronganPaidStatus(r), r.paid_at || "", r.paid_by || ""
           ].map(escapeCsv).join(","));
