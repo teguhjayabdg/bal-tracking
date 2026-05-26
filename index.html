@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v19 Fast QR - Label 100x78 on Paper 100x150)</title>
+  <title>Bal Tracking 3.0 - Cloud (v25 Maklon Vendor + Payment, Owner-only mark paid)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -848,6 +848,7 @@
           <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
           <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
+          <button data-tab="maklon" class="tab-btn" onclick="switchTab('maklon')">🏭 Maklon Vendor</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
         </div>
@@ -1049,6 +1050,41 @@
         </div>
       </div>
 
+      <!-- MAKLON VENDOR - OWNER / ADMIN -->
+      <div id="tab-maklon" class="tab-content">
+        <div class="card">
+          <div class="section-title">🏭 Monitor Maklon Vendor</div>
+          <p class="sub-note">Untuk melihat bal yang sedang berada di vendor maklon eksternal. Filter per vendor agar mudah cek barang di Margaasih / Nanjung / vendor lain.</p>
+          <div class="filter-bar">
+            <select id="maklonFilterVendor" onchange="renderMaklonVendor()"><option value="">Semua Vendor</option></select>
+            <select id="maklonFilterStatus" onchange="renderMaklonVendor()">
+              <option value="aktif">Sedang di Vendor</option>
+              <option value="semua">Semua Maklon Eksternal</option>
+              <option value="selesai">Sudah Kembali</option>
+              <option value="corrupt">Perlu Repair</option>
+            </select>
+            <select id="maklonFilterTipe" onchange="renderMaklonVendor()"><option value="">Semua Tipe Maklon</option></select>
+            <input id="maklonFilterSearch" placeholder="Cari PO / ID / jenis / warna..." oninput="renderMaklonVendor()">
+            <button class="btn-outline" onclick="renderMaklonVendor()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div id="maklonSummary" class="stat-grid"></div>
+        <div class="card">
+          <div class="section-title">Daftar Bal Maklon Eksternal</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Foto</th><th>Bal / PO</th><th>Vendor</th><th>Tipe</th><th>Keluar</th><th>Umur</th><th>Jenis</th><th>Warna/Size</th><th>Qty</th><th>Status</th><th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="maklonRows"></tbody>
+            </table>
+          </div>
+          <div id="maklonMobile" class="mobile-cards"></div>
+        </div>
+      </div>
+
       <!-- HR BORONGAN - OWNER ONLY -->
       <div id="tab-hr" class="tab-content">
         <div class="card">
@@ -1106,6 +1142,7 @@
                   <th>Catatan</th>
                   <th>Tarif</th>
                   <th>Total</th>
+                  <th>Bayar</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
@@ -1174,7 +1211,7 @@
     const WRITE_ACTIONS = new Set([
       "createBal", "updateStatus", "createOutputLabel", "editBal",
       "splitBal", "deleteBal", "manualSelesaiSetting", "ownerOverride",
-      "updateBoronganTarif", "deleteBoronganRow", "uploadFoto",
+      "updateBoronganTarif", "setBoronganPaid", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
       "startMaklonEksternal", "finishMaklonEksternal",
@@ -1646,6 +1683,11 @@
       return await api("updateBoronganTarif", { id, tarif });
     }
 
+    async function apiSetBoronganPaid(id, paid, note = "") {
+      clearApiCache("listBorongan");
+      return await api("setBoronganPaid", { id, paid, note });
+    }
+
     async function apiDeleteBoronganRow(id) {
       clearApiCache("listBorongan");
       return await api("deleteBoronganRow", { id });
@@ -1838,6 +1880,7 @@
       if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "history") return ["Admin Produksi"].includes(r);
       if (tab === "workrecap") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
+      if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
       return false;
@@ -2462,6 +2505,11 @@
     return;
   }
 
+  if (currentTab === "maklon") {
+    await renderMaklonVendor();
+    return;
+  }
+
   if (currentTab === "hr") {
     await switchHrSub(currentHrSub);
     return;
@@ -2712,6 +2760,7 @@
       const tbody = document.getElementById("balTableBody");
       const cards = document.getElementById("mobileCards");
       if (!bals.length) {
+        // v25: balTableBody punya 12 kolom (Pilih, Foto, ID Bal, PO, Tanggal, Line/MC, Operator, J/W/S, Qty, Status, Hal/Buku, Aksi).
         tbody.innerHTML = `<tr><td colspan="12"><div class="empty">Belum ada bal</div></td></tr>`;
         cards.innerHTML = `<div class="empty">Belum ada bal</div>`;
         setLoadMoreVisibility(false);
@@ -3943,7 +3992,7 @@ Alasan: ${cleanReason}`)) return;
        4 tab: Edit Data Bal, Override Qty Verifikasi, Rollback Status, Edit Pekerja.
        Semua aksi wajib alasan minimal 10 karakter dan tercatat di history
        dengan label OWNER_OVERRIDE_*.
-       Rollback bersifat soft: output_labels & record borongan TIDAK dihapus otomatis.
+       Rollback v24 membersihkan field/borongan downstream supaya tidak dobel bayar, terutama saat kembali ke status Maklon Eksternal.
        ============================================================ */
 
     let ownerOverrideActiveBalId = "";
@@ -3963,6 +4012,7 @@ Alasan: ${cleanReason}`)) return;
         { id: "data", label: "📝 Edit Data Bal" },
         { id: "qty", label: "⚖️ Override Qty Verifikasi" },
         { id: "status", label: "⏮ Rollback Status" },
+        { id: "maklon", label: "🏭 Repair Maklon" },
         { id: "pekerja", label: "👥 Edit Pekerja" }
       ];
       const tabBar = tabs.map(t => `
@@ -3975,6 +4025,7 @@ Alasan: ${cleanReason}`)) return;
       if (ownerOverrideActiveTab === "data") body = renderOOTabData(b);
       else if (ownerOverrideActiveTab === "qty") body = renderOOTabQty(b);
       else if (ownerOverrideActiveTab === "status") body = renderOOTabStatus(b);
+      else if (ownerOverrideActiveTab === "maklon") body = renderOOTabMaklon(b);
       else if (ownerOverrideActiveTab === "pekerja") body = renderOOTabPekerja(b);
 
       document.getElementById("ownerOverrideContent").innerHTML = `
@@ -3982,7 +4033,7 @@ Alasan: ${cleanReason}`)) return;
           <strong>🔧 Owner Override</strong> — Bal <span class="mono">${safe(b.bal_id)}</span> · Status: ${statusBadge(b.status)}<br>
           <span class="small">Semua perubahan tercatat di history dengan label OWNER_OVERRIDE. Alasan wajib minimal 10 karakter.</span>
         </div>
-        <div class="grid-2" style="grid-template-columns:repeat(4,1fr); gap:6px; margin:8px 0">${tabBar}</div>
+        <div class="grid-2" style="grid-template-columns:repeat(5,1fr); gap:6px; margin:8px 0">${tabBar}</div>
         <div style="margin-top:12px">${body}</div>
       `;
 
@@ -4164,7 +4215,7 @@ Alasan: ${cleanReason}`)) return;
       return `
         <div class="alert alert-info">
           Status sekarang: <strong>${statusText(b.status)}</strong><br>
-          <span class="small">Rollback bersifat <strong>SOFT</strong>: status berubah, tapi output_labels dan record borongan tidak dihapus otomatis. Owner harus hapus manual kalau perlu.</span>
+          <span class="small">Rollback v24 akan membersihkan field dan record borongan downstream. Jika rollback ke <strong>Maklon Eksternal</strong>, vendor wajib diisi supaya tombol Selesai Maklon tidak error.</span>
         </div>
         ${targets.length === 0
           ? (currentIdx === -1
@@ -4172,8 +4223,12 @@ Alasan: ${cleanReason}`)) return;
               : `<div class="alert alert-warn">Tidak ada status yang lebih rendah untuk rollback. Bal ini sudah di status awal.</div>`)
           : `
           <div class="form-group"><label>Rollback ke Status</label><select id="oo_status_target">${targetOpts}</select></div>
+          <div class="form-group">
+            <label>Vendor Maklon Eksternal <span class="small">(wajib kalau target MAKLON_*)</span></label>
+            <select id="oo_status_maklon_vendor"><option value="">-- Pilih vendor jika rollback ke maklon --</option>${MAKLON_VENDORS.map(v => `<option value="${safe(v)}" ${b.maklon_eks_vendor === v ? "selected" : ""}>${safe(v)}</option>`).join("")}</select>
+          </div>
           <div class="form-group"><label>Alasan Rollback <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_status_reason" rows="2"></textarea></div>
-          <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOORollbackStatus, 'Memproses...')">⏮ Rollback Status</button>
+          <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOORollbackStatus, 'Memproses...')">⏮ Rollback Status + Cleanup</button>
           `}
       `;
     }
@@ -4183,10 +4238,55 @@ Alasan: ${cleanReason}`)) return;
       if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
       const target = document.getElementById("oo_status_target").value;
       if (!target) return alert("Status target wajib dipilih.");
-      if (!confirm(`Yakin rollback status ke ${statusText(target)}? Output_labels dan record borongan tidak dihapus otomatis.`)) return;
+      const vendor = document.getElementById("oo_status_maklon_vendor")?.value || "";
+      if (target.startsWith("MAKLON_") && !vendor) return alert("Vendor wajib dipilih untuk rollback ke status maklon eksternal.");
+      if (!confirm(`Yakin rollback status ke ${statusText(target)}? Sistem akan cleanup field/borongan downstream agar tidak dobel bayar.`)) return;
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "ROLLBACK_STATUS", reason, target });
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "ROLLBACK_STATUS", reason, target, maklon_eks_vendor: vendor });
         alert("Status berhasil di-rollback.");
+        await renderOwnerOverride();
+        renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("detailModal");
+        openDetail(ownerOverrideActiveBalId);
+      } catch (e) { alert(e.message); }
+    }
+
+    /* ----- Tab 4: Repair Maklon Eksternal ----- */
+    function renderOOTabMaklon(b) {
+      const inferred = String(b.status || "").startsWith("MAKLON_") ? String(b.status).replace(/^MAKLON_/, "") : (b.maklon_eks_tipe || "OBRAS_SETTING_PACKING");
+      const tipeOpts = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${k}" ${inferred === k ? "selected" : ""}>${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
+      const vendorOpts = MAKLON_VENDORS.map(v => `<option value="${safe(v)}" ${b.maklon_eks_vendor === v ? "selected" : ""}>${safe(v)}</option>`).join("");
+      return `
+        <div class="alert alert-warn">
+          <strong>Repair Maklon Eksternal</strong><br>
+          Pakai ini untuk kasus data lama/rollback: status sudah Maklon, tapi vendor/tipe kosong, atau sebelumnya salah klik Obras internal. Sistem akan menghapus record borongan bal ini supaya tidak dobel bayar.
+        </div>
+        <div class="detail-grid">
+          ${kv("Status sekarang", statusBadge(b.status))}
+          ${kv("Vendor sekarang", safe(b.maklon_eks_vendor || "-") )}
+          ${kv("Tipe sekarang", safe(b.maklon_eks_tipe || "-") )}
+          ${kv("Keluar maklon", fmtDate(b.maklon_eks_keluar_at))}
+        </div>
+        <div class="grid-2" style="margin-top:12px">
+          <div class="form-group"><label>Tipe Maklon Eksternal</label><select id="oo_maklon_tipe">${tipeOpts}</select></div>
+          <div class="form-group"><label>Vendor Maklon</label><select id="oo_maklon_vendor"><option value="">-- Pilih Vendor --</option>${vendorOpts}</select></div>
+        </div>
+        <div class="form-group"><label>Alasan Repair <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_maklon_reason" rows="2" placeholder="Contoh: Data lama sempat salah klik Obras, seharusnya maklon Margaasih"></textarea></div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOOMaklonRepair, 'Memproses...')">🏭 Repair Maklon + Hapus Borongan Salah</button>
+      `;
+    }
+
+    async function confirmOOMaklonRepair() {
+      const tipe = document.getElementById("oo_maklon_tipe")?.value || "";
+      const vendor = document.getElementById("oo_maklon_vendor")?.value || "";
+      const reason = (document.getElementById("oo_maklon_reason")?.value || "").trim();
+      if (!tipe) return alert("Tipe maklon wajib dipilih.");
+      if (!vendor) return alert("Vendor maklon wajib dipilih.");
+      if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
+      if (!confirm(`Repair bal ini menjadi ${MAKLON_EKS_TIPE_LABEL[tipe]} di vendor ${vendor}?\n\nRecord borongan bal ini akan dihapus agar tidak dobel bayar.`)) return;
+      try {
+        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "REPAIR_MAKLON_EKSTERNAL", reason, maklon_eks_tipe: tipe, maklon_eks_vendor: vendor });
+        alert("Repair maklon berhasil. Silakan klik Selesai Maklon lagi jika barang sudah kembali.");
         await renderOwnerOverride();
         renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
@@ -5326,6 +5426,12 @@ Alasan: ${cleanReason}`)) return;
       if (!validStatuses.includes(bal.status)) {
         return alert("Bal harus di status MAKLON_*. Sekarang: " + bal.status);
       }
+      if (!bal.maklon_eks_vendor) {
+        return alert("Vendor maklon eksternal kosong. Buka Detail → Owner Override → Repair Maklon, pilih vendor, lalu klik Selesai Maklon lagi.");
+      }
+      if (!bal.maklon_eks_tipe) {
+        bal.maklon_eks_tipe = String(bal.status || "").replace(/^MAKLON_/, "");
+      }
       const qtyOff = officialQty(bal);
       const tipeLabel = MAKLON_EKS_TIPE_LABEL[bal.maklon_eks_tipe] || bal.maklon_eks_tipe;
       const nextStatusLabel = bal.maklon_eks_tipe === "OBRAS_ONLY"
@@ -5750,6 +5856,159 @@ Alasan: ${cleanReason}`)) return;
        ============================================================ */
 
     /* ============================================================
+       MAKLON VENDOR BOARD (OWNER / ADMIN)
+       ============================================================ */
+
+    function maklonTipeFromStatusClient(status) {
+      const st = String(status || "").toUpperCase().trim();
+      return st.startsWith("MAKLON_") ? st.replace(/^MAKLON_/, "") : "";
+    }
+
+    function isExternalMaklonBal(b) {
+      return !!(b.maklon_eks_tipe || b.maklon_eks_vendor || maklonTipeFromStatusClient(b.status));
+    }
+
+    function maklonBoardTipe(b) {
+      return b.maklon_eks_tipe || maklonTipeFromStatusClient(b.status) || "";
+    }
+
+    function maklonBoardVendor(b) {
+      return b.maklon_eks_vendor || "";
+    }
+
+    function daysSince(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+      if (days <= 0) return "Hari ini";
+      return days + " hari";
+    }
+
+    function refreshMaklonFilters(rows) {
+      const vendorEl = document.getElementById("maklonFilterVendor");
+      const tipeEl = document.getElementById("maklonFilterTipe");
+      if (vendorEl) {
+        const cur = vendorEl.value || "";
+        const vendors = [...new Set(rows.map(maklonBoardVendor).filter(Boolean))].sort();
+        vendorEl.innerHTML = `<option value="">Semua Vendor</option>` + vendors.map(v => `<option value="${safe(v)}" ${cur === v ? "selected" : ""}>${safe(v)}</option>`).join("");
+      }
+      if (tipeEl) {
+        const curT = tipeEl.value || "";
+        const tipes = [...new Set(rows.map(maklonBoardTipe).filter(Boolean))].sort();
+        tipeEl.innerHTML = `<option value="">Semua Tipe Maklon</option>` + tipes.map(t => `<option value="${safe(t)}" ${curT === t ? "selected" : ""}>${safe(MAKLON_EKS_TIPE_LABEL[t] || t)}</option>`).join("");
+      }
+    }
+
+    async function renderMaklonVendor() {
+      try {
+        const all = await apiListBals();
+        let rows = (all || []).filter(b => !b.deleted && isExternalMaklonBal(b));
+        refreshMaklonFilters(rows);
+
+        const vendor = document.getElementById("maklonFilterVendor")?.value || "";
+        const mode = document.getElementById("maklonFilterStatus")?.value || "aktif";
+        const tipe = document.getElementById("maklonFilterTipe")?.value || "";
+        const q = (document.getElementById("maklonFilterSearch")?.value || "").toLowerCase().trim();
+
+        rows = rows.filter(b => {
+          const hasVendor = !!maklonBoardVendor(b);
+          const active = String(b.status || "").startsWith("MAKLON_") || (!!b.maklon_eks_keluar_at && !b.maklon_eks_kembali_at);
+          const selesai = !!b.maklon_eks_kembali_at || ["SELESAI_OBRAS", "SIAP_PACKING", "SELESAI_PACKING", "STOK_BARANG", "TERKIRIM"].includes(String(b.status || ""));
+          const corrupt = String(b.status || "").startsWith("MAKLON_") && (!b.maklon_eks_vendor || !b.maklon_eks_tipe);
+          if (vendor && maklonBoardVendor(b) !== vendor) return false;
+          if (tipe && maklonBoardTipe(b) !== tipe) return false;
+          if (mode === "aktif" && !active) return false;
+          if (mode === "selesai" && !selesai) return false;
+          if (mode === "corrupt" && !corrupt) return false;
+          if (q) {
+            const hay = [b.bal_id, b.po_id, b.jenis_barang, b.warna, b.size, b.status, maklonBoardVendor(b), maklonBoardTipe(b)].join(" ").toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+
+        rows.sort((a,b) => String(b.maklon_eks_keluar_at || b.last_update_at || b.created_at || "").localeCompare(String(a.maklon_eks_keluar_at || a.last_update_at || a.created_at || "")));
+
+        const byVendor = new Map();
+        for (const b of rows) {
+          const v = maklonBoardVendor(b) || "⚠ Vendor kosong";
+          if (!byVendor.has(v)) byVendor.set(v, { vendor: v, count: 0, qty: 0 });
+          const e = byVendor.get(v);
+          e.count += 1;
+          e.qty += officialQty(b);
+        }
+        const summaryArr = [...byVendor.values()].sort((a,b) => b.count - a.count);
+        const summary = document.getElementById("maklonSummary");
+        if (summary) {
+          summary.innerHTML = [
+            ["Total Bal", rows.length],
+            ["Total Qty", rows.reduce((s,b)=>s+officialQty(b),0)],
+            ["Vendor", summaryArr.length],
+            ["Perlu Repair", rows.filter(b => String(b.status || "").startsWith("MAKLON_") && (!b.maklon_eks_vendor || !b.maklon_eks_tipe)).length]
+          ].map(([label,val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
+        }
+
+        const fotoCell = (foto, balId) => {
+          const src = driveThumbUrl(foto || "", 160);
+          return src ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">` : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
+        };
+        const actionCell = (b) => {
+          const active = String(b.status || "").startsWith("MAKLON_");
+          const repair = active && (!b.maklon_eks_vendor || !b.maklon_eks_tipe);
+          return `<div class="actions" style="margin-top:0">
+            <button class="btn-outline btn-sm" onclick="openDetail('${safe(b.bal_id)}')">Detail</button>
+            ${active && !repair ? `<button class="btn-success btn-sm" onclick="openFinishMaklonEksternal('${safe(b.bal_id)}')">Selesai</button>` : ""}
+            ${repair ? `<button class="btn-warning btn-sm" onclick="openOwnerOverride('${safe(b.bal_id)}')">Repair</button>` : ""}
+          </div>`;
+        };
+
+        const tbody = document.getElementById("maklonRows");
+        const mobile = document.getElementById("maklonMobile");
+        if (!rows.length) {
+          const empty = `<div class="empty">Tidak ada bal maklon sesuai filter.</div>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="11">${empty}</td></tr>`;
+          if (mobile) mobile.innerHTML = empty;
+          return;
+        }
+        if (tbody) {
+          tbody.innerHTML = rows.map(b => `
+            <tr>
+              <td>${fotoCell(b.foto_url, b.bal_id)}</td>
+              <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small mono">${safe(b.bal_id)}</span></td>
+              <td><strong>${safe(maklonBoardVendor(b) || "⚠ Vendor kosong")}</strong></td>
+              <td>${safe(MAKLON_EKS_TIPE_LABEL[maklonBoardTipe(b)] || maklonBoardTipe(b) || "-")}</td>
+              <td>${fmtDate(b.maklon_eks_keluar_at)}</td>
+              <td>${safe(daysSince(b.maklon_eks_keluar_at))}</td>
+              <td>${safe(b.jenis_barang || "-")}</td>
+              <td><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
+              <td><strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></td>
+              <td>${statusBadge(b.status)}</td>
+              <td>${actionCell(b)}</td>
+            </tr>
+          `).join("");
+        }
+        if (mobile) {
+          mobile.innerHTML = rows.map(b => `
+            <div class="bal-card">
+              ${fotoCell(b.foto_url, b.bal_id)}
+              <div class="bal-card-body">
+                <div class="small mono">${safe(b.bal_id)} · ${fmtDate(b.maklon_eks_keluar_at)}</div>
+                <div class="bal-title">${safe(maklonBoardVendor(b) || "⚠ Vendor kosong")} · ${safe(MAKLON_EKS_TIPE_LABEL[maklonBoardTipe(b)] || maklonBoardTipe(b) || "-")}</div>
+                <div class="small">${safe(b.po_id)} · ${safe(b.jenis_barang)} · ${safe(b.warna)}/${safe(b.size)}</div>
+                <div class="small">Qty: <strong>${officialQty(b)} ${safe(b.satuan)}</strong> · Umur: ${safe(daysSince(b.maklon_eks_keluar_at))}</div>
+                <div style="margin-top:6px">${statusBadge(b.status)}</div>
+                ${actionCell(b)}
+              </div>
+            </div>
+          `).join("");
+        }
+      } catch (e) {
+        toast("Gagal load Maklon Vendor: " + e.message, "error");
+      }
+    }
+
+    /* ============================================================
        HR BORONGAN (CLOUD)
        Data borongan otomatis di-generate server saat bal SELESAI_PACKING.
        Tarif tersimpan di sheet 'tarif' di server, lookup otomatis.
@@ -6064,6 +6323,38 @@ Alasan: ${cleanReason}`)) return;
       fillWorkerOptions("hrFilterWorker", rows || []);
     }
 
+    function boronganPaidStatus(r) {
+      const st = String(r.paid_status || "").toUpperCase().trim();
+      if (st === "SUDAH" || r.paid_at) return "SUDAH";
+      return "BELUM";
+    }
+
+    function boronganPaidBadge(r) {
+      const paid = boronganPaidStatus(r) === "SUDAH";
+      return `<span class="badge" style="background:${paid ? '#dcfce7' : '#fee2e2'}; color:${paid ? '#166534' : '#991b1b'}">${paid ? 'Sudah dibayar' : 'Belum dibayar'}</span>`;
+    }
+
+    function boronganPaidCell(r) {
+      const paid = boronganPaidStatus(r) === "SUDAH";
+      const label = paid ? "↩ Belum" : "✓ Bayar";
+      const cls = paid ? "btn-secondary" : "btn-success";
+      const title = paid && r.paid_at ? `Dibayar ${fmtDate(r.paid_at)} oleh ${safe(r.paid_by || '-')}` : "Belum dibayar";
+      return `${boronganPaidBadge(r)}<br><button class="${cls} btn-sm" style="margin-top:5px" onclick="toggleBoronganPaid('${safe(r.id)}', ${paid ? 'true' : 'false'})" title="${title}">${label}</button>`;
+    }
+
+    async function toggleBoronganPaid(id, currentlyPaid) {
+      const nextPaid = !currentlyPaid;
+      const msg = nextPaid ? "Tandai record ini SUDAH DIBAYAR?" : "Kembalikan status menjadi BELUM DIBAYAR?";
+      if (!confirm(msg)) return;
+      let note = "";
+      if (nextPaid) note = prompt("Catatan pembayaran (opsional):", "") || "";
+      try {
+        await withLoading("Update status bayar...", async () => await apiSetBoronganPaid(id, nextPaid, note));
+        toast(nextPaid ? "Ditandai sudah dibayar." : "Ditandai belum dibayar.", "success");
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
     async function renderBorongan() {
       try {
         const baseRows = await getHrBaseRows();
@@ -6089,6 +6380,7 @@ Alasan: ${cleanReason}`)) return;
             ["Total Qty", totalQty],
             ["Tahap", hrSubLabel(currentHrSub)],
             ["Total Borongan", rupiah(totalRp)],
+            ["Belum Dibayar", rows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
             ["Belum Ada Tarif", totalUntarif]
           ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
         }
@@ -6114,7 +6406,7 @@ Alasan: ${cleanReason}`)) return;
         const mobile = document.getElementById("hrMobile");
         if (!rows.length) {
           const empty = `<div class="empty">Belum ada pekerjaan ${safe(hrSubLabel(currentHrSub))} untuk periode ini.</div>`;
-          if (tbody) tbody.innerHTML = `<tr><td colspan="12">${empty}</td></tr>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="13">${empty}</td></tr>`;
           if (mobile) mobile.innerHTML = empty;
           return;
         }
@@ -6142,6 +6434,7 @@ Alasan: ${cleanReason}`)) return;
                 <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:90px; min-height:32px; padding:4px 6px">
               </td>
               <td><strong>${rupiah(r.total)}</strong></td>
+              <td>${boronganPaidCell(r)}</td>
               <td><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button></td>
             </tr>
           `).join("");
@@ -6162,6 +6455,7 @@ Alasan: ${cleanReason}`)) return;
                   <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" onchange="updateBoronganTarif(this)" style="width:120px; min-height:32px; padding:4px 6px">
                 </div>
                 <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
+                <div style="margin-top:6px">${boronganPaidCell(r)}</div>
                 <div class="actions"><button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button></div>
               </div>
             </div>
@@ -6197,7 +6491,7 @@ Alasan: ${cleanReason}`)) return;
       try {
         const rows = await getFilteredBorongan();
         if (!rows.length) { toast("Tidak ada data untuk di-export.", "warn"); return; }
-        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total"];
+        const header = ["Tanggal","Tahap","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total","Status Bayar","Tanggal Bayar","Dibayar Oleh"];
         const escapeCsv = v => {
           const s = String(v ?? "");
           if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -6207,7 +6501,8 @@ Alasan: ${cleanReason}`)) return;
         for (const r of rows) {
           lines.push([
             r.tanggal, r.tahap, r.pegawai, r.bal_id, r.po_id, r.jenis,
-            r.warna, r.size, r.qty, r.satuan, hrRowCatatan(r), r.tarif, r.total
+            r.warna, r.size, r.qty, r.satuan, hrRowCatatan(r), r.tarif, r.total,
+            boronganPaidStatus(r), r.paid_at || "", r.paid_by || ""
           ].map(escapeCsv).join(","));
         }
         const csv = "\uFEFF" + lines.join("\n");
