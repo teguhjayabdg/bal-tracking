@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v35 HR Bulk Pay)</title>
+  <title>Bal Tracking 3.0 - Cloud (v36 HR Pay Before QC)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1137,7 +1137,7 @@
               <button class="btn-success btn-sm" type="button" onclick="bulkPayAllVisibleBorongan()">✓ Bayar semua belum dibayar yang tampil</button>
               <button class="btn-secondary btn-sm" type="button" onclick="bulkSetSelectedBoronganPaid(false)">↩ Belumkan terpilih</button>
             </div>
-            <div class="bulk-help" style="margin-top:8px">Yang bisa dibayar hanya record final. Row “Belum final” otomatis dilewati.</div>
+            <div class="bulk-help" style="margin-top:8px">Row menunggu QC juga bisa dibayar. Sistem akan simpan sebagai pembayaran awal; reject/potongan bisa diproses manual belakangan.</div>
           </div>
         </div>
 
@@ -6469,9 +6469,16 @@ Alasan: ${cleanReason}`)) return;
         String(r?.id || "").indexOf("LIVE-") === 0;
     }
 
+    function isEarlyPaidBorongan(r) {
+      return String(r?.hr_status || "").toUpperCase() === "DIBAYAR_AWAL";
+    }
+
     function hrFinalBadge(r) {
       if (isPendingBorongan(r)) {
-        return `<span class="badge" style="background:#fef3c7; color:#92400e">Belum final</span>`;
+        return `<span class="badge" style="background:#fef3c7; color:#92400e">Belum QC</span>`;
+      }
+      if (isEarlyPaidBorongan(r)) {
+        return `<span class="badge" style="background:#dbeafe; color:#1e40af">Dibayar awal</span>`;
       }
       return `<span class="badge" style="background:#dcfce7; color:#166534">Final</span>`;
     }
@@ -6479,7 +6486,12 @@ Alasan: ${cleanReason}`)) return;
     function hrRowCatatan(r) {
       const parts = [];
       const catatan = r.catatan_hr || r.catatan || "";
-      if (isPendingBorongan(r) && !String(catatan).toLowerCase().includes("belum final")) parts.push("Belum final / menunggu QC");
+      if (isPendingBorongan(r) && !String(catatan).toLowerCase().includes("menunggu qc")) {
+        parts.push("Menunggu QC, tetapi sudah boleh dibayar sesuai periode kerja");
+      }
+      if (isEarlyPaidBorongan(r) && !String(catatan).toLowerCase().includes("dibayar awal")) {
+        parts.push("Dibayar awal sebelum QC; reject/potongan diproses manual bila ada");
+      }
       if (catatan) parts.push(catatan);
       if (r.ticket_id) parts.push("Ticket: " + r.ticket_id);
       else if (r.output_id) parts.push("Output: " + r.output_id);
@@ -6534,29 +6546,23 @@ Alasan: ${cleanReason}`)) return;
     }
 
     function boronganPaidStatus(r) {
-      if (isPendingBorongan(r)) return "PENDING";
       const st = String(r.paid_status || "").toUpperCase().trim();
       if (st === "SUDAH" || r.paid_at) return "SUDAH";
       return "BELUM";
     }
 
     function boronganPaidBadge(r) {
-      const st = boronganPaidStatus(r);
-      if (st === "PENDING") {
-        return `<span class="badge" style="background:#fef3c7; color:#92400e">Menunggu QC</span>`;
-      }
-      const paid = st === "SUDAH";
+      const paid = boronganPaidStatus(r) === "SUDAH";
       return `<span class="badge" style="background:${paid ? '#dcfce7' : '#fee2e2'}; color:${paid ? '#166534' : '#991b1b'}">${paid ? 'Sudah dibayar' : 'Belum dibayar'}</span>`;
     }
 
     function boronganPaidCell(r) {
-      if (isPendingBorongan(r)) {
-        return `${boronganPaidBadge(r)}<br><button class="btn-secondary btn-sm" style="margin-top:5px" disabled title="Belum bisa dibayar sebelum final QC">Belum Final</button>`;
-      }
       const paid = boronganPaidStatus(r) === "SUDAH";
-      const label = paid ? "↩ Belum" : "✓ Bayar";
+      const label = paid ? "↩ Belum" : (isPendingBorongan(r) ? "✓ Bayar awal" : "✓ Bayar");
       const cls = paid ? "btn-secondary" : "btn-success";
-      const title = paid && r.paid_at ? `Dibayar ${fmtDate(r.paid_at)} oleh ${safe(r.paid_by || '-')}` : "Belum dibayar";
+      const title = paid && r.paid_at
+        ? `Dibayar ${fmtDate(r.paid_at)} oleh ${safe(r.paid_by || '-')}`
+        : (isPendingBorongan(r) ? "Bayar sebelum QC; reject/potongan diproses manual bila ada" : "Belum dibayar");
       return `${boronganPaidBadge(r)}<br><button class="${cls} btn-sm" style="margin-top:5px" onclick="toggleBoronganPaid('${safe(r.id)}', ${paid ? 'true' : 'false'})" title="${title}">${label}</button>`;
     }
 
@@ -6576,7 +6582,7 @@ Alasan: ${cleanReason}`)) return;
       let visibleUnpaid = 0;
       if (Array.isArray(currentRows)) {
         visibleSelected = currentRows.filter(r => hrSelectedBoronganIds.has(String(r.id))).length;
-        visibleUnpaid = currentRows.filter(r => !isPendingBorongan(r) && boronganPaidStatus(r) !== "SUDAH").length;
+        visibleUnpaid = currentRows.filter(r => boronganPaidStatus(r) !== "SUDAH").length;
       }
       info.textContent = selectedCount
         ? `${selectedCount} pekerjaan dipilih${Array.isArray(currentRows) ? ` (${visibleSelected} terlihat). Belum dibayar yang tampil: ${visibleUnpaid}.` : "."}`
@@ -6592,10 +6598,10 @@ Alasan: ${cleanReason}`)) return;
     async function selectVisibleBorongan() {
       try {
         const rows = await getFilteredBorongan();
-        const eligible = rows.filter(r => !isPendingBorongan(r));
-        if (!eligible.length) { toast("Tidak ada record final yang bisa dipilih.", "warn"); return; }
+        const eligible = rows.filter(r => String(r.id || ""));
+        if (!eligible.length) { toast("Tidak ada pekerjaan yang bisa dipilih.", "warn"); return; }
         eligible.forEach(r => hrSelectedBoronganIds.add(String(r.id)));
-        toast(`${eligible.length} pekerjaan final yang tampil dipilih.`, "success");
+        toast(`${eligible.length} pekerjaan yang tampil dipilih.`, "success");
         renderBorongan();
       } catch (e) { toast(e.message, "error"); }
     }
@@ -6606,14 +6612,16 @@ Alasan: ${cleanReason}`)) return;
         const rowById = new Map(rows.map(r => [String(r.id), r]));
         const ids = [...hrSelectedBoronganIds].filter(id => {
           const r = rowById.get(String(id));
-          return r && !isPendingBorongan(r);
+          if (!r) return false;
+          // Row live/menunggu QC boleh dibayar awal. Untuk "Belumkan", hanya record yang sudah tersimpan/final.
+          return paid ? true : !isPendingBorongan(r);
         });
-        if (!ids.length) { toast("Pilih minimal 1 record final yang terlihat.", "warn"); return; }
+        if (!ids.length) { toast(paid ? "Pilih minimal 1 pekerjaan yang terlihat." : "Pilih minimal 1 record tersimpan/final yang terlihat.", "warn"); return; }
         const actionText = paid ? "SUDAH DIBAYAR" : "BELUM DIBAYAR";
         if (!confirm(`Ubah ${ids.length} record terpilih menjadi ${actionText}?`)) return;
         const note = paid ? (prompt("Catatan pembayaran massal (opsional):", "") || "") : "";
         const res = await withLoading("Update bayar massal...", async () => await apiSetBoronganPaidBulk(ids, paid, note));
-        toast(`${Number(res?.updated || 0)} record berhasil diubah.`, "success");
+        toast(`${Number(res?.updated || 0)} record diubah, ${Number(res?.created || 0)} pembayaran awal dibuat.`, "success");
         ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
         renderBorongan();
       } catch (e) { toast(e.message, "error"); }
@@ -6623,13 +6631,13 @@ Alasan: ${cleanReason}`)) return;
       try {
         const rows = await getFilteredBorongan();
         const ids = rows
-          .filter(r => !isPendingBorongan(r) && boronganPaidStatus(r) !== "SUDAH")
+          .filter(r => boronganPaidStatus(r) !== "SUDAH")
           .map(r => String(r.id));
         if (!ids.length) { toast("Tidak ada record belum dibayar yang tampil.", "warn"); return; }
         if (!confirm(`Bayar semua ${ids.length} record BELUM DIBAYAR yang sedang tampil sesuai filter?`)) return;
         const note = prompt("Catatan pembayaran massal (opsional):", "") || "";
         const res = await withLoading("Bayar semua yang tampil...", async () => await apiSetBoronganPaidBulk(ids, true, note));
-        toast(`${Number(res?.updated || 0)} record ditandai sudah dibayar.`, "success");
+        toast(`${Number(res?.updated || 0)} record ditandai sudah dibayar, ${Number(res?.created || 0)} pembayaran awal dibuat.`, "success");
         ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
         renderBorongan();
       } catch (e) { toast(e.message, "error"); }
@@ -6637,7 +6645,7 @@ Alasan: ${cleanReason}`)) return;
 
     async function toggleBoronganPaid(id, currentlyPaid) {
       const nextPaid = !currentlyPaid;
-      const msg = nextPaid ? "Tandai record ini SUDAH DIBAYAR?" : "Kembalikan status menjadi BELUM DIBAYAR?";
+      const msg = nextPaid ? "Tandai pekerjaan ini SUDAH DIBAYAR? Row menunggu QC akan disimpan sebagai pembayaran awal." : "Kembalikan status menjadi BELUM DIBAYAR?";
       if (!confirm(msg)) return;
       let note = "";
       if (nextPaid) note = prompt("Catatan pembayaran (opsional):", "") || "";
@@ -6665,7 +6673,7 @@ Alasan: ${cleanReason}`)) return;
         const totalQty = rows.reduce((s,r)=>s + Number(r.qty||0), 0);
         const totalRp = rows.reduce((s,r)=>s + Number(r.total||0), 0);
         const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
-        const pendingCount = rows.filter(isPendingBorongan).length;
+        const pendingCount = rows.filter(r => isPendingBorongan(r) || isEarlyPaidBorongan(r)).length;
         const finalRows = rows.filter(r => !isPendingBorongan(r));
         const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
 
@@ -6677,8 +6685,8 @@ Alasan: ${cleanReason}`)) return;
             ["Total Qty", totalQty],
             ["Tahap", hrSubLabel(currentHrSub)],
             ["Total Borongan", rupiah(totalRp)],
-            ["Belum Dibayar", finalRows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
-            ["Belum Final", pendingCount],
+            ["Belum Dibayar", rows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
+            ["Belum QC", pendingCount],
             ["Belum Ada Tarif", totalUntarif]
           ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
         }
@@ -6718,11 +6726,11 @@ Alasan: ${cleanReason}`)) return;
 
         if (tbody) {
           tbody.innerHTML = rows.map(r => {
-            const canPay = !isPendingBorongan(r);
+            const canSelect = String(r.id || "");
             const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
             return `
             <tr>
-              <td class="bulk-check-cell">${canPay ? `<input type="checkbox" class="bulk-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : `<span class="small muted">-</span>`}</td>
+              <td class="bulk-check-cell">${canSelect ? `<input type="checkbox" class="bulk-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : `<span class="small muted">-</span>`}</td>
               <td>${safe(r.tanggal)}</td>
               <td>${safe(r.tahap || hrSubLabel(currentHrSub))}<br>${hrFinalBadge(r)}</td>
               <td><strong>${safe(r.pegawai)}</strong></td>
@@ -6744,11 +6752,11 @@ Alasan: ${cleanReason}`)) return;
 
         if (mobile) {
           mobile.innerHTML = rows.map(r => {
-            const canPay = !isPendingBorongan(r);
+            const canSelect = String(r.id || "");
             const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
             return `
             <div class="bal-card">
-              ${canPay ? `<input type="checkbox" class="bulk-check bulk-card-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : ""}
+              ${canSelect ? `<input type="checkbox" class="bulk-check bulk-card-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : ""}
               ${fotoCell(r.foto_url || r.foto, r.bal_id)}
               <div class="bal-card-body">
                 <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
@@ -6762,7 +6770,7 @@ Alasan: ${cleanReason}`)) return;
                 </div>
                 <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
                 <div style="margin-top:6px">${boronganPaidCell(r)}</div>
-                <div class="actions">${isPendingBorongan(r) ? '<span class="small muted">Belum final — tidak bisa dihapus/dibayar.</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button>`}</div>
+                <div class="actions">${isPendingBorongan(r) ? '<span class="small muted">Belum QC — bisa dibayar awal, tapi tidak bisa dihapus sebelum tersimpan.</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button>`}</div>
               </div>
             </div>
           `}).join("");
