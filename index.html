@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v28 Repair Metadata Cleanup)</title>
+  <title>Bal Tracking 3.0 - Cloud (v31 Owner Override Cache Populate)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1229,6 +1229,9 @@
 
     // Cache TTL untuk listBals/listHistory dll (ms). Set 0 = no cache.
     const API_CACHE_TTL_MS = 60000;
+    // Cache pendek khusus detail per-bal. Tujuannya supaya buka detail / modal aksi
+    // yang sama tidak bolak-balik request Apps Script, tetapi tetap cepat fresh setelah mutasi.
+    const API_DETAIL_CACHE_TTL_MS = 20000;
 
     const STORAGE_KEY = "bal_tracking_v3_cache";
     const SESSION_KEY = "bal_tracking_v3_user";
@@ -1358,12 +1361,29 @@
       return API_URL && API_URL.length > 0 && !API_URL.startsWith("GANTI");
     }
 
+    function apiCacheKey(action, payload = {}) {
+      return `${action}::${JSON.stringify(payload || {})}`;
+    }
+
+    function setApiCacheValue(action, payload, data, ttlMs = API_CACHE_TTL_MS) {
+      const ttl = Math.max(0, Number(ttlMs || 0));
+      if (!ttl) return;
+      _apiCache.set(apiCacheKey(action, payload), { data, expiresAt: Date.now() + ttl });
+    }
+
+    function getApiCacheValue(action, payload) {
+      const cached = _apiCache.get(apiCacheKey(action, payload));
+      if (!cached || cached.expiresAt <= Date.now()) return null;
+      return cached.data;
+    }
+
     async function api(action, payload = {}, options = {}) {
       if (!isCloudConfigured()) {
         throw new Error("API_URL belum dikonfigurasi. Edit konstanta API_URL di kode HTML.");
       }
-      const cacheable = options.cache !== false && API_CACHE_TTL_MS > 0 && options.cache === true;
-      const cacheKey = cacheable ? `${action}::${JSON.stringify(payload)}` : null;
+      const ttlMs = Math.max(0, Number(options.cacheTtlMs || API_CACHE_TTL_MS));
+      const cacheable = options.cache !== false && ttlMs > 0 && options.cache === true;
+      const cacheKey = cacheable ? apiCacheKey(action, payload) : null;
 
       if (cacheKey) {
         const cached = _apiCache.get(cacheKey);
@@ -1397,7 +1417,7 @@
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const json = await res.json();
           if (json.ok === false) throw new Error(json.error || "API error");
-          if (cacheKey) _apiCache.set(cacheKey, { data: json.data, expiresAt: Date.now() + API_CACHE_TTL_MS });
+          if (cacheKey) _apiCache.set(cacheKey, { data: json.data, expiresAt: Date.now() + ttlMs });
           return json.data;
         } catch (err) {
           lastErr = err;
@@ -1417,8 +1437,32 @@
 
     function clearApiCache(prefix) {
       if (!prefix) { _apiCache.clear(); return; }
-      for (const k of _apiCache.keys()) {
+      for (const k of Array.from(_apiCache.keys())) {
         if (k.startsWith(prefix)) _apiCache.delete(k);
+      }
+    }
+
+    function clearApiCacheForBal(bal_id, options = {}) {
+      // List utama wajib fresh setelah mutasi; listHistory perlu fresh untuk tab History
+      // dan riwayat detail. listBorongan hanya dibersihkan kalau aksi bisa memengaruhi HR/borongan.
+      clearApiCache("listBals");
+      clearApiCache("listHistory");
+      if (options.borongan) clearApiCache("listBorongan");
+
+      const id = String(bal_id || "").trim();
+      if (!id) return;
+
+      for (const k of Array.from(_apiCache.keys())) {
+        const sep = k.indexOf("::");
+        if (sep < 0) continue;
+        const action = k.slice(0, sep);
+        if (!["getBal", "getBalBundle", "findQr"].includes(action)) continue;
+
+        try {
+          const payload = JSON.parse(k.slice(sep + 2));
+          const payloadId = String(payload.bal_id || payload.qr_id || payload.ticket_id || "").trim();
+          if (payloadId === id) _apiCache.delete(k);
+        } catch (_) {}
       }
     }
 
@@ -1566,8 +1610,25 @@
     }
 
     async function apiGetBal(bal_id) {
-      const b = await api("getBal", { bal_id });
+      const payload = { bal_id };
+      const cachedBundle = getApiCacheValue("getBalBundle", payload);
+      if (cachedBundle && cachedBundle.bal) return _hydrateBal(cachedBundle.bal);
+
+      const b = await api("getBal", payload, { cache: true, cacheTtlMs: API_DETAIL_CACHE_TTL_MS });
       return _hydrateBal(b);
+    }
+
+    async function apiGetBalBundle(bal_id) {
+      const payload = { bal_id };
+      const res = await api("getBalBundle", payload, { cache: true, cacheTtlMs: API_DETAIL_CACHE_TTL_MS });
+      if (res && res.bal) {
+        res.bal = _hydrateBal(res.bal);
+        setApiCacheValue("getBal", payload, res.bal, API_DETAIL_CACHE_TTL_MS);
+      }
+      if (res && Array.isArray(res.history)) {
+        setApiCacheValue("listHistory", payload, res.history, API_DETAIL_CACHE_TTL_MS);
+      }
+      return res || {};
     }
 
     async function apiFindQr(qr_id) {
@@ -1695,13 +1756,30 @@
     }
 
     async function apiGetHistory(bal_id = "") {
-      const all = await api("listHistory", bal_id ? { bal_id } : {}, { cache: !bal_id });
+      const payload = bal_id ? { bal_id } : {};
+      const all = await api("listHistory", payload, {
+        cache: true,
+        cacheTtlMs: bal_id ? API_DETAIL_CACHE_TTL_MS : API_CACHE_TTL_MS
+      });
       return all;
     }
 
     async function apiOwnerOverride(payload) {
-      clearApiCache(); // owner override bisa pengaruhi banyak hal
-      return await api("ownerOverride", payload);
+      // v30: jangan nuke semua cache untuk Owner Override.
+      // Caller akan panggil refreshAfterMutation() setelah mutation selesai,
+      // lalu pre-populate cache dengan bal terbaru dari return server.
+      if (payload && payload.bal_id) clearApiCacheForBal(payload.bal_id, { borongan: true });
+      const updatedBal = await api("ownerOverride", payload);
+      // v31: pre-populate cache `getBal` dengan bal hasil mutation.
+      // Tanpa baris ini, renderOwnerOverride() yang dipanggil caller akan cache-miss
+      // (cache baru saja di-clear) dan fetch ulang ke server — 1 RTT yang sebenarnya bisa dihindari.
+      // Dengan pre-populate, renderOwnerOverride cache-hit, dan refreshAfterMutation berikutnya
+      // hanya menulis ulang value yang sama (idempotent).
+      if (updatedBal && updatedBal.bal_id) {
+        const hydrated = _hydrateBal(updatedBal);
+        setApiCacheValue("getBal", { bal_id: hydrated.bal_id }, hydrated, API_DETAIL_CACHE_TTL_MS);
+      }
+      return updatedBal;
     }
 
     async function apiListBorongan() {
@@ -2555,6 +2633,31 @@
   }
 }
 
+
+    async function refreshAfterMutation(bal_id, options = {}) {
+      clearApiCacheForBal(bal_id, { borongan: !!options.borongan });
+
+      const updatedBal = options.bal ? _hydrateBal(options.bal) : null;
+      if (updatedBal && updatedBal.bal_id) {
+        setApiCacheValue("getBal", { bal_id: updatedBal.bal_id }, updatedBal, API_DETAIL_CACHE_TTL_MS);
+      }
+
+      // Refresh sesuai tab aktif saja: list → renderList, maklon → renderMaklonVendor,
+      // HR → renderBorongan, history → renderGlobalHistory, dst.
+      // Ini mengganti pola lama yang memaksa renderList + dashboard + history berurutan.
+      if (options.refresh !== false) {
+        await refreshAll();
+      }
+
+      if (options.reopenDetail) {
+        if (updatedBal && String(updatedBal.bal_id) === String(bal_id)) {
+          await openDetail(updatedBal, { lazyHistory: true });
+        } else {
+          await openDetail(bal_id);
+        }
+      }
+    }
+
     function setupStatusFilter() {
       const s = document.getElementById("filterStatus");
       s.innerHTML = `<option value="">Semua Status</option>` + [...STATUS_ORDER, "DIPECAH"].map(st => `<option value="${st}">${statusText(st)}</option>`).join("");
@@ -2733,7 +2836,7 @@
           await apiCreateBal(bal);
         });
         toast(`Bal ${bal.bal_id} berhasil disimpan.`, "success");
-        clearApiCache();
+        clearApiCacheForBal(bal.bal_id);
         resetForm();
         switchTab("list");
         // Tampilkan label modal (perlu fetch fresh bal dari server karena ada qty_verifikasi dll)
@@ -2975,12 +3078,12 @@
         hideLoading();
       }
 
-      ok.forEach(id => bulkSelectedBalIds.delete(String(id)));
-      clearApiCache();
+      ok.forEach(id => {
+        bulkSelectedBalIds.delete(String(id));
+        clearApiCacheForBal(id, { borongan: true });
+      });
       closeModal("actionModal");
-      try { await renderList(); } catch (_) {}
-      try { await renderDashboard(); } catch (_) {}
-      try { await renderGlobalHistory(); } catch (_) {}
+      try { await refreshAll(); } catch (_) {}
 
       if (fail.length) {
         const msg = `${label} selesai sebagian. Berhasil: ${ok.length}. Gagal: ${fail.length}.\n\n` + fail.slice(0, 8).map(f => `${f.bal_id}: ${f.error}`).join("\n");
@@ -3313,10 +3416,7 @@ Alasan: ${cleanReason}`)) return;
 
       try {
         await apiDeleteBal({ bal_id, reason: cleanReason });
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
+        await refreshAfterMutation(bal_id, { borongan: true });
         toast("Bal berhasil dihapus.", "success");
       } catch (e) { alert(e.message); }
     }
@@ -3352,12 +3452,22 @@ Alasan: ${cleanReason}`)) return;
 
     async function openDetail(balOrId, options = {}) {
       try {
-        const b = (balOrId && typeof balOrId === "object") ? _hydrateBal(balOrId) : await apiGetBal(balOrId);
+        let b = null;
+        let bundledHistory = null;
+
+        if (balOrId && typeof balOrId === "object") {
+          b = _hydrateBal(balOrId);
+        } else {
+          const bundle = await apiGetBalBundle(balOrId);
+          b = _hydrateBal(bundle.bal);
+          if (Array.isArray(bundle.history)) bundledHistory = bundle.history;
+        }
+
         if (!b || !b.bal_id) throw new Error("Data bal tidak valid.");
         currentDetailBalId = b.bal_id;
 
         const lazyHistory = !!options.lazyHistory;
-        const providedHistory = Array.isArray(options.history) ? options.history : null;
+        const providedHistory = Array.isArray(options.history) ? options.history : bundledHistory;
         const historyBoxId = `detailHistoryBox_${Date.now()}`;
         let historyContent = `<div id="${historyBoxId}"><div class="empty">Memuat riwayat...</div></div>`;
         if (providedHistory) {
@@ -3914,14 +4024,10 @@ Alasan: ${cleanReason}`)) return;
           if (!packingWorkers) return;
           payload.packing_workers = packingWorkers;
         }
-        await apiUpdateStatus(payload);
+        const updatedBal = await apiUpdateStatus(payload);
         closeModal("actionModal");
         closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -3964,14 +4070,10 @@ Alasan: ${cleanReason}`)) return;
     async function confirmFinishSetting(bal_id) {
       const note = document.getElementById("finishSettingNote")?.value.trim() || "";
       try {
-        await apiFinishSetting({ bal_id, note });
+        const updatedBal = await apiFinishSetting({ bal_id, note });
         closeModal("actionModal");
         closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
         toast(`Bal ${bal_id} selesai setting → siap packing.`, "success");
       } catch (e) {
         alert(e.message);
@@ -4018,8 +4120,7 @@ Alasan: ${cleanReason}`)) return;
         await apiManualSelesaiSetting({ bal_id, reason });
         closeModal("actionModal");
         closeModal("detailModal");
-        renderList(); renderDashboard(); renderGlobalHistory();
-        openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -4154,12 +4255,11 @@ Alasan: ${cleanReason}`)) return;
         return alert("PO, Nomor Bal, Halaman Buku, Buku A, Jenis Barang, dan Jumlah wajib diisi.");
       }
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "EDIT_DATA", reason, updates });
+        const updatedBal = await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "EDIT_DATA", reason, updates });
         alert("Data bal berhasil di-update.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4205,12 +4305,11 @@ Alasan: ${cleanReason}`)) return;
       if (!qty || qty <= 0) return alert("Qty harus lebih dari 0.");
       const status = document.getElementById("oo_qty_status").value;
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "SET_QTY", reason, qty, status });
+        const updatedBal = await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "SET_QTY", reason, qty, status });
         alert("Qty verifikasi berhasil di-update.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4219,12 +4318,11 @@ Alasan: ${cleanReason}`)) return;
       if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
       if (!confirm("Yakin reset verifikasi? Bal akan kembali ke status SELESAI_MESIN.")) return;
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "RESET_QTY", reason });
+        const updatedBal = await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "RESET_QTY", reason });
         alert("Verifikasi berhasil direset. Bal kembali ke SELESAI_MESIN.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4280,12 +4378,11 @@ Alasan: ${cleanReason}`)) return;
       if (target.startsWith("MAKLON_") && !vendor) return alert("Vendor wajib dipilih untuk rollback ke status maklon eksternal.");
       if (!confirm(`Yakin rollback status ke ${statusText(target)}? Sistem akan cleanup field/borongan downstream agar tidak dobel bayar.`)) return;
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "ROLLBACK_STATUS", reason, target, maklon_eks_vendor: vendor });
+        const updatedBal = await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "ROLLBACK_STATUS", reason, target, maklon_eks_vendor: vendor });
         alert("Status berhasil di-rollback.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4376,14 +4473,13 @@ Alasan: ${cleanReason}`)) return;
           payload.hasil_packing = hasilPacking;
           payload.qty_kembali = qtyKembali;
         }
-        await apiOwnerOverride(payload);
+        const updatedBal = await apiOwnerOverride(payload);
         alert(mode === "metadata"
           ? "Repair metadata maklon berhasil. Status bal tidak diubah."
           : "Repair maklon berhasil. Silakan klik Selesai Maklon lagi jika barang sudah kembali.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4489,12 +4585,11 @@ Alasan: ${cleanReason}`)) return;
           : "\n\n(Tidak ada record borongan terkait yang perlu di-sync.)";
         if (!confirm(`Ganti nama dari "${oldName}" menjadi "${payload.new_name}"?${syncMsg}\n\nLanjutkan?`)) return;
 
-        await apiOwnerOverride(payload);
+        const updatedBal = await apiOwnerOverride(payload);
         alert("Nama pekerja berhasil di-update.");
         await renderOwnerOverride();
-        renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
-        openDetail(ownerOverrideActiveBalId);
+        await refreshAfterMutation(ownerOverrideActiveBalId, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4696,10 +4791,7 @@ Alasan: ${cleanReason}`)) return;
         closeModal("editModal");
         closeModal("detailModal");
 
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
 
       } catch (e) {
         alert(e.message);
@@ -4833,7 +4925,8 @@ Alasan: ${cleanReason}`)) return;
           reject_note: document.getElementById("outRejectNote")?.value.trim() || "",
           note: document.getElementById("outNote").value.trim()
         });
-        closeModal("outputModal"); closeModal("detailModal"); renderList(); renderDashboard(); renderGlobalHistory();
+        closeModal("outputModal"); closeModal("detailModal");
+        await refreshAfterMutation(bal_id, { borongan: true });
         if (out.mode === "REUSE_MAIN_QR") labelById(bal_id); else printOutputLabel(bal_id, out.output_id);
       } catch(e) { alert(e.message); }
     }
@@ -4963,8 +5056,7 @@ Alasan: ${cleanReason}`)) return;
         const parent = await apiGetBal(parent_bal_id);
         await apiSplitBal({ parent_bal_id, status_lama: parent.status, alasan_pecah: reason, children: suffixes.map((suffix, i) => ({ suffix, jumlah: qtys[i] })) });
         closeModal("splitModal"); closeModal("detailModal");
-        renderList(); renderDashboard(); renderGlobalHistory();
-        openDetail(parent_bal_id);
+        await refreshAfterMutation(parent_bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5031,11 +5123,7 @@ Alasan: ${cleanReason}`)) return;
         }
         await apiStartPacking(payload);
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5145,11 +5233,7 @@ Alasan: ${cleanReason}`)) return;
         }
         await apiFinishPacking(payload);
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5301,11 +5385,7 @@ Alasan: ${cleanReason}`)) return;
           surat_jalan_no: target === "TERKIRIM" ? document.getElementById("qc_sj_no").value.trim() : ""
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5336,11 +5416,7 @@ Alasan: ${cleanReason}`)) return;
           note: document.getElementById("tsk_note").value.trim()
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5409,11 +5485,7 @@ Alasan: ${cleanReason}`)) return;
           shipped_note: document.getElementById("ms_note").value.trim()
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
       } catch (e) { alert(e.message); }
     }
 
@@ -5497,14 +5569,10 @@ Alasan: ${cleanReason}`)) return;
       if (!vendor) { vendorEl?.classList.add("field-error"); return alert("Vendor wajib dipilih."); }
 
       try {
-        await apiStartMaklonEksternal({ bal_id, tipe, vendor, note });
+        const updatedBal = await apiStartMaklonEksternal({ bal_id, tipe, vendor, note });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
         toast(`Bal ${bal_id} dikirim ke ${vendor} (${tipe}).`, "success");
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5591,7 +5659,7 @@ Alasan: ${cleanReason}`)) return;
       if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty hasil wajib > 0."); }
 
       try {
-        await apiFinishMaklonEksternal({
+        const updatedBal = await apiFinishMaklonEksternal({
           bal_id,
           qty_kembali: qty,
           reject_qty: Number(document.getElementById("fme_reject_qty")?.value || 0),
@@ -5601,12 +5669,8 @@ Alasan: ${cleanReason}`)) return;
           note
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
         toast(`Bal ${bal_id} kembali dari maklon. Qty: ${qty}.`, "success");
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5670,19 +5734,15 @@ Alasan: ${cleanReason}`)) return;
       if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty dikirim wajib > 0."); }
       if (maxQty > 0 && qty > maxQty) { qtyEl?.classList.add("field-error"); return alert(`Qty dikirim tidak boleh melebihi maksimal antislip: ${maxQty}.`); }
       try {
-        await apiStartMaklonAntislip({
+        const updatedBal = await apiStartMaklonAntislip({
           bal_id,
           vendor,
           qty_kirim: qty,
           note: document.getElementById("as_note")?.value.trim() || ""
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
         toast(`Bal ${bal_id} dikirim ke sablon antislip.`, "success");
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5735,7 +5795,7 @@ Alasan: ${cleanReason}`)) return;
       const qty = Number(qtyEl?.value || 0);
       if (!qty || qty <= 0) { qtyEl?.classList.add("field-error"); return alert("Qty kembali wajib > 0."); }
       try {
-        await apiFinishMaklonAntislip({
+        const updatedBal = await apiFinishMaklonAntislip({
           bal_id,
           qty_kembali: qty,
           reject_qty: Number(document.getElementById("asf_reject_qty")?.value || 0),
@@ -5744,12 +5804,8 @@ Alasan: ${cleanReason}`)) return;
           note: document.getElementById("asf_note")?.value.trim() || ""
         });
         closeModal("actionModal"); closeModal("detailModal");
-        clearApiCache();
-        await renderList();
-        await renderDashboard();
-        try { await renderGlobalHistory(); } catch (_) {}
         toast(`Bal ${bal_id} kembali dari sablon antislip.`, "success");
-        await openDetail(bal_id);
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
