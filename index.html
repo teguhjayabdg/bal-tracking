@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (FINAL - Label 100x78 on Paper 100x150)</title>
+  <title>Bal Tracking 3.0 - Cloud (v19 Fast QR - Label 100x78 on Paper 100x150)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1497,6 +1497,28 @@
     async function apiGetBal(bal_id) {
       const b = await api("getBal", { bal_id });
       return _hydrateBal(b);
+    }
+
+    async function apiFindQr(qr_id) {
+      const label = `findQr:${qr_id}`;
+      try { console.time(label); } catch (_) {}
+      const started = performance.now ? performance.now() : Date.now();
+      const res = await api("findQr", { qr_id, include_history: true });
+      const ended = performance.now ? performance.now() : Date.now();
+      try {
+        console.timeEnd(label);
+        console.log("findQr timing", {
+          qr_id,
+          client_roundtrip_ms: Math.round(ended - started),
+          server_elapsed_ms: res && res.elapsed_ms,
+          server_timing_ms: res && res.timing_ms
+        });
+      } catch (_) {}
+      if (res && res.bal) res.bal = _hydrateBal(res.bal);
+      if (res && res.ticket && typeof res.ticket.workers_json === "string" && !res.ticket.workers) {
+        try { res.ticket.workers = JSON.parse(res.ticket.workers_json || "[]"); } catch (_) { res.ticket.workers = []; }
+      }
+      return res;
     }
 
     async function apiCreateBal(bal) {
@@ -3228,11 +3250,40 @@ Alasan: ${cleanReason}`)) return;
        DETAIL & STATUS ACTION
        ============================================================ */
 
-    async function openDetail(bal_id) {
+    function renderDetailHistory(history) {
+      return history && history.length
+        ? history.slice().reverse().map(h => historyHtml(h)).join("")
+        : `<div class="empty">Belum ada history</div>`;
+    }
+
+    async function loadDetailHistoryLazy(bal_id, targetId) {
       try {
-        const b = await apiGetBal(bal_id);
-        currentDetailBalId = bal_id;
         const history = await apiGetHistory(bal_id);
+        const el = document.getElementById(targetId);
+        if (el && currentDetailBalId === bal_id) el.innerHTML = renderDetailHistory(history);
+      } catch (e) {
+        const el = document.getElementById(targetId);
+        if (el) el.innerHTML = `<div class="alert alert-warn">Riwayat belum berhasil dimuat: ${safe(e.message)}</div>`;
+      }
+    }
+
+    async function openDetail(balOrId, options = {}) {
+      try {
+        const b = (balOrId && typeof balOrId === "object") ? _hydrateBal(balOrId) : await apiGetBal(balOrId);
+        if (!b || !b.bal_id) throw new Error("Data bal tidak valid.");
+        currentDetailBalId = b.bal_id;
+
+        const lazyHistory = !!options.lazyHistory;
+        const providedHistory = Array.isArray(options.history) ? options.history : null;
+        const historyBoxId = `detailHistoryBox_${Date.now()}`;
+        let historyContent = `<div id="${historyBoxId}"><div class="empty">Memuat riwayat...</div></div>`;
+        if (providedHistory) {
+          historyContent = renderDetailHistory(providedHistory);
+        } else if (!lazyHistory) {
+          const history = await apiGetHistory(b.bal_id);
+          historyContent = renderDetailHistory(history);
+        }
+
         const childIds = String(b.children_ids || "").split(",").filter(Boolean);
         let splitInfo = "";
         if (b.is_parent_split || b.status === "DIPECAH") {
@@ -3268,10 +3319,11 @@ Alasan: ${cleanReason}`)) return;
           <div id="detailActions" style="margin-top:12px">${detailActions(b)}</div>
           <div class="card" style="margin-top:12px">
             <div class="section-title">Riwayat Bal</div>
-            ${history.length ? history.slice().reverse().map(h => historyHtml(h)).join("") : `<div class="empty">Belum ada history</div>`}
+            ${historyContent}
           </div>
         `;
         document.getElementById("detailModal").classList.add("show");
+        if (lazyHistory) loadDetailHistoryLazy(b.bal_id, historyBoxId);
       } catch (e) { alert(e.message); }
     }
 
@@ -5592,16 +5644,16 @@ Alasan: ${cleanReason}`)) return;
     }
 
     async function findTicket(ticket_id) {
-      const bals = await apiListBals();
-      for (const b of bals) {
-        const out = (b.output_labels || []).find(o => o.ticket_id === ticket_id);
-        if (out) return { bal: b, ticket: out };
+      try {
+        const found = await apiFindQr(ticket_id);
+        if (found && found.type === "ticket") return { bal: found.bal, ticket: found.ticket };
+        return null;
+      } catch (_) {
+        return null;
       }
-      return null;
     }
 
-    async function openTicketDetail(ticket_id) {
-      const found = await findTicket(ticket_id);
+    function renderTicketDetail(found) {
       if (!found) return alert("Tiket packing tidak ditemukan");
       const { bal, ticket } = found;
       document.getElementById("detailContent").innerHTML = `
@@ -5611,13 +5663,18 @@ Alasan: ${cleanReason}`)) return;
           ${kv("Parent Bal", `<button class="btn-outline btn-sm" onclick="openDetail('${bal.bal_id}')">${safe(bal.bal_id)}</button>`)}
           ${kv("PO / Artikel", safe(bal.po_id))}
           ${kv("Qty", `<strong>${safe(ticket.qty)} ${safe(ticket.satuan)}</strong>`)}
-          ${kv("Status Tiket", safe(ticket.status))}
+          ${kv("Status Tiket", safe(ticket.status || "-"))}
           ${kv("Dibuat", fmtDate(ticket.created_at))}
         </div>
         <div class="card"><div class="section-title">Pekerja Setting</div>${(ticket.workers||[]).map(w=>`<div class="history-item"><strong>${safe(w.name)}</strong> · ${safe(w.qty)} ${safe(ticket.satuan)}</div>`).join("")}</div>
-        <div class="actions"><button class="btn-primary btn-block" onclick="printOutputLabel('${bal.bal_id}','${ticket.output_id}')">Cetak Tiket Packing</button></div>
+        <div class="actions"><button class="btn-primary btn-block" onclick="printOutputLabel('${bal.bal_id}','${ticket.output_id || ""}')">Cetak Tiket Packing</button></div>
       `;
       document.getElementById("detailModal").classList.add("show");
+    }
+
+    async function openTicketDetail(ticket_id, foundData = null) {
+      const found = foundData || await findTicket(ticket_id);
+      renderTicketDetail(found);
     }
 
     /* ============================================================
@@ -5639,28 +5696,37 @@ Alasan: ${cleanReason}`)) return;
       document.getElementById("btnStopScan")?.classList.add("hidden");
       const area = document.getElementById("scanner-area"); if (area) area.innerHTML = "";
     }
+    async function openQrFast(id, sourceLabel = "QR") {
+      const qrId = normalizeQrText(id);
+      if (!qrId) return alert("ID QR kosong.");
+      document.getElementById("scanMessage").innerHTML = `<div class="alert alert-info">${safe(sourceLabel)} terbaca: <span class="mono">${safe(qrId)}</span><br>Mengambil data cepat...</div>`;
+      try {
+        const found = await apiFindQr(qrId);
+        if (found.type === "bal") {
+          const perfText = found.elapsed_ms ? ` <span class="small">Server ${safe(found.elapsed_ms)}ms</span>` : "";
+          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Bal ditemukan: <span class="mono">${safe(qrId)}</span>${perfText}</div>`;
+          openDetail(found.bal, { history: found.history || [] });
+          return;
+        }
+        if (found.type === "ticket") {
+          const perfText = found.elapsed_ms ? ` <span class="small">Server ${safe(found.elapsed_ms)}ms</span>` : "";
+          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Tiket ditemukan: <span class="mono">${safe(qrId)}</span>${perfText}</div>`;
+          openTicketDetail(qrId, { bal: found.bal, ticket: found.ticket });
+          return;
+        }
+        throw new Error("Jenis QR tidak dikenal.");
+      } catch (e) {
+        document.getElementById("scanMessage").innerHTML = `<div class="alert alert-danger">QR tidak ditemukan: <span class="mono">${safe(qrId)}</span><br>${safe(e.message)}</div>`;
+      }
+    }
     async function onScanSuccess(decodedText) {
       stopScan();
-      const id = normalizeQrText(decodedText);
-      try {
-        await apiGetBal(id);
-        document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Bal ditemukan: <span class="mono">${safe(id)}</span></div>`;
-        openDetail(id);
-      } catch (e) {
-        const ticket = await findTicket(id);
-        if (ticket) {
-          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Tiket ditemukan: <span class="mono">${safe(id)}</span></div>`;
-          openTicketDetail(id);
-        } else {
-          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-danger">QR tidak ditemukan: <span class="mono">${safe(id)}</span></div>`;
-        }
-      }
+      openQrFast(decodedText, "QR");
     }
     async function openManualBal() {
       const id = normalizeQrText(document.getElementById("manualBalId").value);
       if (!id) return alert("Isi ID Bal / Ticket dulu.");
-      try { await apiGetBal(id); openDetail(id); }
-      catch (e) { const t = await findTicket(id); if (t) openTicketDetail(id); else alert(e.message); }
+      openQrFast(id, "Input manual");
     }
 
     /* ============================================================
