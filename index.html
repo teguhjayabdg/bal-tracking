@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v25 Maklon Vendor + Payment, Owner-only mark paid)</title>
+  <title>Bal Tracking 3.0 - Cloud (v28 Repair Metadata Cleanup)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -244,8 +244,10 @@
     .st-SELESAI_MESIN { background: #fef3c7; color: #92400e; }
     .st-QTY_TERVERIFIKASI { background: #dbeafe; color: #1e40af; }
     .st-MAKLON_OBRAS_SETTING_PACKING { background: #fde047; color: #713f12; }
+    .st-MAKLON_OBRAS_SETTING_ONLY { background: #fde68a; color: #713f12; }
     .st-MAKLON_SETTING_PACKING { background: #facc15; color: #713f12; }
     .st-MAKLON_SETTING_ONLY { background: #fef08a; color: #854d0e; }
+    .st-MAKLON_PACKING_ONLY { background: #fef3c7; color: #92400e; }
     .st-MAKLON_OBRAS_ONLY { background: #fef9c3; color: #713f12; }
     .st-MULAI_OBRAS { background: #ede9fe; color: #5b21b6; }
     .st-SELESAI_OBRAS { background: #ddd6fe; color: #4c1d95; }
@@ -1097,7 +1099,9 @@
             <button class="btn-outline" id="hrSubMaklonAntislipBtn" data-sub="maklon_antislip" onclick="switchHrSub('maklon_antislip')">🧦 Maklon Antislip</button>
             <button class="btn-outline" id="hrSubMaklonObrasBtn" data-sub="maklon_obras" onclick="switchHrSub('maklon_obras')">🏭 Maklon Obras</button>
             <button class="btn-outline" id="hrSubMaklonSettingBtn" data-sub="maklon_setting" onclick="switchHrSub('maklon_setting')">🏭 Maklon Setting</button>
+            <button class="btn-outline" id="hrSubMaklonPackingBtn" data-sub="maklon_packing" onclick="switchHrSub('maklon_packing')">🏭 Maklon Packing</button>
             <button class="btn-outline" id="hrSubMaklonSettingPackingBtn" data-sub="maklon_setting_packing" onclick="switchHrSub('maklon_setting_packing')">🏭 Maklon Setting+Packing</button>
+            <button class="btn-outline" id="hrSubMaklonObrasSettingBtn" data-sub="maklon_obras_setting" onclick="switchHrSub('maklon_obras_setting')">🏭 Maklon Obras+Setting</button>
             <button class="btn-outline" id="hrSubMaklonObrasSettingPackingBtn" data-sub="maklon_obras_setting_packing" onclick="switchHrSub('maklon_obras_setting_packing')">🏭 Maklon Obras+Setting+Packing</button>
           </div>
         </div>
@@ -1250,7 +1254,7 @@
 
     const STATUS_ORDER = [
       "SELESAI_MESIN", "QTY_TERVERIFIKASI",
-      "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY",
+      "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_OBRAS_SETTING_ONLY", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_PACKING_ONLY", "MAKLON_OBRAS_ONLY",
       "MULAI_OBRAS", "SELESAI_OBRAS",
       "MULAI_SETTING", "SELESAI_SETTING",
       "SIAP_PACKING",
@@ -1263,8 +1267,10 @@
       SELESAI_MESIN: "Selesai Mesin",
       QTY_TERVERIFIKASI: "Qty Terverifikasi",
       MAKLON_OBRAS_SETTING_PACKING: "Maklon Eks: Obras+Setting+Packing",
+      MAKLON_OBRAS_SETTING_ONLY: "Maklon Eks: Obras+Setting",
       MAKLON_SETTING_PACKING: "Maklon Eks: Setting+Packing",
       MAKLON_SETTING_ONLY: "Maklon Eks: Setting saja",
+      MAKLON_PACKING_ONLY: "Maklon Eks: Packing saja",
       MAKLON_OBRAS_ONLY: "Maklon Eks: Obras saja",
       MULAI_OBRAS: "Mulai Obras",
       SELESAI_OBRAS: "Selesai Obras",
@@ -1287,10 +1293,38 @@
     const MAKLON_VENDORS = ["Nanjung", "Margaasih", "Obras NJG"];
     const MAKLON_EKS_TIPE_LABEL = {
       OBRAS_SETTING_PACKING: "Obras + Setting + Packing",
-      SETTING_PACKING: "Setting + Packing (Obras dilewati)",
-      SETTING_ONLY: "Setting saja (Obras dilewati, Packing internal)",
+      OBRAS_SETTING_ONLY: "Obras + Setting saja (Packing internal)",
+      SETTING_PACKING: "Setting + Packing",
+      SETTING_ONLY: "Setting saja (Packing internal)",
+      PACKING_ONLY: "Packing saja",
       OBRAS_ONLY: "Obras saja (Setting & Packing internal)"
     };
+
+    const MAKLON_EKS_TIPE_DESC = {
+      OBRAS_SETTING_PACKING: "Vendor mengerjakan obras, setting, dan packing. Saat kembali pilih Final atau Non Final.",
+      OBRAS_SETTING_ONLY: "Vendor mengerjakan obras dan setting. Setelah kembali masuk SIAP_PACKING untuk label/packing internal.",
+      SETTING_PACKING: "Vendor mengerjakan setting dan packing. Saat kembali pilih Final atau Non Final.",
+      SETTING_ONLY: "Vendor mengerjakan setting saja. Setelah kembali masuk SIAP_PACKING untuk packing internal.",
+      PACKING_ONLY: "Vendor mengerjakan packing saja. Saat kembali pilih Final atau Non Final.",
+      OBRAS_ONLY: "Vendor mengerjakan obras saja. Setelah kembali masuk SELESAI_OBRAS, bisa setting internal atau kirim setting maklon lanjutan."
+    };
+
+    function maklonTypeIncludes(tipe, tahap) {
+      const t = String(tipe || "").toUpperCase();
+      const p = String(tahap || "").toUpperCase();
+      if (p === "OBRAS") return t.includes("OBRAS");
+      if (p === "SETTING") return t.includes("SETTING");
+      if (p === "PACKING") return t.includes("PACKING");
+      return false;
+    }
+
+    function allowedMaklonTypesForStatus(status) {
+      const st = String(status || "").toUpperCase();
+      if (st === "QTY_TERVERIFIKASI") return ["OBRAS_SETTING_PACKING", "OBRAS_SETTING_ONLY", "SETTING_PACKING", "SETTING_ONLY", "OBRAS_ONLY"];
+      if (st === "SELESAI_OBRAS") return ["SETTING_PACKING", "SETTING_ONLY"];
+      if (st === "SIAP_PACKING") return ["PACKING_ONLY"];
+      return [];
+    }
 
     const JENIS_BARANG_LIST = [
       "Jempol", "Wudhu", "Bola", "Mensock", "Oldschool",
@@ -3455,7 +3489,7 @@ Alasan: ${cleanReason}`)) return;
       // Di QTY_TERVERIFIKASI, Admin/Owner bisa kirim ke vendor maklon (Nanjung/Margaasih)
       // sebagai alternatif dari MULAI_OBRAS internal. Tombol muncul setelah action MULAI_OBRAS.
       // Status MAKLON_* punya tombol khusus "Selesai Maklon (Barang Kembali)".
-      if (["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY"].includes(b.status)) {
+      if (["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_OBRAS_SETTING_ONLY", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_PACKING_ONLY", "MAKLON_OBRAS_ONLY"].includes(b.status)) {
         const tipeLabel = (typeof MAKLON_EKS_TIPE_LABEL !== "undefined" && MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe]) || b.maklon_eks_tipe;
         html += `<div class="alert alert-warn">🏭 Sedang di maklon eksternal: <strong>${safe(b.maklon_eks_vendor || "-")}</strong><br>Tipe: <strong>${safe(tipeLabel)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>`;
         if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
@@ -3574,10 +3608,13 @@ Alasan: ${cleanReason}`)) return;
       } else {
         html += `<div class="alert alert-warn">Bal ini belum masuk tahap kerja Anda.</div>`;
       }
-      // Maklon Eksternal — opsi cabang dari QTY_TERVERIFIKASI ke vendor luar.
-      // Admin/Owner saja yang bisa kirim ke vendor.
-      if (b.status === "QTY_TERVERIFIKASI" && ["Admin Produksi", "Owner"].includes(currentUser.role)) {
-        html += `<button class="btn-warning btn-block" style="margin-top:8px; background:#eab308; color:#422006" onclick="openMaklonEksternal('${b.bal_id}')">🏭 Maklon Eksternal (Nanjung/Margaasih)</button>`;
+      // Maklon Eksternal fleksibel v26:
+      // - QTY_TERVERIFIKASI: bisa kirim obras/setting/packing ke vendor.
+      // - SELESAI_OBRAS: bisa kirim setting/setting+packing ke vendor lanjutan.
+      // - SIAP_PACKING: bisa kirim packing saja ke vendor luar.
+      if (["QTY_TERVERIFIKASI", "SELESAI_OBRAS", "SIAP_PACKING"].includes(b.status) && ["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        const btnText = b.status === "SELESAI_OBRAS" ? "🏭 Kirim Setting Maklon" : (b.status === "SIAP_PACKING" ? "🏭 Kirim Packing Vendor" : "🏭 Maklon Eksternal");
+        html += `<button class="btn-warning btn-block" style="margin-top:8px; background:#eab308; color:#422006" onclick="openMaklonEksternal('${b.bal_id}')">${btnText}</button>`;
       }
       if (["MULAI_SETTING", "SELESAI_SETTING"].includes(b.status) && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
         html += `<button class="btn-primary btn-block" style="margin-top:8px" onclick="openOutputSetting('${b.bal_id}')">🏷 Buat Label Plastik Baru / Output Setting</button>`;
@@ -4042,6 +4079,7 @@ Alasan: ${cleanReason}`)) return;
         const sel = document.getElementById("oo_jenis_barang");
         if (sel) populateJenisSelect(sel, b.jenis_barang || "");
       }
+      if (ownerOverrideActiveTab === "maklon") updateOOMaklonRepairHasilVisibility();
     }
 
     function switchOwnerOverrideTab(tab) {
@@ -4200,7 +4238,7 @@ Alasan: ${cleanReason}`)) return;
       const flowOrder = [
         "SELESAI_MESIN",
         "QTY_TERVERIFIKASI",
-        "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY",
+        "MAKLON_OBRAS_SETTING_PACKING", "MAKLON_OBRAS_SETTING_ONLY", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_PACKING_ONLY", "MAKLON_OBRAS_ONLY",
         "MULAI_OBRAS", "SELESAI_OBRAS",
         "MULAI_SETTING", "SELESAI_SETTING",
         "SIAP_PACKING",
@@ -4256,37 +4294,92 @@ Alasan: ${cleanReason}`)) return;
       const inferred = String(b.status || "").startsWith("MAKLON_") ? String(b.status).replace(/^MAKLON_/, "") : (b.maklon_eks_tipe || "OBRAS_SETTING_PACKING");
       const tipeOpts = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${k}" ${inferred === k ? "selected" : ""}>${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
       const vendorOpts = MAKLON_VENDORS.map(v => `<option value="${safe(v)}" ${b.maklon_eks_vendor === v ? "selected" : ""}>${safe(v)}</option>`).join("");
+      const defaultQty = Number(b.maklon_eks_qty_kembali || b.qty_verifikasi || b.jumlah || 0) || "";
+      const currentHasil = String(b.maklon_eks_hasil_packing || "NON_FINAL").toUpperCase();
+      const defaultMode = String(b.status || "").startsWith("MAKLON_") ? "rollback" : "metadata";
       return `
         <div class="alert alert-warn">
           <strong>Repair Maklon Eksternal</strong><br>
-          Pakai ini untuk kasus data lama/rollback: status sudah Maklon, tapi vendor/tipe kosong, atau sebelumnya salah klik Obras internal. Sistem akan menghapus record borongan bal ini supaya tidak dobel bayar.
+          Ada 2 mode repair:<br>
+          <strong>Rollback ke Maklon</strong> = status dimundurkan ke MAKLON_* karena barang dianggap masih di vendor.<br>
+          <strong>Repair Metadata Tanpa Rollback</strong> = status tetap seperti sekarang, hanya memperbaiki vendor/tipe/hasil dan membersihkan borongan salah.
         </div>
         <div class="detail-grid">
           ${kv("Status sekarang", statusBadge(b.status))}
           ${kv("Vendor sekarang", safe(b.maklon_eks_vendor || "-") )}
           ${kv("Tipe sekarang", safe(b.maklon_eks_tipe || "-") )}
+          ${kv("Hasil packing", safe(b.maklon_eks_hasil_packing || "-") )}
           ${kv("Keluar maklon", fmtDate(b.maklon_eks_keluar_at))}
+          ${kv("Kembali maklon", fmtDate(b.maklon_eks_kembali_at))}
         </div>
         <div class="grid-2" style="margin-top:12px">
-          <div class="form-group"><label>Tipe Maklon Eksternal</label><select id="oo_maklon_tipe">${tipeOpts}</select></div>
+          <div class="form-group"><label>Tipe Maklon Eksternal</label><select id="oo_maklon_tipe" onchange="updateOOMaklonRepairHasilVisibility()">${tipeOpts}</select></div>
           <div class="form-group"><label>Vendor Maklon</label><select id="oo_maklon_vendor"><option value="">-- Pilih Vendor --</option>${vendorOpts}</select></div>
         </div>
-        <div class="form-group"><label>Alasan Repair <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_maklon_reason" rows="2" placeholder="Contoh: Data lama sempat salah klik Obras, seharusnya maklon Margaasih"></textarea></div>
-        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOOMaklonRepair, 'Memproses...')">🏭 Repair Maklon + Hapus Borongan Salah</button>
+        <div id="oo_maklon_hasil_wrap" class="form-group">
+          <label>Hasil Packing Vendor</label>
+          <select id="oo_maklon_hasil">
+            <option value="NON_FINAL" ${currentHasil === "NON_FINAL" ? "selected" : ""}>Non Final / perlu label merek internal</option>
+            <option value="FINAL" ${currentHasil === "FINAL" ? "selected" : ""}>Final / siap QC</option>
+          </select>
+          <div class="small" style="margin-top:4px">Dipakai hanya kalau tipe maklon mengandung Packing.</div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Qty kembali / qty repair</label><input id="oo_maklon_qty" type="number" step="any" value="${safe(defaultQty)}"></div>
+          <div class="form-group"><label>Mode Repair</label>
+            <select id="oo_maklon_mode">
+              <option value="metadata" ${defaultMode === "metadata" ? "selected" : ""}>Repair Metadata Tanpa Rollback</option>
+              <option value="rollback" ${defaultMode === "rollback" ? "selected" : ""}>Rollback ke Status Maklon</option>
+            </select>
+          </div>
+        </div>
+        <div class="alert alert-info">
+          Untuk kasus barang sudah balik dan status sudah <strong>SIAP_PACKING</strong> tapi masih perlu label merek internal, pilih mode <strong>Repair Metadata Tanpa Rollback</strong> dan hasil <strong>Non Final</strong>.
+        </div>
+        <div class="form-group"><label>Alasan Repair <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_maklon_reason" rows="2" placeholder="Contoh: Data lama sempat salah klik, barang sudah balik dari Margaasih dan perlu label merek internal"></textarea></div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOOMaklonRepair, 'Memproses...')">🏭 Jalankan Repair Maklon</button>
       `;
+    }
+
+    function updateOOMaklonRepairHasilVisibility() {
+      const tipe = document.getElementById("oo_maklon_tipe")?.value || "";
+      const wrap = document.getElementById("oo_maklon_hasil_wrap");
+      if (!wrap) return;
+      wrap.classList.toggle("hidden", !maklonTypeIncludes(tipe, "PACKING"));
     }
 
     async function confirmOOMaklonRepair() {
       const tipe = document.getElementById("oo_maklon_tipe")?.value || "";
       const vendor = document.getElementById("oo_maklon_vendor")?.value || "";
       const reason = (document.getElementById("oo_maklon_reason")?.value || "").trim();
+      const mode = document.getElementById("oo_maklon_mode")?.value || "metadata";
+      const hasilPacking = document.getElementById("oo_maklon_hasil")?.value || "";
+      const qtyKembali = Number(document.getElementById("oo_maklon_qty")?.value || 0);
       if (!tipe) return alert("Tipe maklon wajib dipilih.");
       if (!vendor) return alert("Vendor maklon wajib dipilih.");
       if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
-      if (!confirm(`Repair bal ini menjadi ${MAKLON_EKS_TIPE_LABEL[tipe]} di vendor ${vendor}?\n\nRecord borongan bal ini akan dihapus agar tidak dobel bayar.`)) return;
+      if (mode === "metadata" && (!qtyKembali || qtyKembali <= 0)) return alert("Qty kembali/qty repair wajib > 0 untuk Repair Metadata.");
+
+      const msg = mode === "metadata"
+        ? `Repair metadata bal ini TANPA mengubah status sekarang?\n\nVendor: ${vendor}\nTipe: ${MAKLON_EKS_TIPE_LABEL[tipe] || tipe}\nQty: ${qtyKembali}\n\nSistem hanya akan bersihkan borongan internal yang salah atas nama vendor dan membuat record borongan vendor yang benar.`
+        : `Rollback bal ini menjadi ${MAKLON_EKS_TIPE_LABEL[tipe]} di vendor ${vendor}?\n\nStatus akan mundur ke MAKLON_* dan record borongan bal ini akan dihapus agar tidak dobel bayar.`;
+      if (!confirm(msg)) return;
       try {
-        await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "REPAIR_MAKLON_EKSTERNAL", reason, maklon_eks_tipe: tipe, maklon_eks_vendor: vendor });
-        alert("Repair maklon berhasil. Silakan klik Selesai Maklon lagi jika barang sudah kembali.");
+        const payload = {
+          bal_id: ownerOverrideActiveBalId,
+          type: mode === "metadata" ? "REPAIR_MAKLON_METADATA" : "REPAIR_MAKLON_EKSTERNAL",
+          reason,
+          maklon_eks_tipe: tipe,
+          maklon_eks_vendor: vendor
+        };
+        if (mode === "metadata") {
+          payload.hasil_packing = hasilPacking;
+          payload.qty_kembali = qtyKembali;
+        }
+        await apiOwnerOverride(payload);
+        alert(mode === "metadata"
+          ? "Repair metadata maklon berhasil. Status bal tidak diubah."
+          : "Repair maklon berhasil. Silakan klik Selesai Maklon lagi jika barang sudah kembali.");
         await renderOwnerOverride();
         renderList(); renderDashboard(); renderGlobalHistory();
         closeModal("detailModal");
@@ -5337,8 +5430,9 @@ Alasan: ${cleanReason}`)) return;
         return alert("Hanya Admin Produksi / Owner yang boleh kirim ke maklon eksternal.");
       }
       const bal = await apiGetBal(bal_id);
-      if (bal.status !== "QTY_TERVERIFIKASI") {
-        return alert("Maklon eksternal hanya bisa dari status QTY_TERVERIFIKASI.");
+      const allowedTipes = allowedMaklonTypesForStatus(bal.status);
+      if (!allowedTipes.length) {
+        return alert("Status ini belum bisa dikirim ke maklon eksternal. Sekarang: " + bal.status);
       }
       // Ambil vendor list dari server (fallback ke constant lokal kalau gagal)
       let vendors = MAKLON_VENDORS;
@@ -5349,33 +5443,30 @@ Alasan: ${cleanReason}`)) return;
 
       const vendorOpts = vendors.map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
       const qtyOff = officialQty(bal);
+      const typeOptionsHtml = allowedTipes.map((t, idx) => `
+        <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+          <input type="radio" name="me_tipe" value="${safe(t)}" ${idx === 0 ? "checked" : ""} style="margin-top:3px; width:auto; min-height:0">
+          <div><strong>${safe(MAKLON_EKS_TIPE_LABEL[t] || t)}</strong><br><span class="small" style="color:var(--muted)">${safe(MAKLON_EKS_TIPE_DESC[t] || "")}</span></div>
+        </label>
+      `).join("");
 
-      document.getElementById("actionTitle").textContent = "Maklon Eksternal";
+      const contextNote = bal.status === "SELESAI_OBRAS"
+        ? "Bal sudah selesai obras. Pilih vendor untuk tahap setting / setting+packing lanjutan."
+        : bal.status === "SIAP_PACKING"
+        ? "Bal sudah siap packing. Pilihan ini untuk packing vendor eksternal, bukan packing internal pegawai."
+        : "Bal sudah Qty Terverifikasi. Pilih pekerjaan apa yang dikerjakan vendor.";
+
+      document.getElementById("actionTitle").textContent = "Maklon Eksternal Fleksibel";
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
           Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong><br>
-          Jenis: ${safe(bal.jenis_barang || "-")} · ${safe(bal.warna || "-")} / ${safe(bal.size || "-")}
+          Status sekarang: <strong>${statusText(bal.status)}</strong><br>
+          Jenis: ${safe(bal.jenis_barang || "-")} · ${safe(bal.warna || "-")} / ${safe(bal.size || "-")}<br>
+          <span class="small">${safe(contextNote)}</span>
         </div>
         <div class="form-group">
-          <label>Tipe Maklon <span class="required">*</span></label>
-          <div style="display:grid; gap:8px; margin-top:6px">
-            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
-              <input type="radio" name="me_tipe" value="OBRAS_SETTING_PACKING" checked style="margin-top:3px; width:auto; min-height:0">
-              <div><strong>Obras + Setting + Packing</strong><br><span class="small" style="color:var(--muted)">Vendor kerjakan semua 3 tahap. Setelah kembali langsung ke QC.</span></div>
-            </label>
-            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
-              <input type="radio" name="me_tipe" value="SETTING_PACKING" style="margin-top:3px; width:auto; min-height:0">
-              <div><strong>Setting + Packing</strong><br><span class="small" style="color:var(--muted)">Obras dilewati (tidak butuh / dikerjakan terpisah). Vendor kerjakan setting & packing. Kembali langsung ke QC.</span></div>
-            </label>
-            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
-              <input type="radio" name="me_tipe" value="SETTING_ONLY" style="margin-top:3px; width:auto; min-height:0">
-              <div><strong>Setting saja</strong><br><span class="small" style="color:var(--muted)">Obras dilewati, vendor cuma setting. Setelah kembali masuk SIAP_PACKING (packing internal/maklon-biasa).</span></div>
-            </label>
-            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
-              <input type="radio" name="me_tipe" value="OBRAS_ONLY" style="margin-top:3px; width:auto; min-height:0">
-              <div><strong>Obras saja</strong><br><span class="small" style="color:var(--muted)">Vendor cuma obras. Setting & packing dilakukan internal di pabrik. Setelah kembali masuk SELESAI_OBRAS (akun Setting tinggal MULAI_SETTING).</span></div>
-            </label>
-          </div>
+          <label>Pekerjaan Vendor <span class="required">*</span></label>
+          <div style="display:grid; gap:8px; margin-top:6px">${typeOptionsHtml}</div>
         </div>
         <div class="form-group">
           <label>Vendor Maklon <span class="required">*</span></label>
@@ -5383,7 +5474,7 @@ Alasan: ${cleanReason}`)) return;
             <option value="">-- Pilih vendor --</option>
             ${vendorOpts}
           </select>
-          <div class="small" style="margin-top:4px; color:var(--muted)">Untuk tambah vendor baru, edit constant <code>MAKLON_VENDORS</code> di Code.gs + Deploy ulang.</div>
+          <div class="small" style="margin-top:4px; color:var(--muted)">Vendor tidak dikunci. Margaasih/Nanjung bisa setting saja atau setting+packing sesuai kondisi.</div>
         </div>
         <div class="form-group">
           <label>Catatan (opsional)</label>
@@ -5422,7 +5513,7 @@ Alasan: ${cleanReason}`)) return;
         return alert("Hanya Admin Produksi / Owner yang boleh terima barang maklon.");
       }
       const bal = await apiGetBal(bal_id);
-      const validStatuses = ["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_OBRAS_ONLY"];
+      const validStatuses = ["MAKLON_OBRAS_SETTING_PACKING", "MAKLON_OBRAS_SETTING_ONLY", "MAKLON_SETTING_PACKING", "MAKLON_SETTING_ONLY", "MAKLON_PACKING_ONLY", "MAKLON_OBRAS_ONLY"];
       if (!validStatuses.includes(bal.status)) {
         return alert("Bal harus di status MAKLON_*. Sekarang: " + bal.status);
       }
@@ -5434,11 +5525,27 @@ Alasan: ${cleanReason}`)) return;
       }
       const qtyOff = officialQty(bal);
       const tipeLabel = MAKLON_EKS_TIPE_LABEL[bal.maklon_eks_tipe] || bal.maklon_eks_tipe;
-      const nextStatusLabel = bal.maklon_eks_tipe === "OBRAS_ONLY"
-        ? "SELESAI_OBRAS (siap setting internal)"
-        : bal.maklon_eks_tipe === "SETTING_ONLY"
-        ? "SIAP_PACKING (packing internal lanjut)"
-        : "SELESAI_PACKING (langsung lanjut QC)";
+      const includesPacking = maklonTypeIncludes(bal.maklon_eks_tipe, "PACKING");
+      const nextStatusLabel = includesPacking
+        ? "Pilih di bawah: FINAL → SELESAI_PACKING / NON FINAL → SIAP_PACKING label merek internal"
+        : bal.maklon_eks_tipe === "OBRAS_ONLY"
+        ? "SELESAI_OBRAS (bisa setting internal atau kirim setting maklon lanjutan)"
+        : "SIAP_PACKING (packing internal lanjut)";
+      const hasilPackingHtml = includesPacking ? `
+        <div class="form-group">
+          <label>Hasil Packing Vendor <span class="required">*</span></label>
+          <div style="display:grid; gap:8px; margin-top:6px">
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="fme_hasil_packing" value="FINAL" checked style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Final / siap QC</strong><br><span class="small" style="color:var(--muted)">Barang dari vendor sudah siap jual/kirim/stok. Tidak perlu label merek internal lagi.</span></div>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px; border:1px solid var(--line); border-radius:8px; cursor:pointer">
+              <input type="radio" name="fme_hasil_packing" value="NON_FINAL" style="margin-top:3px; width:auto; min-height:0">
+              <div><strong>Non Final / perlu label merek internal</strong><br><span class="small" style="color:var(--muted)">Vendor sudah ikat/packing kasar, tapi pegawai internal masih harus label merek / packing final.</span></div>
+            </label>
+          </div>
+        </div>
+      ` : "";
 
       document.getElementById("actionTitle").textContent = "Selesai Maklon Eksternal";
       document.getElementById("actionContent").innerHTML = `
@@ -5452,6 +5559,7 @@ Alasan: ${cleanReason}`)) return;
           <label>Qty Hasil yang Vendor Kembalikan <span class="required">*</span></label>
           <input id="fme_qty_kembali" type="number" step="any" value="${qtyOff}" placeholder="Boleh berbeda dari qty kirim kalau ada loss">
         </div>
+        ${hasilPackingHtml}
         <div class="alert alert-info">Reject maklon eksternal dicatat untuk evaluasi vendor. Potongan upah tetap bisa diputuskan manual oleh owner.</div>
         <div class="grid-2">
           <div class="form-group">
@@ -5489,6 +5597,7 @@ Alasan: ${cleanReason}`)) return;
           reject_qty: Number(document.getElementById("fme_reject_qty")?.value || 0),
           reject_unit: document.getElementById("fme_reject_unit")?.value || "pcs",
           reject_note: document.getElementById("fme_reject_note")?.value.trim() || "",
+          hasil_packing: document.querySelector('input[name="fme_hasil_packing"]:checked')?.value || "",
           note
         });
         closeModal("actionModal"); closeModal("detailModal");
@@ -6235,7 +6344,9 @@ Alasan: ${cleanReason}`)) return;
       { key: "maklon_antislip", label: "Maklon Sablon Antislip", aliases: ["maklon sablon antislip", "sablon antislip", "maklon antislip"], btnId: "hrSubMaklonAntislipBtn" },
       { key: "maklon_obras", label: "Maklon Obras Saja", aliases: ["maklon obras saja", "maklon obras only"], btnId: "hrSubMaklonObrasBtn" },
       { key: "maklon_setting", label: "Maklon Setting Saja", aliases: ["maklon setting saja", "maklon setting only"], btnId: "hrSubMaklonSettingBtn" },
+      { key: "maklon_packing", label: "Maklon Packing Saja", aliases: ["maklon packing saja", "maklon packing only"], btnId: "hrSubMaklonPackingBtn" },
       { key: "maklon_setting_packing", label: "Maklon Setting Packing", aliases: ["maklon setting packing", "maklon setting+packing", "maklon setting + packing"], btnId: "hrSubMaklonSettingPackingBtn" },
+      { key: "maklon_obras_setting", label: "Maklon Obras Setting", aliases: ["maklon obras setting", "maklon obras+setting", "maklon obras + setting"], btnId: "hrSubMaklonObrasSettingBtn" },
       { key: "maklon_obras_setting_packing", label: "Maklon Obras Setting Packing", aliases: ["maklon obras setting packing", "maklon obras+setting+packing", "maklon obras + setting + packing"], btnId: "hrSubMaklonObrasSettingPackingBtn" }
     ];
 
