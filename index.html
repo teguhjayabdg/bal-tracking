@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v34 HR Live Borongan)</title>
+  <title>Bal Tracking 3.0 - Cloud (v35 HR Bulk Pay)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1034,6 +1034,7 @@
             <table>
               <thead>
                 <tr>
+                  <th class="bulk-check-cell">Pilih</th>
                   <th>Tanggal</th>
                   <th>Tahap</th>
                   <th>Pegawai</th>
@@ -1119,6 +1120,25 @@
             <button class="btn-outline btn-sm" onclick="exportBoronganCSV()">📥 Export CSV</button>
             <button class="btn-outline btn-sm" onclick="renderBorongan()">🔄 Refresh</button>
           </div>
+
+          <div id="hrPayBar" class="bulk-quick-bar">
+            <div class="bulk-quick-head">
+              <div>
+                <div class="bulk-quick-title">☑️ Menu Bayar Borongan</div>
+                <div id="hrSelectedInfo" class="bulk-help">Belum ada pekerjaan dipilih.</div>
+              </div>
+              <div class="actions" style="margin-top:0">
+                <button class="btn-outline btn-sm" type="button" onclick="selectVisibleBorongan()">Pilih yang tampil</button>
+                <button class="btn-secondary btn-sm" type="button" onclick="clearHrSelection()">Bersihkan</button>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-success btn-sm" type="button" onclick="bulkSetSelectedBoronganPaid(true)">✓ Bayar terpilih</button>
+              <button class="btn-success btn-sm" type="button" onclick="bulkPayAllVisibleBorongan()">✓ Bayar semua belum dibayar yang tampil</button>
+              <button class="btn-secondary btn-sm" type="button" onclick="bulkSetSelectedBoronganPaid(false)">↩ Belumkan terpilih</button>
+            </div>
+            <div class="bulk-help" style="margin-top:8px">Yang bisa dibayar hanya record final. Row “Belum final” otomatis dilewati.</div>
+          </div>
         </div>
 
         <div id="hrSummary" class="stat-grid"></div>
@@ -1135,6 +1155,7 @@
             <table>
               <thead>
                 <tr>
+                  <th class="bulk-check-cell">Pilih</th>
                   <th>Tanggal</th>
                   <th>Tahap</th>
                   <th>Pegawai</th>
@@ -1215,7 +1236,7 @@
     const WRITE_ACTIONS = new Set([
       "createBal", "updateStatus", "createOutputLabel", "editBal",
       "splitBal", "deleteBal", "manualSelesaiSetting", "ownerOverride",
-      "updateBoronganTarif", "setBoronganPaid", "deleteBoronganRow", "uploadFoto",
+      "updateBoronganTarif", "setBoronganPaid", "setBoronganPaidBulk", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
       "startMaklonEksternal", "finishMaklonEksternal",
@@ -1238,6 +1259,7 @@
     let currentUser = null;
     let currentTab = "dashboard";
     let currentHrSub = "obras";  // 'obras', 'setting', atau 'packing'
+    const hrSelectedBoronganIds = new Set();
     let scanner = null;
     let pendingPhotoBase64 = "";
     let currentDetailBalId = "";
@@ -1798,6 +1820,11 @@
     async function apiSetBoronganPaid(id, paid, note = "") {
       clearApiCache("listBorongan");
       return await api("setBoronganPaid", { id, paid, note });
+    }
+
+    async function apiSetBoronganPaidBulk(ids, paid, note = "") {
+      clearApiCache("listBorongan");
+      return await api("setBoronganPaidBulk", { ids, paid, note });
     }
 
     async function apiDeleteBoronganRow(id) {
@@ -6533,6 +6560,81 @@ Alasan: ${cleanReason}`)) return;
       return `${boronganPaidBadge(r)}<br><button class="${cls} btn-sm" style="margin-top:5px" onclick="toggleBoronganPaid('${safe(r.id)}', ${paid ? 'true' : 'false'})" title="${title}">${label}</button>`;
     }
 
+    function toggleHrBoronganSelection(id, checked) {
+      const key = String(id || "");
+      if (!key) return;
+      if (checked) hrSelectedBoronganIds.add(key);
+      else hrSelectedBoronganIds.delete(key);
+      updateHrSelectedInfo();
+    }
+
+    function updateHrSelectedInfo(currentRows = null) {
+      const info = document.getElementById("hrSelectedInfo");
+      if (!info) return;
+      const selectedCount = hrSelectedBoronganIds.size;
+      let visibleSelected = 0;
+      let visibleUnpaid = 0;
+      if (Array.isArray(currentRows)) {
+        visibleSelected = currentRows.filter(r => hrSelectedBoronganIds.has(String(r.id))).length;
+        visibleUnpaid = currentRows.filter(r => !isPendingBorongan(r) && boronganPaidStatus(r) !== "SUDAH").length;
+      }
+      info.textContent = selectedCount
+        ? `${selectedCount} pekerjaan dipilih${Array.isArray(currentRows) ? ` (${visibleSelected} terlihat). Belum dibayar yang tampil: ${visibleUnpaid}.` : "."}`
+        : `Belum ada pekerjaan dipilih${Array.isArray(currentRows) ? `. Belum dibayar yang tampil: ${visibleUnpaid}.` : "."}`;
+    }
+
+    function clearHrSelection() {
+      hrSelectedBoronganIds.clear();
+      updateHrSelectedInfo();
+      renderBorongan();
+    }
+
+    async function selectVisibleBorongan() {
+      try {
+        const rows = await getFilteredBorongan();
+        const eligible = rows.filter(r => !isPendingBorongan(r));
+        if (!eligible.length) { toast("Tidak ada record final yang bisa dipilih.", "warn"); return; }
+        eligible.forEach(r => hrSelectedBoronganIds.add(String(r.id)));
+        toast(`${eligible.length} pekerjaan final yang tampil dipilih.`, "success");
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function bulkSetSelectedBoronganPaid(paid) {
+      try {
+        const rows = await getFilteredBorongan();
+        const rowById = new Map(rows.map(r => [String(r.id), r]));
+        const ids = [...hrSelectedBoronganIds].filter(id => {
+          const r = rowById.get(String(id));
+          return r && !isPendingBorongan(r);
+        });
+        if (!ids.length) { toast("Pilih minimal 1 record final yang terlihat.", "warn"); return; }
+        const actionText = paid ? "SUDAH DIBAYAR" : "BELUM DIBAYAR";
+        if (!confirm(`Ubah ${ids.length} record terpilih menjadi ${actionText}?`)) return;
+        const note = paid ? (prompt("Catatan pembayaran massal (opsional):", "") || "") : "";
+        const res = await withLoading("Update bayar massal...", async () => await apiSetBoronganPaidBulk(ids, paid, note));
+        toast(`${Number(res?.updated || 0)} record berhasil diubah.`, "success");
+        ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function bulkPayAllVisibleBorongan() {
+      try {
+        const rows = await getFilteredBorongan();
+        const ids = rows
+          .filter(r => !isPendingBorongan(r) && boronganPaidStatus(r) !== "SUDAH")
+          .map(r => String(r.id));
+        if (!ids.length) { toast("Tidak ada record belum dibayar yang tampil.", "warn"); return; }
+        if (!confirm(`Bayar semua ${ids.length} record BELUM DIBAYAR yang sedang tampil sesuai filter?`)) return;
+        const note = prompt("Catatan pembayaran massal (opsional):", "") || "";
+        const res = await withLoading("Bayar semua yang tampil...", async () => await apiSetBoronganPaidBulk(ids, true, note));
+        toast(`${Number(res?.updated || 0)} record ditandai sudah dibayar.`, "success");
+        ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
+        renderBorongan();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
     async function toggleBoronganPaid(id, currentlyPaid) {
       const nextPaid = !currentlyPaid;
       const msg = nextPaid ? "Tandai record ini SUDAH DIBAYAR?" : "Kembalikan status menjadi BELUM DIBAYAR?";
@@ -6552,6 +6654,8 @@ Alasan: ${cleanReason}`)) return;
         refreshHrWorkerFilter(baseRows);
         const worker = document.getElementById("hrFilterWorker")?.value || "";
         const rows = worker ? baseRows.filter(r => r.pegawai === worker) : baseRows;
+
+        updateHrSelectedInfo(rows);
 
         const start = document.getElementById("hrFilterStart")?.value || "";
         const end = document.getElementById("hrFilterEnd")?.value || "";
@@ -6600,7 +6704,7 @@ Alasan: ${cleanReason}`)) return;
         const mobile = document.getElementById("hrMobile");
         if (!rows.length) {
           const empty = `<div class="empty">Belum ada pekerjaan ${safe(hrSubLabel(currentHrSub))} untuk periode ini.</div>`;
-          if (tbody) tbody.innerHTML = `<tr><td colspan="13">${empty}</td></tr>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="14">${empty}</td></tr>`;
           if (mobile) mobile.innerHTML = empty;
           return;
         }
@@ -6613,8 +6717,12 @@ Alasan: ${cleanReason}`)) return;
         };
 
         if (tbody) {
-          tbody.innerHTML = rows.map(r => `
+          tbody.innerHTML = rows.map(r => {
+            const canPay = !isPendingBorongan(r);
+            const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
+            return `
             <tr>
+              <td class="bulk-check-cell">${canPay ? `<input type="checkbox" class="bulk-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : `<span class="small muted">-</span>`}</td>
               <td>${safe(r.tanggal)}</td>
               <td>${safe(r.tahap || hrSubLabel(currentHrSub))}<br>${hrFinalBadge(r)}</td>
               <td><strong>${safe(r.pegawai)}</strong></td>
@@ -6631,12 +6739,16 @@ Alasan: ${cleanReason}`)) return;
               <td>${boronganPaidCell(r)}</td>
               <td>${isPendingBorongan(r) ? '<span class="small muted">-</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button>`}</td>
             </tr>
-          `).join("");
+          `}).join("");
         }
 
         if (mobile) {
-          mobile.innerHTML = rows.map(r => `
+          mobile.innerHTML = rows.map(r => {
+            const canPay = !isPendingBorongan(r);
+            const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
+            return `
             <div class="bal-card">
+              ${canPay ? `<input type="checkbox" class="bulk-check bulk-card-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : ""}
               ${fotoCell(r.foto_url || r.foto, r.bal_id)}
               <div class="bal-card-body">
                 <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
@@ -6653,7 +6765,7 @@ Alasan: ${cleanReason}`)) return;
                 <div class="actions">${isPendingBorongan(r) ? '<span class="small muted">Belum final — tidak bisa dihapus/dibayar.</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button>`}</div>
               </div>
             </div>
-          `).join("");
+          `}).join("");
         }
       } catch (e) {
         toast("Gagal load HR Borongan: " + e.message, "error");
