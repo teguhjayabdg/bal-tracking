@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v36 HR Pay Before QC)</title>
+  <title>Bal Tracking 3.0 - Cloud (v39.1 Safe Local Store)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1016,7 +1016,7 @@
           </div>
           <div class="small" id="workPeriodInfo" style="margin-top:8px"></div>
           <div class="actions" style="margin-top:10px">
-            <button class="btn-outline btn-sm" onclick="renderWorkRekap()">🔄 Refresh</button>
+            <button class="btn-outline btn-sm" onclick="manualRefresh(renderWorkRekap)">🔄 Refresh</button>
           </div>
         </div>
 
@@ -1068,7 +1068,7 @@
             </select>
             <select id="maklonFilterTipe" onchange="renderMaklonVendor()"><option value="">Semua Tipe Maklon</option></select>
             <input id="maklonFilterSearch" placeholder="Cari PO / ID / jenis / warna..." oninput="renderMaklonVendor()">
-            <button class="btn-outline" onclick="renderMaklonVendor()">🔄 Refresh</button>
+            <button class="btn-outline" onclick="manualRefresh(renderMaklonVendor)">🔄 Refresh</button>
           </div>
         </div>
         <div id="maklonSummary" class="stat-grid"></div>
@@ -1118,7 +1118,7 @@
           <div class="small" id="hrPeriodInfo" style="margin-top:8px"></div>
           <div class="actions" style="margin-top:10px">
             <button class="btn-outline btn-sm" onclick="exportBoronganCSV()">📥 Export CSV</button>
-            <button class="btn-outline btn-sm" onclick="renderBorongan()">🔄 Refresh</button>
+            <button class="btn-outline btn-sm" onclick="manualRefresh(renderBorongan)">🔄 Refresh</button>
           </div>
 
           <div id="hrPayBar" class="bulk-quick-bar">
@@ -1253,6 +1253,10 @@
     // Cache pendek khusus detail per-bal. Tujuannya supaya buka detail / modal aksi
     // yang sama tidak bolak-balik request Apps Script, tetapi tetap cepat fresh setelah mutasi.
     const API_DETAIL_CACHE_TTL_MS = 20000;
+
+    // v38: log timing dimatikan default supaya console tidak ramai.
+    // Ubah ke true saat mau diagnosis performa di DevTools.
+    const DEBUG_TIMING = false;
 
     const STORAGE_KEY = "bal_tracking_v3_cache";
     const SESSION_KEY = "bal_tracking_v3_user";
@@ -1397,6 +1401,73 @@
       const cached = _apiCache.get(apiCacheKey(action, payload));
       if (!cached || cached.expiresAt <= Date.now()) return null;
       return cached.data;
+    }
+
+    /* ============================================================
+       CLIENT BAL STORE (v39)
+       ------------------------------------------------------------
+       Satu sumber kebenaran sisi-klien untuk daftar bal. Tujuannya:
+       - Buka Detail dari list = INSTAN (0 network) karena bal sudah ada di store.
+       - Setelah aksi (status/packing/QC/maklon/override), cukup PATCH 1 bal di store
+         → list + dashboard langsung update tanpa refetch seluruh listBals.
+       Store ini menggantikan peran cache api() untuk listBals (lihat apiListBals v39).
+       TTL 60 dtk menjaga store tetap fresh kalau ada perubahan dari device lain
+       (sama kontraknya dgn cache listBals v38 yang juga 60 dtk).
+       ============================================================ */
+    const _balStore = { byId: new Map(), order: [], fetchedAt: 0 };
+    const BAL_STORE_TTL_MS = 60000;
+    let _balStoreFetchPromise = null; // v39.1: single-flight guard untuk listBals
+
+    function _balStoreFresh() {
+      return _balStore.fetchedAt > 0 && (Date.now() - _balStore.fetchedAt) < BAL_STORE_TTL_MS;
+    }
+    function _balStoreSetAll(rawList) {
+      _balStore.byId = new Map();
+      _balStore.order = [];
+      (rawList || []).forEach(raw => {
+        const b = _hydrateBal(raw);
+        if (!b || !b.bal_id) return;
+        const id = String(b.bal_id);
+        if (!_balStore.byId.has(id)) _balStore.order.push(id);
+        _balStore.byId.set(id, b);
+      });
+      _balStore.fetchedAt = Date.now();
+    }
+    function _balStoreList() {
+      const out = [];
+      for (const id of _balStore.order) {
+        const b = _balStore.byId.get(id);
+        if (b) out.push(b);
+      }
+      return out;
+    }
+    function _balStoreGet(id) {
+      if (!id) return null;
+      return _balStore.byId.get(String(id)) || null;
+    }
+    function _balStoreGetFresh(id) {
+      // v39.1: hanya pakai store untuk Detail kalau store masih fresh (dalam TTL).
+      // Kalau sudah lewat TTL, JANGAN tampilkan data store yang bisa basah —
+      // biar openDetail() fallback ke fetch server (perilaku sama spt v38).
+      if (!_balStoreFresh()) return null;
+      return _balStoreGet(id);
+    }
+    function _balStorePatch(bal) {
+      const b = _hydrateBal(bal);
+      if (!b || !b.bal_id) return false;
+      const id = String(b.bal_id);
+      if (!_balStore.byId.has(id)) _balStore.order.push(id);
+      _balStore.byId.set(id, b);
+      return true;
+    }
+    function _balStoreInvalidate() {
+      // v39: reset penuh — kosongkan map per-bal + order + timestamp. Dipakai untuk
+      // mutasi yang mengubah SET bal atau yang tidak mengembalikan bal lengkap
+      // (split/delete/create), operasi bulk, dan logout. Setelah ini openDetail(id)
+      // tidak menemukan entri lama → fetch fresh dari server (perilaku sama spt v38).
+      _balStore.byId = new Map();
+      _balStore.order = [];
+      _balStore.fetchedAt = 0;
     }
 
     async function api(action, payload = {}, options = {}) {
@@ -1626,49 +1697,103 @@
       return await api("login", { username, pin });
     }
 
-    async function apiListBals() {
-      const list = await api("listBals", {}, { cache: true });
-      return (list || []).map(_hydrateBal);
+    async function apiListBals(options = {}) {
+      // v39: store sisi-klien adalah cache-nya. Kalau masih fresh & tidak dipaksa,
+      // kembalikan dari store (0 network).
+      if (!options.force && _balStoreFresh()) {
+        return _balStoreList();
+      }
+      // v39.1 force: selalu fetch fresh, jangan nebeng fetch yang sedang jalan.
+      if (options.force) {
+        const list = await api("listBals", {}, { cache: false });
+        _balStoreSetAll(list || []);
+        return _balStoreList();
+      }
+      // v39.1 single-flight: kalau sudah ada fetch listBals jalan, ikut nebeng —
+      // jangan tembak server dua kali (mis. saat login / refresh cepat).
+      if (_balStoreFetchPromise) {
+        await _balStoreFetchPromise;
+        return _balStoreList();
+      }
+      _balStoreFetchPromise = (async () => {
+        try {
+          const list = await api("listBals", {}, { cache: false });
+          _balStoreSetAll(list || []);
+        } finally {
+          _balStoreFetchPromise = null;
+        }
+      })();
+      await _balStoreFetchPromise;
+      return _balStoreList();
     }
 
     async function apiGetBal(bal_id) {
       const payload = { bal_id };
-      const cachedBundle = getApiCacheValue("getBalBundle", payload);
+      // v39.1: apiGetBalBundle menyimpan cache dgn key { bal_id, include_history:false },
+      // jadi lookup harus pakai key yang sama biar cache-nya kena (sebelumnya selalu miss).
+      const cachedBundle = getApiCacheValue("getBalBundle", { bal_id, include_history: false });
       if (cachedBundle && cachedBundle.bal) return _hydrateBal(cachedBundle.bal);
 
       const b = await api("getBal", payload, { cache: true, cacheTtlMs: API_DETAIL_CACHE_TTL_MS });
       return _hydrateBal(b);
     }
 
-    async function apiGetBalBundle(bal_id) {
-      const payload = { bal_id };
+    async function apiGetBalBundle(bal_id, options = {}) {
+      // v38: buka detail default TANPA history supaya modal detail muncul lebih cepat.
+      // History bisa dimuat manual dari tombol "Muat Riwayat" di detail.
+      const includeHistory = !!options.includeHistory;
+      const payload = { bal_id, include_history: includeHistory };
+      const label = `getBalBundle:${bal_id}`;
+      if (DEBUG_TIMING) { try { console.time(label); } catch (_) {} }
+      const started = performance.now ? performance.now() : Date.now();
       const res = await api("getBalBundle", payload, { cache: true, cacheTtlMs: API_DETAIL_CACHE_TTL_MS });
+      const ended = performance.now ? performance.now() : Date.now();
+      if (DEBUG_TIMING) {
+        try {
+          console.timeEnd(label);
+          console.log("getBalBundle timing", {
+            bal_id,
+            includeHistory,
+            client_roundtrip_ms: Math.round(ended - started),
+            server_timing_ms: res && res.timing_ms
+          });
+        } catch (_) {}
+      }
       if (res && res.bal) {
         res.bal = _hydrateBal(res.bal);
-        setApiCacheValue("getBal", payload, res.bal, API_DETAIL_CACHE_TTL_MS);
+        setApiCacheValue("getBal", { bal_id }, res.bal, API_DETAIL_CACHE_TTL_MS);
+        setApiCacheValue("getBalBundle", { bal_id, include_history: false }, { bal: res.bal, timing_ms: res.timing_ms }, API_DETAIL_CACHE_TTL_MS);
       }
       if (res && Array.isArray(res.history)) {
-        setApiCacheValue("listHistory", payload, res.history, API_DETAIL_CACHE_TTL_MS);
+        setApiCacheValue("listHistory", { bal_id }, res.history, API_DETAIL_CACHE_TTL_MS);
       }
       return res || {};
     }
 
     async function apiFindQr(qr_id) {
       const label = `findQr:${qr_id}`;
-      try { console.time(label); } catch (_) {}
+      if (DEBUG_TIMING) { try { console.time(label); } catch (_) {} }
       const started = performance.now ? performance.now() : Date.now();
-      const res = await api("findQr", { qr_id, include_history: true });
+      // v38: scan QR juga dibuat ringan; history tidak dibawa saat scan.
+      const res = await api("findQr", { qr_id, include_history: false });
       const ended = performance.now ? performance.now() : Date.now();
-      try {
-        console.timeEnd(label);
-        console.log("findQr timing", {
-          qr_id,
-          client_roundtrip_ms: Math.round(ended - started),
-          server_elapsed_ms: res && res.elapsed_ms,
-          server_timing_ms: res && res.timing_ms
-        });
-      } catch (_) {}
-      if (res && res.bal) res.bal = _hydrateBal(res.bal);
+      if (DEBUG_TIMING) {
+        try {
+          console.timeEnd(label);
+          console.log("findQr timing", {
+            qr_id,
+            client_roundtrip_ms: Math.round(ended - started),
+            server_elapsed_ms: res && res.elapsed_ms,
+            server_timing_ms: res && res.timing_ms
+          });
+        } catch (_) {}
+      }
+      if (res && res.bal) {
+        res.bal = _hydrateBal(res.bal);
+        // v39.1: hasil scan QR = data bal fresh dari server. Masukkan ke store supaya
+        // setelah scan, pindah ke list/detail ikut menampilkan data terbaru.
+        _balStorePatch(res.bal);
+      }
       if (res && res.ticket && typeof res.ticket.workers_json === "string" && !res.ticket.workers) {
         try { res.ticket.workers = JSON.parse(res.ticket.workers_json || "[]"); } catch (_) { res.ticket.workers = []; }
       }
@@ -1968,6 +2093,7 @@
       currentUser = null;
       sessionStorage.removeItem(SESSION_KEY);
       clearApiCache(); // bersihkan cache supaya user berikutnya tidak lihat data cached
+      _balStoreInvalidate(); // v39: kosongkan store bal juga (device dipakai bergantian antar user)
       document.getElementById("loginPage").classList.remove("hidden");
       document.getElementById("appPage").classList.add("hidden");
       document.getElementById("loginPassword").value = "";
@@ -1980,8 +2106,9 @@
       setupNavByRole();
       setupStatusFilter();
       populateJenisSelect(document.getElementById("f_jenis_barang"));
+      // v39.1: switchTab() sudah memanggil refreshAll() untuk tab tujuan. Panggilan
+      // refreshAll() kedua di sini redundan dan dulu memicu 2 render/fetch saat login.
       switchTab(defaultTabForRole());
-      refreshAll();
       // FIX v17: warm-up autocomplete pegawai. Async, jangan await — biar UI tidak ngeblok.
       refreshWorkerNamesDatalist().catch(e => console.warn("refreshWorkerNamesDatalist:", e.message));
     }
@@ -2623,6 +2750,20 @@
       refreshAll();
     }
 
+    // v39.1: dipakai tombol "Refresh" manual. User klik Refresh = minta data server
+    // terbaru, jadi kosongkan store + cache api dulu, baru render ulang. Tanpa ini,
+    // selama store masih dalam TTL 60 dtk, Refresh bisa "bohong" (tetap tampil data lama).
+    async function manualRefresh(renderFn) {
+      _balStoreInvalidate();
+      clearApiCache();
+      try {
+        if (typeof renderFn === "function") await renderFn();
+      } catch (e) {
+        console.warn("manualRefresh:", e);
+        if (typeof toast === "function") toast(e.message || "Gagal refresh", "error"); else alert(e.message || String(e));
+      }
+    }
+
     async function refreshAll() {
   if (currentTab === "dashboard") {
     await renderDashboard();
@@ -2667,21 +2808,33 @@
       const updatedBal = options.bal ? _hydrateBal(options.bal) : null;
       if (updatedBal && updatedBal.bal_id) {
         setApiCacheValue("getBal", { bal_id: updatedBal.bal_id }, updatedBal, API_DETAIL_CACHE_TTL_MS);
+        setApiCacheValue("getBalBundle", { bal_id: updatedBal.bal_id, include_history: false }, { bal: updatedBal }, API_DETAIL_CACHE_TTL_MS);
+        // v39: patch 1 bal di store → list/dashboard langsung konsisten TANPA refetch network.
+        _balStorePatch(updatedBal);
+      } else {
+        // Tidak ada bal terbaru (mis. split/delete/create) → store mungkin tak akurat,
+        // tandai stale supaya render berikutnya ambil fresh sekali dari server.
+        _balStoreInvalidate();
       }
 
-      // Refresh sesuai tab aktif saja: list → renderList, maklon → renderMaklonVendor,
-      // HR → renderBorongan, history → renderGlobalHistory, dst.
-      // Ini mengganti pola lama yang memaksa renderList + dashboard + history berurutan.
-      if (options.refresh !== false) {
-        await refreshAll();
-      }
-
+      // v38 Smart Refresh:
+      // Kalau aksi punya updatedBal dan perlu reopen detail, tampilkan detail dulu dari data return server.
+      // Refresh tab aktif dijalankan background, jadi user tidak menunggu render list/maklon/HR selesai.
       if (options.reopenDetail) {
         if (updatedBal && String(updatedBal.bal_id) === String(bal_id)) {
           await openDetail(updatedBal, { lazyHistory: true });
         } else {
-          await openDetail(bal_id);
+          await openDetail(bal_id, { lazyHistory: true });
         }
+        if (options.refresh !== false) {
+          setTimeout(() => { refreshAll().catch(e => console.warn("background refresh failed", e)); }, 0);
+        }
+        return;
+      }
+
+      // Non-detail mutations tetap refresh normal supaya tabel HR/list langsung konsisten.
+      if (options.refresh !== false) {
+        await refreshAll();
       }
     }
 
@@ -3109,6 +3262,10 @@
         bulkSelectedBalIds.delete(String(id));
         clearApiCacheForBal(id, { borongan: true });
       });
+      // v39: operasi bulk mengubah banyak bal tanpa lewat refreshAfterMutation.
+      // Tandai store stale supaya refreshAll() di bawah ambil data fresh (1x refetch
+      // untuk seluruh batch), bukan menampilkan store lama.
+      if (ok.length) _balStoreInvalidate();
       closeModal("actionModal");
       try { await refreshAll(); } catch (_) {}
 
@@ -3485,23 +3642,42 @@ Alasan: ${cleanReason}`)) return;
         if (balOrId && typeof balOrId === "object") {
           b = _hydrateBal(balOrId);
         } else {
-          const bundle = await apiGetBalBundle(balOrId);
-          b = _hydrateBal(bundle.bal);
-          if (Array.isArray(bundle.history)) bundledHistory = bundle.history;
+          // v39: kalau history TIDAK diminta eksplisit, coba ambil bal dari sumber lokal
+          // dulu (store → cache bundle → cache getBal). Detail muncul INSTAN tanpa network;
+          // riwayat tetap lazy lewat tombol "Muat Riwayat" (konsisten dgn v38).
+          let local = null;
+          if (options.includeHistory !== true) {
+            local = _balStoreGetFresh(balOrId);
+            if (!local) {
+              const cb = getApiCacheValue("getBalBundle", { bal_id: balOrId, include_history: false });
+              if (cb && cb.bal) local = cb.bal;
+            }
+            if (!local) {
+              const cg = getApiCacheValue("getBal", { bal_id: balOrId });
+              if (cg) local = cg;
+            }
+          }
+          if (local) {
+            b = _hydrateBal(local);
+          } else {
+            const bundle = await apiGetBalBundle(balOrId, { includeHistory: options.includeHistory === true });
+            b = _hydrateBal(bundle.bal);
+            if (Array.isArray(bundle.history)) bundledHistory = bundle.history;
+          }
         }
 
         if (!b || !b.bal_id) throw new Error("Data bal tidak valid.");
         currentDetailBalId = b.bal_id;
 
-        const lazyHistory = !!options.lazyHistory;
+        const lazyHistory = options.lazyHistory !== false; // v38 default: jangan blok detail untuk history
         const providedHistory = Array.isArray(options.history) ? options.history : bundledHistory;
         const historyBoxId = `detailHistoryBox_${Date.now()}`;
-        let historyContent = `<div id="${historyBoxId}"><div class="empty">Memuat riwayat...</div></div>`;
+        let historyContent = `<div id="${historyBoxId}"><div class="empty">Riwayat belum dimuat.<br><button class="btn-outline btn-sm" style="margin-top:8px" onclick="loadDetailHistoryLazy('${safe(b.bal_id)}','${historyBoxId}')">Muat Riwayat</button></div></div>`;
         if (providedHistory) {
-          historyContent = renderDetailHistory(providedHistory);
+          historyContent = `<div id="${historyBoxId}">${renderDetailHistory(providedHistory)}</div>`;
         } else if (!lazyHistory) {
           const history = await apiGetHistory(b.bal_id);
-          historyContent = renderDetailHistory(history);
+          historyContent = `<div id="${historyBoxId}">${renderDetailHistory(history)}</div>`;
         }
 
         const childIds = String(b.children_ids || "").split(",").filter(Boolean);
@@ -3543,7 +3719,7 @@ Alasan: ${cleanReason}`)) return;
           </div>
         `;
         document.getElementById("detailModal").classList.add("show");
-        if (lazyHistory) loadDetailHistoryLazy(b.bal_id, historyBoxId);
+        // v38: history tidak otomatis dimuat; klik tombol Muat Riwayat bila diperlukan.
       } catch (e) { alert(e.message); }
     }
 
@@ -4144,10 +4320,10 @@ Alasan: ${cleanReason}`)) return;
         return alert("Alasan wajib diisi, minimal 10 karakter. Tuliskan jelas (contoh: dimaklon ke vendor X).");
       }
       try {
-        await apiManualSelesaiSetting({ bal_id, reason });
+        const updatedBal = await apiManualSelesaiSetting({ bal_id, reason });
         closeModal("actionModal");
         closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -4797,7 +4973,7 @@ Alasan: ${cleanReason}`)) return;
       const jenis_barang = e_jenis_select.value === "__OTHER__" ? titleCase(jenis_raw) : jenis_raw;
 
       try {
-        await apiEditBal({
+        const updatedBal = await apiEditBal({
           bal_id,
           po_id: cap(document.getElementById("e_po_id").value.trim()),
           nomor_bal: document.getElementById("e_nomor_bal").value.trim(),
@@ -4818,7 +4994,7 @@ Alasan: ${cleanReason}`)) return;
         closeModal("editModal");
         closeModal("detailModal");
 
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
 
       } catch (e) {
         alert(e.message);
@@ -5148,9 +5324,9 @@ Alasan: ${cleanReason}`)) return;
           payload.maklon_by = mby;
           payload.maklon_target_kembali = document.getElementById("sp_target_kembali").value;
         }
-        await apiStartPacking(payload);
+        const updatedBal = await apiStartPacking(payload);
         closeModal("actionModal"); closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5258,9 +5434,9 @@ Alasan: ${cleanReason}`)) return;
           if (invalid) return alert("Semua pekerja wajib punya nama asli (bukan 'Operator Packing') dan qty > 0.");
           payload.packing_workers = workers;
         }
-        await apiFinishPacking(payload);
+        const updatedBal = await apiFinishPacking(payload);
         closeModal("actionModal"); closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5397,7 +5573,7 @@ Alasan: ${cleanReason}`)) return;
           if (shippedQty <= 0) return alert("Qty terkirim wajib > 0.");
           if (shippedQty > qtyOk) return alert(`Qty terkirim tidak boleh melebihi Qty OK: ${qtyOk} ${satuan}.`);
         }
-        await apiQcPacking({
+        const updatedBal = await apiQcPacking({
           bal_id,
           qty_check: qtyCheck,
           qty_ok: qtyOk,
@@ -5412,7 +5588,7 @@ Alasan: ${cleanReason}`)) return;
           surat_jalan_no: target === "TERKIRIM" ? document.getElementById("qc_sj_no").value.trim() : ""
         });
         closeModal("actionModal"); closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5437,13 +5613,13 @@ Alasan: ${cleanReason}`)) return;
 
     async function confirmToggleStokKirim(bal_id, target_status) {
       try {
-        await apiToggleStokKirim({
+        const updatedBal = await apiToggleStokKirim({
           bal_id,
           target_status,
           note: document.getElementById("tsk_note").value.trim()
         });
         closeModal("actionModal"); closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -5504,7 +5680,7 @@ Alasan: ${cleanReason}`)) return;
         const shippedQty = Number(document.getElementById("ms_shipped_qty")?.value || 0);
         if (shippedQty <= 0) return alert("Qty terkirim wajib > 0.");
         if (shippedQty > available) return alert(`Qty terkirim tidak boleh melebihi stok tersedia: ${available}.`);
-        await apiMarkShipped({
+        const updatedBal = await apiMarkShipped({
           bal_id,
           shipped_qty: shippedQty,
           shipped_to: document.getElementById("ms_shipped_to").value.trim(),
@@ -5512,7 +5688,7 @@ Alasan: ${cleanReason}`)) return;
           shipped_note: document.getElementById("ms_note").value.trim()
         });
         closeModal("actionModal"); closeModal("detailModal");
-        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true });
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
 
@@ -6003,7 +6179,7 @@ Alasan: ${cleanReason}`)) return;
         if (found.type === "bal") {
           const perfText = found.elapsed_ms ? ` <span class="small">Server ${safe(found.elapsed_ms)}ms</span>` : "";
           document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Bal ditemukan: <span class="mono">${safe(qrId)}</span>${perfText}</div>`;
-          openDetail(found.bal, { history: found.history || [] });
+          openDetail(found.bal, { lazyHistory: true });
           return;
         }
         if (found.type === "ticket") {
