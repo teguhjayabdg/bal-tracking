@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v39.1 Safe Local Store)</title>
+  <title>Bal Tracking 3.0 - Cloud (v39.3 Klik Bal di Rekap/HR)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -193,13 +193,15 @@
     .photo-warning { color: var(--danger); font-size: 12px; margin-top: 7px; display: none; }
 
     /* TABLE & CARDS */
-    .filter-bar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; }
+    .filter-bar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 8px; }
     .table-wrap { overflow-x: auto; background: white; border-radius: 12px; border: 1px solid var(--line); }
     table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1120px; }
     th { background: #f8fafc; color: #334155; text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
     tr:hover { background: #fafafa; }
     .thumb { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; background: #e5e7eb; cursor: pointer; }
+    .bal-link { color: var(--primary); cursor: pointer; text-decoration: none; }
+    .bal-link:hover { text-decoration: underline; }
     .mobile-cards { display: none; }
     .bal-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; gap: 10px; }
     .bal-card img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e5e7eb; }
@@ -926,6 +928,8 @@
             <input id="filterSearch" placeholder="🔍 Cari ID/PO/operator/mesin..." oninput="onListFilterChange()">
             <input id="filterDate" type="text" placeholder="📅 Filter tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="onListFilterChange()">
             <input id="filterLine" placeholder="Filter Line (A/B/1...)" oninput="onListFilterChange()">
+            <select id="filterJenis" onchange="onListFilterChange()"><option value="">Semua Jenis</option></select>
+            <select id="filterWarna" onchange="onListFilterChange()"><option value="">Semua Warna</option></select>
             <select id="filterStatus" onchange="onListFilterChange()"><option value="">Semua Status</option></select>
             <select id="filterSort" onchange="onListFilterChange()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
           </div>
@@ -2843,6 +2847,39 @@
       s.innerHTML = `<option value="">Semua Status</option>` + [...STATUS_ORDER, "DIPECAH"].map(st => `<option value="${st}">${statusText(st)}</option>`).join("");
     }
 
+    // v39.2: ambil nilai unik (case-insensitive, simpan casing pertama) lalu urut alfabet.
+    function _distinctSortedValues(values) {
+      const seen = new Map(); // key lowercase -> casing pertama yang ditemui
+      values.forEach(v => {
+        const s = String(v ?? "").trim();
+        if (!s) return;
+        const k = s.toLowerCase();
+        if (!seen.has(k)) seen.set(k, s);
+      });
+      return [...seen.values()].sort((a, b) => a.localeCompare(b, "id", { sensitivity: "base" }));
+    }
+
+    // v39.2: isi ulang <select> facet (jenis/warna) dari data, sambil mempertahankan
+    // pilihan user. Kalau opsi tidak berubah, tidak menyentuh DOM (hindari flicker).
+    function _refreshFacetSelect(selectEl, placeholder, options) {
+      if (!selectEl) return;
+      const cur = selectEl.value;
+      const html = `<option value="">${placeholder}</option>` +
+        options.map(o => `<option value="${safe(o)}">${safe(o)}</option>`).join("");
+      if (selectEl.innerHTML !== html) selectEl.innerHTML = html;
+      // Pulihkan pilihan kalau nilainya masih ada di data; kalau hilang, balik ke "Semua".
+      if (cur && options.some(o => o.toLowerCase() === cur.toLowerCase())) selectEl.value = cur;
+      else if (cur) selectEl.value = "";
+    }
+
+    // v39.2: opsi jenis & warna diambil dari daftar bal SESUAI ROLE (bukan hasil filter),
+    // supaya memilih satu jenis tidak menghapus opsi jenis lain. Dipanggil tiap renderList.
+    function refreshListFacetFilters(roleScopedBals) {
+      const list = roleScopedBals || [];
+      _refreshFacetSelect(document.getElementById("filterJenis"), "Semua Jenis", _distinctSortedValues(list.map(b => b.jenis_barang)));
+      _refreshFacetSelect(document.getElementById("filterWarna"), "Semua Warna", _distinctSortedValues(list.map(b => b.warna)));
+    }
+
     async function renderDashboard() {
       const allBals = await apiListBals();
       const bals = focusBalsForRole(allBals);
@@ -3044,11 +3081,15 @@
       const q = document.getElementById("filterSearch")?.value.toLowerCase().trim() || "";
       const d = document.getElementById("filterDate")?.value || "";
       const l = document.getElementById("filterLine")?.value.toLowerCase().trim() || "";
+      const fj = document.getElementById("filterJenis")?.value.toLowerCase().trim() || "";
+      const fw = document.getElementById("filterWarna")?.value.toLowerCase().trim() || "";
       const st = document.getElementById("filterStatus")?.value || "";
       const sort = document.getElementById("filterSort")?.value || "newest";
       if (q) bals = bals.filter(b => [b.bal_id,b.po_id,b.nomor_bal,b.halaman_buku,b.buku_nomor,b.no_mesin,b.operator_mesin,b.jenis_barang,b.warna,b.size].some(v => String(v || "").toLowerCase().includes(q)));
       if (d) bals = bals.filter(b => String(b.tanggal_buat || "").slice(0,10) === d);
       if (l) bals = bals.filter(b => String(b.line || "").toLowerCase().includes(l));
+      if (fj) bals = bals.filter(b => String(b.jenis_barang || "").toLowerCase().trim() === fj);
+      if (fw) bals = bals.filter(b => String(b.warna || "").toLowerCase().trim() === fw);
       if (st) bals = bals.filter(b => b.status === st);
       bals.sort((a,b) => sort === "oldest" ? new Date(a.tanggal_buat) - new Date(b.tanggal_buat) : new Date(b.tanggal_buat) - new Date(a.tanggal_buat));
       return bals;
@@ -3057,6 +3098,8 @@
     async function renderList() {
       const bals = await filteredBals();
       const all = await apiListBals();
+      // v39.2: isi opsi dropdown Jenis & Warna dari daftar bal sesuai role (sebelum filter).
+      refreshListFacetFilters(focusBalsForRole(all));
 
       // Pagination: render hanya `listRenderLimit` row pertama. Sisanya bisa dimuat
       // via tombol "Load More" di bawah. Total bal yang match filter tetap di-show
@@ -6503,6 +6546,14 @@ Alasan: ${cleanReason}`)) return;
       el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
     }
 
+    // v39.3: render nomor bal sebagai link yang bisa diklik → buka detail bal.
+    // Dipakai di tabel Rekap Produksi & HR Borongan. Guard kalau bal_id kosong.
+    function balLink(balId) {
+      const id = String(balId || "");
+      if (!id) return `<span class="small mono">-</span>`;
+      return `<span class="small mono bal-link" title="Buka detail bal" onclick="openDetail('${safe(id)}')">${safe(id)}</span>`;
+    }
+
     function renderWorkRows(tbodyId, mobileId, rows, options = {}) {
       const tbody = document.getElementById(tbodyId);
       const mobile = document.getElementById(mobileId);
@@ -6529,7 +6580,7 @@ Alasan: ${cleanReason}`)) return;
             <td>${safe(r.tahap)}</td>
             ${showPegawai ? `<td><strong>${safe(r.pegawai)}</strong></td>` : ""}
             <td>${fotoCell(r.foto_url, r.bal_id)}</td>
-            <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
+            <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
             <td>${safe(r.jenis || "-")}</td>
             <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
             <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
@@ -6543,7 +6594,7 @@ Alasan: ${cleanReason}`)) return;
           <div class="bal-card">
             ${fotoCell(r.foto_url, r.bal_id)}
             <div class="bal-card-body">
-              <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
+              <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
               <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""}</div>
               <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
               <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
@@ -6911,7 +6962,7 @@ Alasan: ${cleanReason}`)) return;
               <td>${safe(r.tahap || hrSubLabel(currentHrSub))}<br>${hrFinalBadge(r)}</td>
               <td><strong>${safe(r.pegawai)}</strong></td>
               <td>${fotoCell(r.foto_url || r.foto, r.bal_id)}</td>
-              <td><strong>${safe(r.po_id)}</strong><br><span class="small mono">${safe(r.bal_id)}</span></td>
+              <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
               <td>${safe(r.jenis || "-")}</td>
               <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
               <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
@@ -6935,7 +6986,7 @@ Alasan: ${cleanReason}`)) return;
               ${canSelect ? `<input type="checkbox" class="bulk-check bulk-card-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : ""}
               ${fotoCell(r.foto_url || r.foto, r.bal_id)}
               <div class="bal-card-body">
-                <div class="small mono">${safe(r.bal_id)} · ${safe(r.tanggal)}</div>
+                <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
                 <div class="bal-title">${safe(r.tahap || hrSubLabel(currentHrSub))} · ${safe(r.pegawai)} ${hrFinalBadge(r)}</div>
                 <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
                 <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
