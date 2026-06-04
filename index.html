@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v39.4 Tampilan Buku)</title>
+  <title>Bal Tracking 3.0 - Cloud (v39.5 Tampilan Buku + Foto)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1007,6 +1007,7 @@
               <thead>
                 <tr>
                   <th>Halaman</th>
+                  <th>Foto</th>
                   <th>PO / No Bal</th>
                   <th>Jenis / Warna / Size</th>
                   <th>Qty</th>
@@ -6279,7 +6280,7 @@ Alasan: ${cleanReason}`)) return;
       const g = groups.get(currentBukuKey);
       if (!g) {
         if (titleEl) titleEl.textContent = "Pilih buku";
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty">Pilih buku di atas.</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Pilih buku di atas.</div></td></tr>`;
         mobile.innerHTML = "";
         return;
       }
@@ -6305,7 +6306,7 @@ Alasan: ${cleanReason}`)) return;
 
       if (!rows.length) {
         const msg = bukuSearchTerm ? "Tidak ada halaman yang cocok dengan pencarian." : "Buku ini belum ada isinya.";
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty">${msg}</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">${msg}</div></td></tr>`;
         mobile.innerHTML = `<div class="empty">${msg}</div>`;
         return;
       }
@@ -6322,6 +6323,7 @@ Alasan: ${cleanReason}`)) return;
       tbody.innerHTML = rows.map(b => `
         <tr>
           <td><strong>${halShow(b)}</strong>${dupBadge(b)}</td>
+          <td>${photoThumb(b)}</td>
           <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
           <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
           <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}</td>
@@ -6332,11 +6334,14 @@ Alasan: ${cleanReason}`)) return;
 
       mobile.innerHTML = rows.map(b => `
         <div class="bal-card">
-          <div class="bal-card-body">
-            <div class="bal-title">Halaman ${halShow(b)}${dupBadge(b)}</div>
-            <div class="small"><strong>${safe(b.po_id || "-")}</strong> · Bal #${safe(b.nomor_bal || "-")}</div>
-            <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></div>
-            <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            ${photoThumb(b)}
+            <div class="bal-card-body" style="flex:1;min-width:0">
+              <div class="bal-title">Halaman ${halShow(b)}${dupBadge(b)}</div>
+              <div class="small"><strong>${safe(b.po_id || "-")}</strong> · Bal #${safe(b.nomor_bal || "-")}</div>
+              <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></div>
+              <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
+            </div>
           </div>
         </div>
       `).join("");
