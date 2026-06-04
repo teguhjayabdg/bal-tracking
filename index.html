@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v39.3 Klik Bal di Rekap/HR)</title>
+  <title>Bal Tracking 3.0 - Cloud (v39.4 Tampilan Buku)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -202,6 +202,16 @@
     .thumb { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; background: #e5e7eb; cursor: pointer; }
     .bal-link { color: var(--primary); cursor: pointer; text-decoration: none; }
     .bal-link:hover { text-decoration: underline; }
+    /* v39.4 Tampilan Buku */
+    .buku-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .buku-chip { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; background: white; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; min-width: 78px; box-shadow: var(--shadow); }
+    .buku-chip:hover { border-color: var(--primary); }
+    .buku-chip.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .buku-chip.active .buku-chip-count { color: rgba(255,255,255,.85); }
+    .buku-chip.warn { border-color: #e0a800; }
+    .buku-chip.warn.active { background: #e0a800; border-color: #e0a800; color: #fff; }
+    .buku-chip-name { font-weight: 700; font-size: 14px; }
+    .buku-chip-count { font-size: 11px; color: var(--muted); }
     .mobile-cards { display: none; }
     .bal-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; gap: 10px; }
     .bal-card img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e5e7eb; }
@@ -849,6 +859,7 @@
           <button data-tab="dashboard" class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
           <button data-tab="input" class="tab-btn" onclick="switchTab('input')">➕ Input Bal</button>
           <button data-tab="list" class="tab-btn" onclick="switchTab('list')">📋 Daftar Bal</button>
+          <button data-tab="buku" class="tab-btn" onclick="switchTab('buku')">📚 Buku</button>
           <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
           <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
@@ -968,6 +979,46 @@
         </div>
         <div id="mobileCards" class="mobile-cards"></div>
         <button id="loadMoreBtn" class="btn-outline btn-block" style="display:none; margin-top:12px" onclick="loadMoreList()">↓ Load 50 berikutnya</button>
+      </div>
+
+      <!-- BUKU (v39.4) -->
+      <div id="tab-buku" class="tab-content">
+        <div class="card">
+          <div class="section-title">📚 Tampilan Buku</div>
+          <p class="sub-note">Susunan bal seperti buku fisik: pilih buku, lalu lihat isi tiap halaman berurutan (PO, jenis, warna, size).</p>
+          <div class="small" id="bukuSummary" style="margin-top:4px"></div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn-outline btn-sm" onclick="manualRefresh(renderBuku)">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Pilih Buku</div>
+          <div id="bukuChips" class="buku-chips"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" id="bukuTableTitle">Pilih buku</div>
+          <div class="filter-bar">
+            <input id="bukuSearch" placeholder="🔍 Cari halaman / PO / jenis / warna / size..." oninput="onBukuSearch(this.value)">
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Halaman</th>
+                  <th>PO / No Bal</th>
+                  <th>Jenis / Warna / Size</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th>ID Bal</th>
+                </tr>
+              </thead>
+              <tbody id="bukuRows"></tbody>
+            </table>
+          </div>
+          <div id="bukuMobile" class="mobile-cards"></div>
+        </div>
       </div>
 
       <!-- SCAN -->
@@ -1267,6 +1318,9 @@
     let currentUser = null;
     let currentTab = "dashboard";
     let currentHrSub = "obras";  // 'obras', 'setting', atau 'packing'
+    // v39.4 Tampilan Buku: buku yang sedang dilihat + kata kunci pencarian halaman.
+    let currentBukuKey = "";
+    let bukuSearchTerm = "";
     const hrSelectedBoronganIds = new Set();
     let scanner = null;
     let pendingPhotoBase64 = "";
@@ -2150,6 +2204,7 @@
       if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "history") return ["Admin Produksi"].includes(r);
       if (tab === "workrecap") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
+      if (tab === "buku") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
@@ -2786,6 +2841,11 @@
 
   if (currentTab === "workrecap") {
     await switchWorkSub(currentWorkSub);
+    return;
+  }
+
+  if (currentTab === "buku") {
+    await renderBuku();
     return;
   }
 
@@ -6092,6 +6152,194 @@ Alasan: ${cleanReason}`)) return;
       }
 
       return `Hal ${halaman || "-"} / ${nomor}`;
+    }
+
+    /* ============================================================
+       TAMPILAN BUKU (v39.4)
+       ------------------------------------------------------------
+       Menyusun seluruh bal seperti buku fisik: dikelompokkan per
+       nomor buku (A26, A27, ...) lalu diurutkan per halaman.
+       Murni sisi-klien — baca dari store yang sama dengan Daftar Bal
+       (apiListBals). TIDAK ada endpoint/skema baru di Code.gs.
+       Field dipakai: halaman_buku, buku_nomor, po_id, jenis_barang,
+       warna, size, jumlah/qty_verifikasi, status, bal_id.
+       ============================================================ */
+    const BUKU_NOBOOK_KEY = "__NOBOOK__"; // bal yang belum diisi nomor bukunya
+
+    // Normalisasi nomor buku ke bentuk tampil "A26" — mengikuti logika labelBukuText.
+    function bukuNomorDisplay(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return "";
+      return s.toUpperCase().startsWith("A") ? s.toUpperCase() : `A${s}`;
+    }
+
+    // Bangun Map: kunci buku -> { key, label, bals: [] }. Kunci NOBOOK untuk yang kosong.
+    function buildBukuGroups(bals) {
+      const groups = new Map();
+      (bals || []).forEach(b => {
+        const disp = bukuNomorDisplay(b.buku_nomor);
+        const key = disp || BUKU_NOBOOK_KEY;
+        if (!groups.has(key)) {
+          groups.set(key, { key, label: disp || "Belum ada nomor buku", bals: [] });
+        }
+        groups.get(key).bals.push(b);
+      });
+      // Urutkan halaman tiap buku: numerik menaik, halaman kosong di akhir.
+      groups.forEach(g => {
+        g.bals.sort((x, y) => {
+          const hx = Number(x.halaman_buku), hy = Number(y.halaman_buku);
+          const okx = Number.isFinite(hx) && String(x.halaman_buku || "").trim() !== "";
+          const oky = Number.isFinite(hy) && String(y.halaman_buku || "").trim() !== "";
+          if (okx && oky && hx !== hy) return hx - hy;
+          if (okx && !oky) return -1;
+          if (!okx && oky) return 1;
+          const t = String(x.halaman_buku || "").localeCompare(String(y.halaman_buku || ""), "id", { numeric: true });
+          if (t !== 0) return t;
+          return String(x.bal_id || "").localeCompare(String(y.bal_id || ""));
+        });
+      });
+      return groups;
+    }
+
+    // Urutan kunci buku untuk daftar chip: buku asli dulu (natural sort), NOBOOK terakhir.
+    function bukuSortedKeys(groups) {
+      const keys = [...groups.keys()].filter(k => k !== BUKU_NOBOOK_KEY);
+      keys.sort((a, b) => a.localeCompare(b, "id", { numeric: true, sensitivity: "base" }));
+      if (groups.has(BUKU_NOBOOK_KEY)) keys.push(BUKU_NOBOOK_KEY);
+      return keys;
+    }
+
+    function selectBuku(key) {
+      currentBukuKey = key;
+      renderBuku();
+    }
+
+    function onBukuSearch(val) {
+      bukuSearchTerm = String(val || "").trim().toLowerCase();
+      // Render ulang tabel saja (chip & ringkasan tidak berubah). Pakai data store
+      // yang sudah dimuat renderBuku(); kalau kosong, fallback render penuh.
+      const list = _balStoreList();
+      if (!list.length) { renderBuku(); return; }
+      renderBukuTable(buildBukuGroups(list));
+    }
+
+    async function renderBuku() {
+      const summaryEl = document.getElementById("bukuSummary");
+      const chipEl = document.getElementById("bukuChips");
+      if (!chipEl) return;
+
+      let bals;
+      try {
+        bals = await apiListBals();
+      } catch (e) {
+        chipEl.innerHTML = `<div class="empty">Gagal memuat data: ${safe(e.message || String(e))}</div>`;
+        return;
+      }
+
+      const groups = buildBukuGroups(bals);
+      const keys = bukuSortedKeys(groups);
+
+      // Pastikan ada buku terpilih yang valid.
+      if (!currentBukuKey || !groups.has(currentBukuKey)) {
+        currentBukuKey = keys.length ? keys[0] : "";
+      }
+
+      // Ringkasan.
+      const totalBuku = keys.filter(k => k !== BUKU_NOBOOK_KEY).length;
+      const nobook = groups.get(BUKU_NOBOOK_KEY);
+      if (summaryEl) {
+        summaryEl.innerHTML = `Total ${totalBuku} buku · ${bals.length} bal`
+          + (nobook ? ` · <span style="color:var(--danger)">${nobook.bals.length} bal belum ada nomor buku</span>` : "");
+      }
+
+      // Chip daftar buku.
+      if (!keys.length) {
+        chipEl.innerHTML = `<div class="empty">Belum ada bal.</div>`;
+      } else {
+        chipEl.innerHTML = keys.map(k => {
+          const g = groups.get(k);
+          const active = k === currentBukuKey;
+          const isNo = k === BUKU_NOBOOK_KEY;
+          return `<button class="buku-chip${active ? " active" : ""}${isNo ? " warn" : ""}" onclick="selectBuku('${safe(k)}')">
+            <span class="buku-chip-name">${isNo ? "⚠️ Belum diisi" : safe(g.label)}</span>
+            <span class="buku-chip-count">${g.bals.length} hal</span>
+          </button>`;
+        }).join("");
+      }
+
+      renderBukuTable(groups);
+    }
+
+    function renderBukuTable(groups) {
+      const titleEl = document.getElementById("bukuTableTitle");
+      const tbody = document.getElementById("bukuRows");
+      const mobile = document.getElementById("bukuMobile");
+      if (!tbody || !mobile) return;
+
+      const g = groups.get(currentBukuKey);
+      if (!g) {
+        if (titleEl) titleEl.textContent = "Pilih buku";
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty">Pilih buku di atas.</div></td></tr>`;
+        mobile.innerHTML = "";
+        return;
+      }
+
+      if (titleEl) {
+        titleEl.textContent = g.key === BUKU_NOBOOK_KEY ? "Bal belum ada nomor buku" : `Buku ${g.label}`;
+      }
+
+      // Hitung halaman ganda (page number muncul > 1x) untuk badge peringatan.
+      const halCount = new Map();
+      g.bals.forEach(b => {
+        const h = String(b.halaman_buku || "").trim();
+        if (!h) return;
+        halCount.set(h, (halCount.get(h) || 0) + 1);
+      });
+
+      // Filter pencarian dalam buku terpilih.
+      let rows = g.bals;
+      if (bukuSearchTerm) {
+        rows = rows.filter(b => [b.halaman_buku, b.po_id, b.nomor_bal, b.jenis_barang, b.warna, b.size, b.bal_id]
+          .some(v => String(v || "").toLowerCase().includes(bukuSearchTerm)));
+      }
+
+      if (!rows.length) {
+        const msg = bukuSearchTerm ? "Tidak ada halaman yang cocok dengan pencarian." : "Buku ini belum ada isinya.";
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty">${msg}</div></td></tr>`;
+        mobile.innerHTML = `<div class="empty">${msg}</div>`;
+        return;
+      }
+
+      const dupBadge = (b) => {
+        const h = String(b.halaman_buku || "").trim();
+        return h && halCount.get(h) > 1 ? ` <span class="badge" style="background:#fff3cd;color:#856404">hal ganda</span>` : "";
+      };
+      const halShow = (b) => {
+        const h = String(b.halaman_buku || "").trim();
+        return h ? safe(h) : `<span class="small" style="color:var(--muted)">-</span>`;
+      };
+
+      tbody.innerHTML = rows.map(b => `
+        <tr>
+          <td><strong>${halShow(b)}</strong>${dupBadge(b)}</td>
+          <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
+          <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
+          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}</td>
+          <td>${statusBadge(b.status)}</td>
+          <td>${balLink(b.bal_id)}</td>
+        </tr>
+      `).join("");
+
+      mobile.innerHTML = rows.map(b => `
+        <div class="bal-card">
+          <div class="bal-card-body">
+            <div class="bal-title">Halaman ${halShow(b)}${dupBadge(b)}</div>
+            <div class="small"><strong>${safe(b.po_id || "-")}</strong> · Bal #${safe(b.nomor_bal || "-")}</div>
+            <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></div>
+            <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
+          </div>
+        </div>
+      `).join("");
     }
 
     function labelJumlahText(b) {
