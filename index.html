@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v39.5 Tampilan Buku + Foto)</title>
+  <title>Bal Tracking 3.0 - Cloud (v40.1 Buku per PO)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -212,6 +212,16 @@
     .buku-chip.warn.active { background: #e0a800; border-color: #e0a800; color: #fff; }
     .buku-chip-name { font-weight: 700; font-size: 14px; }
     .buku-chip-count { font-size: 11px; color: var(--muted); }
+    /* v40.1 Buku per PO */
+    .buku-mode-bar { display: flex; gap: 8px; }
+    .buku-mode-btn { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: white; cursor: pointer; font-weight: 600; font-size: 14px; }
+    .buku-mode-btn:hover { border-color: var(--primary); }
+    .buku-mode-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .buku-po-summary { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+    .buku-po-item { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid #e0f2fe; }
+    .buku-po-item:first-of-type { border-top: none; }
+    .buku-po-name { font-weight: 600; }
+    .buku-po-qty { font-weight: 700; color: #075985; text-align: right; }
     .mobile-cards { display: none; }
     .bal-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; gap: 10px; }
     .bal-card img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e5e7eb; }
@@ -985,36 +995,31 @@
       <div id="tab-buku" class="tab-content">
         <div class="card">
           <div class="section-title">📚 Tampilan Buku</div>
-          <p class="sub-note">Susunan bal seperti buku fisik: pilih buku, lalu lihat isi tiap halaman berurutan (PO, jenis, warna, size).</p>
-          <div class="small" id="bukuSummary" style="margin-top:4px"></div>
+          <p class="sub-note">Susunan bal seperti buku fisik. Mode <strong>Per Buku</strong>: pilih buku, lihat isi tiap halaman + ringkasan total per PO. Mode <strong>Per PO</strong>: pilih PO, lihat semua bal-nya lintas buku + total qty.</p>
+          <div class="buku-mode-bar" style="margin-top:8px">
+            <button type="button" id="bukuModeBukuBtn" class="buku-mode-btn active" onclick="setBukuMode('buku')">📚 Per Buku</button>
+            <button type="button" id="bukuModePoBtn" class="buku-mode-btn" onclick="setBukuMode('po')">🧾 Per PO</button>
+          </div>
+          <div class="small" id="bukuSummary" style="margin-top:10px"></div>
           <div class="actions" style="margin-top:10px">
             <button class="btn-outline btn-sm" onclick="manualRefresh(renderBuku)">🔄 Refresh</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="section-title">Pilih Buku</div>
+          <div class="section-title" id="bukuChipsTitle">Pilih Buku</div>
           <div id="bukuChips" class="buku-chips"></div>
         </div>
 
         <div class="card">
           <div class="section-title" id="bukuTableTitle">Pilih buku</div>
+          <div id="bukuPoSummary"></div>
           <div class="filter-bar">
-            <input id="bukuSearch" placeholder="🔍 Cari halaman / PO / jenis / warna / size..." oninput="onBukuSearch(this.value)">
+            <input id="bukuSearch" placeholder="🔍 Cari halaman / buku / PO / jenis / warna / size..." oninput="onBukuSearch(this.value)">
           </div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Halaman</th>
-                  <th>Foto</th>
-                  <th>PO / No Bal</th>
-                  <th>Jenis / Warna / Size</th>
-                  <th>Qty</th>
-                  <th>Status</th>
-                  <th>ID Bal</th>
-                </tr>
-              </thead>
+              <thead id="bukuThead"></thead>
               <tbody id="bukuRows"></tbody>
             </table>
           </div>
@@ -1322,6 +1327,9 @@
     // v39.4 Tampilan Buku: buku yang sedang dilihat + kata kunci pencarian halaman.
     let currentBukuKey = "";
     let bukuSearchTerm = "";
+    // v40.1 Buku per PO: mode tampilan ("buku" | "po") + PO yang sedang dilihat.
+    let bukuViewMode = "buku";
+    let currentPoKey = "";
     const hrSelectedBoronganIds = new Set();
     let scanner = null;
     let pendingPhotoBase64 = "";
@@ -2677,6 +2685,33 @@
       return Number((b && b.qty_verifikasi) || (b && b.jumlah) || 0);
     }
 
+    // v40 (issue 1): ringkasan stok vs terkirim untuk status gudang, supaya
+    // tidak perlu buka detail. Mengembalikan teks pendek atau "" kalau tak relevan.
+    function stokRingkasText(b) {
+      if (!b || !["STOK_BARANG", "SIAP_KIRIM", "TERKIRIM"].includes(b.status)) return "";
+      const satuan = b.satuan || "";
+      const shipped = Number(b.shipped_qty || 0);
+      const hasStok = b.stok_qty !== "" && b.stok_qty !== undefined && b.stok_qty !== null;
+      const stok = hasStok ? Number(b.stok_qty || 0) : null;
+      if (b.status === "TERKIRIM") {
+        const totShip = shipped || (stok === 0 ? officialQty(b) : 0);
+        return `🚚 Terkirim ${totShip} ${satuan}`.trim();
+      }
+      // STOK_BARANG / SIAP_KIRIM
+      const stokShow = stok !== null ? stok : officialQty(b);
+      return shipped > 0
+        ? `📦 Stok ${stokShow} · 🚚 Terkirim ${shipped} ${satuan}`.trim()
+        : `📦 Stok ${stokShow} ${satuan}`.trim();
+    }
+    // Versi HTML untuk dipakai inline di tabel/kartu (sub-baris kecil), atau "" kalau kosong.
+    function stokRingkasHtml(b, block = false) {
+      const t = stokRingkasText(b);
+      if (!t) return "";
+      const sep = block ? `<div class="small" style="color:#075985;font-weight:600;margin-top:2px">` : `<br><span class="small" style="color:#075985;font-weight:600">`;
+      const end = block ? `</div>` : `</span>`;
+      return `${sep}${safe(t)}${end}`;
+    }
+
     function settingOutputQty(b) {
       const outs = Array.isArray(b && b.output_labels) ? b.output_labels : [];
       return outs.reduce((sum, o) => sum + Number(o.qty || 0), 0);
@@ -3198,7 +3233,7 @@
           <td>${safe(b.line || "-")}<br><span class="small">MC ${safe(b.no_mesin || "-")}</span></td>
           <td>${safe(b.operator_mesin || "-")}</td>
           <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
-          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan)}${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? `<br><span class="small" style="color:var(--muted)">op:${safe(b.jumlah)}</span>` : ""}</td>
+          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan)}${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? `<br><span class="small" style="color:var(--muted)">op:${safe(b.jumlah)}</span>` : ""}${stokRingkasHtml(b)}</td>
           <td>${statusBadge(b.status)}</td>
           <td><strong>${safe(labelBukuText(b))}</strong></td>
           <td>${actionButtons(b)}</td>
@@ -3212,7 +3247,7 @@
             <div class="small mono">${safe(b.bal_id)}</div>
             <div class="bal-title">${safe(b.po_id)} ${splitBadges(b)}</div>
             <div class="small">Bal #${safe(b.nomor_bal)} · ${safe(b.line || "-")} · MC ${safe(b.no_mesin || "-")} · ${safe(b.operator_mesin || "-")}</div>
-            <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan)}</strong>${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? ` <span style="color:var(--muted)">(op:${safe(b.jumlah)})</span>` : ""}</div>
+            <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan)}</strong>${b.qty_verifikasi && Number(b.qty_verifikasi) !== Number(b.jumlah) ? ` <span style="color:var(--muted)">(op:${safe(b.jumlah)})</span>` : ""}</div>${stokRingkasHtml(b, true)}
             <div style="margin-top:5px">${statusBadge(b.status)} <span class="small">${safe(labelBukuText(b))}</span></div>
             <div class="actions">${actionButtons(b)}</div>
           </div>
@@ -5741,7 +5776,7 @@ Alasan: ${cleanReason}`)) return;
       document.getElementById("actionTitle").textContent = "Mark Terkirim";
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
-          QC OK: <strong>${safe(qtyOk)} ${safe(bal.satuan)}</strong><br>
+          ${qtyOk > 0 ? `QC OK: <strong>${safe(qtyOk)} ${safe(bal.satuan)}</strong><br>` : `<span style="color:#92400e">Stok lama (belum lewat QC Packing)</span><br>`}
           Sudah terkirim: <strong>${safe(shippedQty)} ${safe(bal.satuan)}</strong><br>
           Sisa stok tersedia: <strong>${safe(stokQty)} ${safe(bal.satuan)}</strong>
         </div>
@@ -6210,21 +6245,102 @@ Alasan: ${cleanReason}`)) return;
       return keys;
     }
 
+    // ===== v40.1: PO grouping helpers =====
+    const BUKU_NOPO_KEY = "__NOPO__"; // bal tanpa po_id
+
+    function poKeyOf(b) {
+      const s = String(b.po_id || "").trim();
+      return s || BUKU_NOPO_KEY;
+    }
+    function poLabelOf(key, sampleBal) {
+      return key === BUKU_NOPO_KEY ? "Tanpa PO" : String((sampleBal && sampleBal.po_id) || key).trim();
+    }
+    // Total qty dipisah PER SATUAN supaya tidak menjumlahkan lusin + pasang.
+    function qtySumText(bals) {
+      const bySat = new Map();
+      (bals || []).forEach(b => {
+        const sat = String(b.satuan || "").trim() || "?";
+        bySat.set(sat, (bySat.get(sat) || 0) + officialQty(b));
+      });
+      if (!bySat.size) return "0";
+      return [...bySat.entries()]
+        .map(([sat, q]) => `${Math.round(q * 10000) / 10000} ${sat}`.trim())
+        .join(" · ");
+    }
+    function buildPoGroups(bals) {
+      const groups = new Map();
+      (bals || []).forEach(b => {
+        const key = poKeyOf(b);
+        if (!groups.has(key)) groups.set(key, { key, label: poLabelOf(key, b), bals: [] });
+        groups.get(key).bals.push(b);
+      });
+      // Dalam tiap PO: urutkan buku (natural) lalu halaman (numerik).
+      groups.forEach(g => {
+        g.bals.sort((x, y) => {
+          const bx = bukuNomorDisplay(x.buku_nomor), by = bukuNomorDisplay(y.buku_nomor);
+          const c = bx.localeCompare(by, "id", { numeric: true, sensitivity: "base" });
+          if (c !== 0) return c;
+          const hx = Number(x.halaman_buku), hy = Number(y.halaman_buku);
+          const okx = Number.isFinite(hx) && String(x.halaman_buku || "").trim() !== "";
+          const oky = Number.isFinite(hy) && String(y.halaman_buku || "").trim() !== "";
+          if (okx && oky && hx !== hy) return hx - hy;
+          if (okx && !oky) return -1;
+          if (!okx && oky) return 1;
+          return String(x.bal_id || "").localeCompare(String(y.bal_id || ""));
+        });
+      });
+      return groups;
+    }
+    function poSortedKeys(groups) {
+      const keys = [...groups.keys()].filter(k => k !== BUKU_NOPO_KEY);
+      keys.sort((a, b) => {
+        const la = groups.get(a).label, lb = groups.get(b).label;
+        return String(la).localeCompare(String(lb), "id", { numeric: true, sensitivity: "base" });
+      });
+      if (groups.has(BUKU_NOPO_KEY)) keys.push(BUKU_NOPO_KEY);
+      return keys;
+    }
+
+    // ===== Mode & seleksi =====
+    function setBukuMode(mode) {
+      if (mode === bukuViewMode) return;
+      bukuViewMode = mode;
+      // Reset pencarian saat ganti mode supaya tidak membingungkan.
+      bukuSearchTerm = "";
+      const si = document.getElementById("bukuSearch");
+      if (si) si.value = "";
+      renderBuku();
+    }
     function selectBuku(key) {
       currentBukuKey = key;
+      renderBuku();
+    }
+    function selectPo(key) {
+      currentPoKey = key;
       renderBuku();
     }
 
     function onBukuSearch(val) {
       bukuSearchTerm = String(val || "").trim().toLowerCase();
-      // Render ulang tabel saja (chip & ringkasan tidak berubah). Pakai data store
-      // yang sudah dimuat renderBuku(); kalau kosong, fallback render penuh.
       const list = _balStoreList();
       if (!list.length) { renderBuku(); return; }
-      renderBukuTable(buildBukuGroups(list));
+      if (bukuViewMode === "po") {
+        renderBukuTablePo(buildPoGroups(list));
+      } else {
+        const g = buildBukuGroups(list);
+        renderBukuPoSummary(g.get(currentBukuKey));
+        renderBukuTable(g);
+      }
     }
 
     async function renderBuku() {
+      // Tombol mode aktif.
+      const bBuku = document.getElementById("bukuModeBukuBtn");
+      const bPo = document.getElementById("bukuModePoBtn");
+      if (bBuku) bBuku.classList.toggle("active", bukuViewMode === "buku");
+      if (bPo) bPo.classList.toggle("active", bukuViewMode === "po");
+
+      const chipsTitleEl = document.getElementById("bukuChipsTitle");
       const summaryEl = document.getElementById("bukuSummary");
       const chipEl = document.getElementById("bukuChips");
       if (!chipEl) return;
@@ -6237,15 +6353,44 @@ Alasan: ${cleanReason}`)) return;
         return;
       }
 
-      const groups = buildBukuGroups(bals);
-      const keys = bukuSortedKeys(groups);
+      if (bukuViewMode === "po") {
+        if (chipsTitleEl) chipsTitleEl.textContent = "Pilih PO";
+        const groups = buildPoGroups(bals);
+        const keys = poSortedKeys(groups);
+        if (!currentPoKey || !groups.has(currentPoKey)) currentPoKey = keys.length ? keys[0] : "";
 
-      // Pastikan ada buku terpilih yang valid.
-      if (!currentBukuKey || !groups.has(currentBukuKey)) {
-        currentBukuKey = keys.length ? keys[0] : "";
+        const totalPo = keys.filter(k => k !== BUKU_NOPO_KEY).length;
+        const nopo = groups.get(BUKU_NOPO_KEY);
+        if (summaryEl) {
+          summaryEl.innerHTML = `Total ${totalPo} PO · ${bals.length} bal`
+            + (nopo ? ` · <span style="color:var(--danger)">${nopo.bals.length} bal tanpa PO</span>` : "");
+        }
+
+        if (!keys.length) {
+          chipEl.innerHTML = `<div class="empty">Belum ada bal.</div>`;
+        } else {
+          chipEl.innerHTML = keys.map(k => {
+            const g = groups.get(k);
+            const active = k === currentPoKey;
+            const isNo = k === BUKU_NOPO_KEY;
+            return `<button class="buku-chip${active ? " active" : ""}${isNo ? " warn" : ""}" onclick="selectPo('${safe(k)}')">
+              <span class="buku-chip-name">${isNo ? "⚠️ Tanpa PO" : safe(g.label)}</span>
+              <span class="buku-chip-count">${g.bals.length} bal</span>
+            </button>`;
+          }).join("");
+        }
+
+        renderBukuPoSummary(null); // hanya untuk mode buku
+        renderBukuTablePo(groups);
+        return;
       }
 
-      // Ringkasan.
+      // ===== Mode "buku" (default) =====
+      if (chipsTitleEl) chipsTitleEl.textContent = "Pilih Buku";
+      const groups = buildBukuGroups(bals);
+      const keys = bukuSortedKeys(groups);
+      if (!currentBukuKey || !groups.has(currentBukuKey)) currentBukuKey = keys.length ? keys[0] : "";
+
       const totalBuku = keys.filter(k => k !== BUKU_NOBOOK_KEY).length;
       const nobook = groups.get(BUKU_NOBOOK_KEY);
       if (summaryEl) {
@@ -6253,7 +6398,6 @@ Alasan: ${cleanReason}`)) return;
           + (nobook ? ` · <span style="color:var(--danger)">${nobook.bals.length} bal belum ada nomor buku</span>` : "");
       }
 
-      // Chip daftar buku.
       if (!keys.length) {
         chipEl.innerHTML = `<div class="empty">Belum ada bal.</div>`;
       } else {
@@ -6268,14 +6412,41 @@ Alasan: ${cleanReason}`)) return;
         }).join("");
       }
 
+      renderBukuPoSummary(groups.get(currentBukuKey));
       renderBukuTable(groups);
+    }
+
+    // Ringkasan total per PO untuk SATU buku (hanya tampil di mode "buku").
+    function renderBukuPoSummary(bookGroup) {
+      const el = document.getElementById("bukuPoSummary");
+      if (!el) return;
+      if (!bookGroup || bukuViewMode !== "buku") { el.innerHTML = ""; return; }
+      const poMap = new Map();
+      bookGroup.bals.forEach(b => {
+        const key = poKeyOf(b);
+        if (!poMap.has(key)) poMap.set(key, { label: poLabelOf(key, b), bals: [] });
+        poMap.get(key).bals.push(b);
+      });
+      const keys = [...poMap.keys()];
+      if (!keys.length) { el.innerHTML = ""; return; }
+      keys.sort((a, b) =>
+        (a === BUKU_NOPO_KEY ? 1 : 0) - (b === BUKU_NOPO_KEY ? 1 : 0)
+        || String(poMap.get(a).label).localeCompare(String(poMap.get(b).label), "id", { numeric: true, sensitivity: "base" })
+      );
+      const items = keys.map(k => {
+        const g = poMap.get(k);
+        return `<div class="buku-po-item"><span class="buku-po-name">${k === BUKU_NOPO_KEY ? "⚠️ Tanpa PO" : safe(g.label)}</span><span class="buku-po-qty">${safe(qtySumText(g.bals))} <span class="small" style="color:var(--muted);font-weight:400">(${g.bals.length} hal)</span></span></div>`;
+      }).join("");
+      el.innerHTML = `<div class="buku-po-summary"><div class="small" style="font-weight:700;margin-bottom:6px">Total per PO di buku ini</div>${items}</div>`;
     }
 
     function renderBukuTable(groups) {
       const titleEl = document.getElementById("bukuTableTitle");
+      const thead = document.getElementById("bukuThead");
       const tbody = document.getElementById("bukuRows");
       const mobile = document.getElementById("bukuMobile");
       if (!tbody || !mobile) return;
+      if (thead) thead.innerHTML = `<tr><th>Halaman</th><th>Foto</th><th>PO / No Bal</th><th>Jenis / Warna / Size</th><th>Qty</th><th>Status</th><th>ID Bal</th></tr>`;
 
       const g = groups.get(currentBukuKey);
       if (!g) {
@@ -6326,7 +6497,7 @@ Alasan: ${cleanReason}`)) return;
           <td>${photoThumb(b)}</td>
           <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
           <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
-          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}</td>
+          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}${stokRingkasHtml(b)}</td>
           <td>${statusBadge(b.status)}</td>
           <td>${balLink(b.bal_id)}</td>
         </tr>
@@ -6341,6 +6512,76 @@ Alasan: ${cleanReason}`)) return;
               <div class="small"><strong>${safe(b.po_id || "-")}</strong> · Bal #${safe(b.nomor_bal || "-")}</div>
               <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></div>
               <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
+              ${stokRingkasHtml(b, true)}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // Tabel mode Per PO: semua bal satu PO lintas buku, urut buku→halaman.
+    function renderBukuTablePo(groups) {
+      const titleEl = document.getElementById("bukuTableTitle");
+      const thead = document.getElementById("bukuThead");
+      const tbody = document.getElementById("bukuRows");
+      const mobile = document.getElementById("bukuMobile");
+      if (!tbody || !mobile) return;
+      if (thead) thead.innerHTML = `<tr><th>Buku / Hal</th><th>Foto</th><th>No Bal</th><th>Jenis / Warna / Size</th><th>Qty</th><th>Status</th><th>ID Bal</th></tr>`;
+
+      const g = groups.get(currentPoKey);
+      if (!g) {
+        if (titleEl) titleEl.textContent = "Pilih PO";
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Pilih PO di atas.</div></td></tr>`;
+        mobile.innerHTML = "";
+        return;
+      }
+
+      if (titleEl) {
+        const nama = g.key === BUKU_NOPO_KEY ? "Tanpa PO" : `PO ${safe(g.label)}`;
+        titleEl.innerHTML = `${nama} <span class="small" style="color:var(--muted)">· total ${safe(qtySumText(g.bals))} · ${g.bals.length} bal</span>`;
+      }
+
+      let rows = g.bals;
+      if (bukuSearchTerm) {
+        rows = rows.filter(b => [b.halaman_buku, b.buku_nomor, b.nomor_bal, b.jenis_barang, b.warna, b.size, b.bal_id]
+          .some(v => String(v || "").toLowerCase().includes(bukuSearchTerm)));
+      }
+
+      if (!rows.length) {
+        const msg = bukuSearchTerm ? "Tidak ada yang cocok dengan pencarian." : "PO ini belum ada isinya.";
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">${msg}</div></td></tr>`;
+        mobile.innerHTML = `<div class="empty">${msg}</div>`;
+        return;
+      }
+
+      const bukuHalCell = (b) => {
+        const buku = bukuNomorDisplay(b.buku_nomor) || "-";
+        const hal = String(b.halaman_buku || "").trim() || "-";
+        return `${safe(buku)} <span class="small" style="color:var(--muted)">/ hal ${safe(hal)}</span>`;
+      };
+
+      tbody.innerHTML = rows.map(b => `
+        <tr>
+          <td><strong>${bukuHalCell(b)}</strong></td>
+          <td>${photoThumb(b)}</td>
+          <td><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
+          <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
+          <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}${stokRingkasHtml(b)}</td>
+          <td>${statusBadge(b.status)}</td>
+          <td>${balLink(b.bal_id)}</td>
+        </tr>
+      `).join("");
+
+      mobile.innerHTML = rows.map(b => `
+        <div class="bal-card">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            ${photoThumb(b)}
+            <div class="bal-card-body" style="flex:1;min-width:0">
+              <div class="bal-title">${safe(bukuNomorDisplay(b.buku_nomor) || "-")} / hal ${safe(String(b.halaman_buku || "").trim() || "-")}</div>
+              <div class="small">Bal #${safe(b.nomor_bal || "-")}</div>
+              <div class="small">${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")} · <strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></div>
+              <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
+              ${stokRingkasHtml(b, true)}
             </div>
           </div>
         </div>
