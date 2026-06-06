@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v40.1 Buku per PO)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42 Pengiriman Ledger + Rekap Customer)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -218,10 +218,12 @@
     .buku-mode-btn:hover { border-color: var(--primary); }
     .buku-mode-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
     .buku-po-summary { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
-    .buku-po-item { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid #e0f2fe; }
+    .buku-po-head { display: grid; grid-template-columns: minmax(70px,auto) 1fr auto; gap: 10px; font-weight: 700; font-size: 12px; color: #0c4a6e; padding-bottom: 6px; border-bottom: 1px solid #bae6fd; margin-bottom: 4px; }
+    .buku-po-item { display: grid; grid-template-columns: minmax(70px,auto) 1fr auto; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid #e0f2fe; }
     .buku-po-item:first-of-type { border-top: none; }
-    .buku-po-name { font-weight: 600; }
-    .buku-po-qty { font-weight: 700; color: #075985; text-align: right; }
+    .buku-po-name { font-weight: 600; word-break: break-word; }
+    .buku-po-jenis { font-size: 12px; color: #0c4a6e; word-break: break-word; }
+    .buku-po-qty { font-weight: 700; color: #075985; text-align: right; white-space: nowrap; }
     .mobile-cards { display: none; }
     .bal-card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; gap: 10px; }
     .bal-card img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #e5e7eb; }
@@ -874,6 +876,7 @@
           <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
           <button data-tab="maklon" class="tab-btn" onclick="switchTab('maklon')">🏭 Maklon Vendor</button>
+          <button data-tab="pengiriman" class="tab-btn" onclick="switchTab('pengiriman')">🚚 Pengiriman</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
         </div>
@@ -1149,6 +1152,55 @@
         </div>
       </div>
 
+      <!-- PENGIRIMAN (v42) - OWNER / ADMIN -->
+      <div id="tab-pengiriman" class="tab-content">
+        <div class="card">
+          <div class="section-title">🚚 Pengiriman</div>
+          <p class="sub-note">Catatan tiap kiriman keluar (per bal). Satu bal bisa kirim ke banyak customer; sisa qty tetap jadi stok di bal asal.</p>
+          <div class="small" id="pengSummary" style="margin-top:4px"></div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn-outline btn-sm" onclick="renderPengiriman()">🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Rekap Terkirim per Customer</div>
+          <div id="pengRecapCustomer"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Rekap Terkirim per PO</div>
+          <div id="pengRecapPo"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Daftar Pengiriman</div>
+          <div class="filter-bar">
+            <input id="pengSearch" placeholder="🔍 Cari customer / PO / bal / SJ / jenis..." oninput="renderPengirimanTable()">
+            <input id="pengFilterStart" type="text" placeholder="📅 Dari tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderPengirimanTable()">
+            <input id="pengFilterEnd" type="text" placeholder="📅 Sampai tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderPengirimanTable()">
+          </div>
+          <div class="small" id="pengCount" style="margin-top:4px"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Customer</th>
+                  <th>PO</th>
+                  <th>Bal asal</th>
+                  <th>Jenis/Warna/Size</th>
+                  <th>Qty</th>
+                  <th>No SJ</th>
+                </tr>
+              </thead>
+              <tbody id="pengRows"></tbody>
+            </table>
+          </div>
+          <div id="pengMobile" class="mobile-cards"></div>
+        </div>
+      </div>
+
       <!-- HR BORONGAN - OWNER ONLY -->
       <div id="tab-hr" class="tab-content">
         <div class="card">
@@ -1330,6 +1382,8 @@
     // v40.1 Buku per PO: mode tampilan ("buku" | "po") + PO yang sedang dilihat.
     let bukuViewMode = "buku";
     let currentPoKey = "";
+    // v42: ingat customer terakhir saat Mark Terkirim (1 order bisa beberapa bal).
+    let lastShippedCustomer = "";
     const hrSelectedBoronganIds = new Set();
     let scanner = null;
     let pendingPhotoBase64 = "";
@@ -2215,6 +2269,7 @@
       if (tab === "workrecap") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "buku") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
+      if (tab === "pengiriman") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
       return false;
@@ -2887,6 +2942,11 @@
 
   if (currentTab === "maklon") {
     await renderMaklonVendor();
+    return;
+  }
+
+  if (currentTab === "pengiriman") {
+    await renderPengiriman();
     return;
   }
 
@@ -4566,6 +4626,12 @@ Alasan: ${cleanReason}`)) return;
           </div>
         </div>
         <div class="form-group"><label>Catatan</label><textarea id="oo_catatan">${safe(b.catatan || "")}</textarea></div>
+        ${(Number(b.qty_packing || 0) > 0 || ["SELESAI_PACKING","STOK_BARANG","SIAP_KIRIM","TERKIRIM"].includes(b.status)) ? `
+        <div class="form-group">
+          <label>Qty Packing (hasil packing)</label>
+          <input id="oo_qty_packing" type="number" step="any" value="${safe(b.qty_packing || "")}">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Ini membatasi maksimal "Qty Check" saat QC Packing. Perbaiki di sini kalau dulu salah input (mis. ketulis 1 padahal 20).</div>
+        </div>` : ""}
         <div class="form-group"><label>Alasan Override <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_data_reason" rows="2"></textarea></div>
         <button class="btn-success btn-block" onclick="guardedClick(this, confirmOOEditData, 'Menyimpan...')">💾 Simpan Perubahan</button>
       `;
@@ -4593,6 +4659,10 @@ Alasan: ${cleanReason}`)) return;
         satuan: document.getElementById("oo_satuan").value,
         catatan: document.getElementById("oo_catatan").value.trim()
       };
+      // v41: qty_packing hanya disertakan kalau field-nya ada & diisi, supaya tidak
+      // menimpa "" jadi 0 untuk bal yang belum packing.
+      const qpEl = document.getElementById("oo_qty_packing");
+      if (qpEl && String(qpEl.value).trim() !== "") updates.qty_packing = Number(qpEl.value || 0);
       if (!updates.po_id || !updates.nomor_bal || !updates.halaman_buku || !updates.buku_nomor || !updates.jenis_barang || !updates.jumlah) {
         return alert("PO, Nomor Bal, Halaman Buku, Buku A, Jenis Barang, dan Jumlah wajib diisi.");
       }
@@ -4878,6 +4948,35 @@ Alasan: ${cleanReason}`)) return;
       }
       html += `</div>`;
 
+      // Pekerja Packing (v41)
+      html += `<div class="card" style="margin-top:10px"><div class="section-title">Pekerja Packing</div>`;
+      if (b.tipe_packing === "MAKLON" && (b.maklon_by || b.packing_by)) {
+        const cur = b.maklon_by || b.packing_by || "";
+        html += `
+          <div class="small" style="color:var(--muted); margin-bottom:6px">Packing maklon (1 orang).</div>
+          <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
+            <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(cur)}</strong>)</label><input id="oo_pkj_packing_maklon" list="workerNames" autocomplete="off" value="${safe(cur)}"></div>
+            <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('packing_maklon'), 'Menyimpan...')">Simpan</button>
+          </div>
+          <div class="small" style="color:var(--muted); margin-top:4px">Record borongan "Packing Maklon" dengan nama lama akan di-sync ke nama baru.</div>`;
+      } else {
+        const pkw = Array.isArray(b.packing_workers) ? b.packing_workers : [];
+        if (!pkw.length) {
+          html += `<div class="empty">Belum ada data pekerja packing.</div>`;
+        } else {
+          pkw.forEach((w, wi) => {
+            html += `
+              <div class="grid-2" style="grid-template-columns:1fr 80px auto; gap:8px; align-items:end; margin-bottom:6px">
+                <div class="form-group" style="margin:0"><label>Nama</label><input id="oo_pkj_pack_${wi}_name" list="workerNames" autocomplete="off" value="${safe(w.name || "")}"></div>
+                <div class="form-group" style="margin:0"><label>Qty</label><input value="${safe(w.qty || 0)}" disabled style="background:#f3f4f6"></div>
+                <button class="btn-outline btn-sm" onclick="guardedClick(this, () => confirmOOEditPekerja('packing', null, ${wi}), 'Menyimpan...')">Simpan</button>
+              </div>`;
+          });
+          html += `<div class="small" style="color:var(--muted); margin-top:4px">Yang bisa diubah hanya nama. Qty packing per orang dihitung proporsional dari qty OK QC, jadi tidak diedit di sini. Record borongan "Packing" ikut sync.</div>`;
+        }
+      }
+      html += `</div>`;
+
       return html;
     }
 
@@ -4897,6 +4996,11 @@ Alasan: ${cleanReason}`)) return;
         const oi = (await apiGetBal(ownerOverrideActiveBalId)).output_labels.findIndex(o => o.output_id === output_id);
         payload.new_name = document.getElementById(`oo_pkj_set_${oi}_${worker_idx}_name`).value.trim();
         payload.new_qty = Number(document.getElementById(`oo_pkj_set_${oi}_${worker_idx}_qty`).value || 0);
+      } else if (target === "packing") {
+        payload.worker_idx = worker_idx;
+        payload.new_name = document.getElementById(`oo_pkj_pack_${worker_idx}_name`).value.trim();
+      } else if (target === "packing_maklon") {
+        payload.new_name = document.getElementById("oo_pkj_packing_maklon").value.trim();
       }
 
       // Confirmation popup with sync warning
@@ -4909,6 +5013,8 @@ Alasan: ${cleanReason}`)) return;
           const out = (b.output_labels || []).find(o => o.output_id === output_id);
           oldName = out?.workers?.[worker_idx]?.name || "";
         }
+        else if (target === "packing") oldName = b.packing_workers?.[worker_idx]?.name || "";
+        else if (target === "packing_maklon") oldName = b.maklon_by || b.packing_by || "";
         if (!payload.new_name) return alert("Nama baru tidak boleh kosong.");
         if (oldName === payload.new_name && target !== "setting") return alert("Nama tidak berubah.");
 
@@ -4920,6 +5026,10 @@ Alasan: ${cleanReason}`)) return;
             affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Obras" && r.pegawai === oldName).length;
           } else if (target === "setting") {
             affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Setting" && r.output_id === output_id && r.pegawai === oldName).length;
+          } else if (target === "packing") {
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing" && r.pegawai === oldName).length;
+          } else if (target === "packing_maklon") {
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing Maklon" && r.pegawai === oldName).length;
           }
         } catch (_) { /* preview hitungan saja, kalau gagal abaikan */ }
         const syncMsg = affected > 0
@@ -5588,10 +5698,11 @@ Alasan: ${cleanReason}`)) return;
       const qtyPackingRaw = Number(bal.qty_packing || 0);
       const qtyAntislipBack = Number(bal.antislip_qty_kembali || 0);
       const capParts = [];
-      if (qtyOfficial > 0) capParts.push(qtyOfficial);
-      if (qtyPackingRaw > 0) capParts.push(qtyPackingRaw);
-      if (qtyAntislipBack > 0) capParts.push(qtyAntislipBack);
-      const maxCheck = capParts.length ? Math.min(...capParts) : 0;
+      if (qtyOfficial > 0) capParts.push({ q: qtyOfficial, label: "qty resmi bal" });
+      if (qtyPackingRaw > 0) capParts.push({ q: qtyPackingRaw, label: "qty packing tercatat" });
+      if (qtyAntislipBack > 0) capParts.push({ q: qtyAntislipBack, label: "qty kembali antislip" });
+      const maxCheck = capParts.length ? Math.min(...capParts.map(p => p.q)) : 0;
+      const capLimiter = maxCheck > 0 ? capParts.filter(p => Math.abs(p.q - maxCheck) < 0.0001).map(p => p.label).join(" / ") : "";
       const qtyPacking = qtyPackingRaw > 0 ? Math.min(qtyPackingRaw, maxCheck || qtyPackingRaw) : maxCheck;
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
@@ -5603,7 +5714,7 @@ Alasan: ${cleanReason}`)) return;
         <div class="form-group">
           <label>Qty Check (yang diperiksa) <span class="required">*</span></label>
           <input id="qc_qty_check" type="number" step="any" min="0" max="${maxCheck}" value="${qtyPacking}" oninput="recalcQcOk()">
-          <div class="small" style="margin-top:4px; color:var(--muted)">Maksimal: ${maxCheck} ${safe(bal.satuan)}</div>
+          <div class="small" style="margin-top:4px; color:var(--muted)">Maksimal: ${maxCheck} ${safe(bal.satuan)}${capLimiter ? ` (dibatasi oleh: ${capLimiter})` : ""}. Kalau angka ini salah karena data lama, perbaiki dulu lewat Owner Override (Edit Data Bal untuk qty packing / Qty Verifikasi).</div>
         </div>
         <div class="grid-2">
           <div class="form-group">
@@ -5787,7 +5898,7 @@ Alasan: ${cleanReason}`)) return;
         </div>
         <div class="form-group">
           <label>Tujuan / Customer (opsional)</label>
-          <input id="ms_shipped_to" placeholder="Nama customer atau tujuan kirim">
+          <input id="ms_shipped_to" placeholder="Nama customer atau tujuan kirim" value="${safe(lastShippedCustomer || "")}">
         </div>
         <div class="form-group">
           <label>No. Surat Jalan (opsional, dari Accurate)</label>
@@ -5819,13 +5930,15 @@ Alasan: ${cleanReason}`)) return;
         const shippedQty = Number(document.getElementById("ms_shipped_qty")?.value || 0);
         if (shippedQty <= 0) return alert("Qty terkirim wajib > 0.");
         if (shippedQty > available) return alert(`Qty terkirim tidak boleh melebihi stok tersedia: ${available}.`);
+        const shipTo = document.getElementById("ms_shipped_to").value.trim();
         const updatedBal = await apiMarkShipped({
           bal_id,
           shipped_qty: shippedQty,
-          shipped_to: document.getElementById("ms_shipped_to").value.trim(),
+          shipped_to: shipTo,
           surat_jalan_no: document.getElementById("ms_sj_no").value.trim(),
           shipped_note: document.getElementById("ms_note").value.trim()
         });
+        if (shipTo) lastShippedCustomer = shipTo; // prefill untuk bal berikutnya di order yang sama
         closeModal("actionModal"); closeModal("detailModal");
         await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
@@ -6248,12 +6361,46 @@ Alasan: ${cleanReason}`)) return;
     // ===== v40.1: PO grouping helpers =====
     const BUKU_NOPO_KEY = "__NOPO__"; // bal tanpa po_id
 
-    function poKeyOf(b) {
-      const s = String(b.po_id || "").trim();
-      return s || BUKU_NOPO_KEY;
+    // v41.1: key PO dinormalkan — abaikan beda huruf besar/kecil & tanda baca/spasi.
+    // Contoh: "Aliran"="ALIRAN"="aliran"; "B.8"="b8"="b.8"; "Askindo"="ASKINDO".
+    function normalizePoKey(raw) {
+      return String(raw || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
     }
-    function poLabelOf(key, sampleBal) {
-      return key === BUKU_NOPO_KEY ? "Tanpa PO" : String((sampleBal && sampleBal.po_id) || key).trim();
+    function poKeyOf(b) {
+      const k = normalizePoKey(b.po_id);
+      return k || BUKU_NOPO_KEY;
+    }
+    // Label tampil untuk satu grup PO: bentuk asli yang paling sering muncul (tie → pertama).
+    function poDisplayLabel(bals) {
+      const counts = new Map(); const order = [];
+      (bals || []).forEach(b => {
+        const raw = String(b.po_id || "").trim();
+        if (!raw) return;
+        if (!counts.has(raw)) { counts.set(raw, 0); order.push(raw); }
+        counts.set(raw, counts.get(raw) + 1);
+      });
+      if (!order.length) return "Tanpa PO";
+      let best = order[0], bestN = counts.get(best);
+      order.forEach(r => { const n = counts.get(r); if (n > bestN) { best = r; bestN = n; } });
+      return best;
+    }
+    // Rincian qty per jenis_barang (abaikan warna/size). Dipisah per satuan kalau beda.
+    function jenisBreakdownText(bals) {
+      const map = new Map(); // jenis -> Map(satuan -> qty)
+      (bals || []).forEach(b => {
+        const jenis = String(b.jenis_barang || "").trim() || "(lain)";
+        const sat = String(b.satuan || "").trim() || "?";
+        if (!map.has(jenis)) map.set(jenis, new Map());
+        const sm = map.get(jenis);
+        sm.set(sat, (sm.get(sat) || 0) + officialQty(b));
+      });
+      if (!map.size) return "-";
+      return [...map.keys()].sort((a, b) => a.localeCompare(b, "id", { sensitivity: "base" }))
+        .map(jenis => {
+          const sm = map.get(jenis);
+          const q = [...sm.entries()].map(([s, v]) => `${Math.round(v * 10000) / 10000} ${s}`.trim()).join(" + ");
+          return `${jenis} ${q}`;
+        }).join(" · ");
     }
     // Total qty dipisah PER SATUAN supaya tidak menjumlahkan lusin + pasang.
     function qtySumText(bals) {
@@ -6271,9 +6418,11 @@ Alasan: ${cleanReason}`)) return;
       const groups = new Map();
       (bals || []).forEach(b => {
         const key = poKeyOf(b);
-        if (!groups.has(key)) groups.set(key, { key, label: poLabelOf(key, b), bals: [] });
+        if (!groups.has(key)) groups.set(key, { key, label: "", bals: [] });
         groups.get(key).bals.push(b);
       });
+      // Label = bentuk asli paling sering muncul di grup (setelah semua anggota terkumpul).
+      groups.forEach(g => { g.label = g.key === BUKU_NOPO_KEY ? "Tanpa PO" : poDisplayLabel(g.bals); });
       // Dalam tiap PO: urutkan buku (natural) lalu halaman (numerik).
       groups.forEach(g => {
         g.bals.sort((x, y) => {
@@ -6424,9 +6573,11 @@ Alasan: ${cleanReason}`)) return;
       const poMap = new Map();
       bookGroup.bals.forEach(b => {
         const key = poKeyOf(b);
-        if (!poMap.has(key)) poMap.set(key, { label: poLabelOf(key, b), bals: [] });
+        if (!poMap.has(key)) poMap.set(key, { bals: [] });
         poMap.get(key).bals.push(b);
       });
+      // Label per grup setelah semua terkumpul (bentuk asli paling sering muncul).
+      poMap.forEach((g, k) => { g.label = k === BUKU_NOPO_KEY ? "Tanpa PO" : poDisplayLabel(g.bals); });
       const keys = [...poMap.keys()];
       if (!keys.length) { el.innerHTML = ""; return; }
       keys.sort((a, b) =>
@@ -6435,9 +6586,13 @@ Alasan: ${cleanReason}`)) return;
       );
       const items = keys.map(k => {
         const g = poMap.get(k);
-        return `<div class="buku-po-item"><span class="buku-po-name">${k === BUKU_NOPO_KEY ? "⚠️ Tanpa PO" : safe(g.label)}</span><span class="buku-po-qty">${safe(qtySumText(g.bals))} <span class="small" style="color:var(--muted);font-weight:400">(${g.bals.length} hal)</span></span></div>`;
+        return `<div class="buku-po-item">
+          <span class="buku-po-name">${k === BUKU_NOPO_KEY ? "⚠️ Tanpa PO" : safe(g.label)}</span>
+          <span class="buku-po-jenis">${safe(jenisBreakdownText(g.bals))}</span>
+          <span class="buku-po-qty">${safe(qtySumText(g.bals))} <span class="small" style="color:var(--muted);font-weight:400">(${g.bals.length} hal)</span></span>
+        </div>`;
       }).join("");
-      el.innerHTML = `<div class="buku-po-summary"><div class="small" style="font-weight:700;margin-bottom:6px">Total per PO di buku ini</div>${items}</div>`;
+      el.innerHTML = `<div class="buku-po-summary"><div class="buku-po-head"><span>PO</span><span>Per jenis barang</span><span style="text-align:right">Total</span></div>${items}</div>`;
     }
 
     function renderBukuTable(groups) {
@@ -6583,6 +6738,130 @@ Alasan: ${cleanReason}`)) return;
               <div style="margin-top:5px">${statusBadge(b.status)} · ${balLink(b.bal_id)}</div>
               ${stokRingkasHtml(b, true)}
             </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    /* ============================================================
+       PENGIRIMAN (v42) — ledger kiriman keluar + rekap per customer/PO
+       ============================================================ */
+    let _pengRows = [];
+
+    async function apiListPengiriman() {
+      return await api("listPengiriman", {}, { cache: false });
+    }
+
+    // Total qty dipisah per satuan (hindari campur lusin + pasang).
+    function pengSumText(rows) {
+      const bySat = new Map();
+      (rows || []).forEach(r => {
+        const sat = String(r.satuan || "").trim() || "?";
+        bySat.set(sat, (bySat.get(sat) || 0) + Number(r.qty || 0));
+      });
+      if (!bySat.size) return "0";
+      return [...bySat.entries()].map(([s, q]) => `${Math.round(q * 10000) / 10000} ${s}`.trim()).join(" · ");
+    }
+
+    // Rekap baris per field (customer / po_id) dengan key dinormalkan (case + tanda baca).
+    function pengRecapByField(rows, field) {
+      const groups = new Map();
+      (rows || []).forEach(r => {
+        const raw = String(r[field] || "").trim();
+        const key = normalizePoKey(raw) || "__none__";
+        if (!groups.has(key)) groups.set(key, { rawCounts: new Map(), order: [], rows: [] });
+        const g = groups.get(key);
+        g.rows.push(r);
+        if (raw) {
+          if (!g.rawCounts.has(raw)) { g.rawCounts.set(raw, 0); g.order.push(raw); }
+          g.rawCounts.set(raw, g.rawCounts.get(raw) + 1);
+        }
+      });
+      const out = [];
+      for (const [key, g] of groups) {
+        let label = "";
+        if (g.order.length) {
+          let best = g.order[0], bestN = g.rawCounts.get(best);
+          g.order.forEach(rr => { const n = g.rawCounts.get(rr); if (n > bestN) { best = rr; bestN = n; } });
+          label = best;
+        }
+        out.push({ key, label, rows: g.rows, isNone: key === "__none__" });
+      }
+      out.sort((a, b) => (a.isNone ? 1 : 0) - (b.isNone ? 1 : 0)
+        || String(a.label).localeCompare(String(b.label), "id", { numeric: true, sensitivity: "base" }));
+      return out;
+    }
+
+    function renderPengirimanRecap(elId, field, emptyLabel) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const recap = pengRecapByField(_pengRows, field);
+      if (!recap.length) { el.innerHTML = `<div class="empty">Belum ada pengiriman.</div>`; return; }
+      el.innerHTML = `<div class="buku-po-summary">${recap.map(g =>
+        `<div class="buku-po-item" style="grid-template-columns:1fr auto">
+          <span class="buku-po-name">${g.isNone ? "⚠️ " + safe(emptyLabel) : safe(g.label)}</span>
+          <span class="buku-po-qty">${safe(pengSumText(g.rows))} <span class="small" style="color:var(--muted);font-weight:400">(${g.rows.length}x)</span></span>
+        </div>`).join("")}</div>`;
+    }
+
+    async function renderPengiriman() {
+      const summaryEl = document.getElementById("pengSummary");
+      try {
+        const res = await apiListPengiriman();
+        _pengRows = Array.isArray(res) ? res : [];
+      } catch (e) {
+        if (summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
+        return;
+      }
+      if (summaryEl) summaryEl.innerHTML = `Total ${_pengRows.length} kiriman · ${safe(pengSumText(_pengRows))} keluar`;
+      renderPengirimanRecap("pengRecapCustomer", "customer", "Tanpa customer");
+      renderPengirimanRecap("pengRecapPo", "po_id", "Tanpa PO");
+      renderPengirimanTable();
+    }
+
+    function renderPengirimanTable() {
+      const tbody = document.getElementById("pengRows");
+      const mobile = document.getElementById("pengMobile");
+      const countEl = document.getElementById("pengCount");
+      if (!tbody || !mobile) return;
+      const term = String(document.getElementById("pengSearch")?.value || "").trim().toLowerCase();
+      const start = document.getElementById("pengFilterStart")?.value || "";
+      const end = document.getElementById("pengFilterEnd")?.value || "";
+
+      let rows = _pengRows.slice();
+      rows.sort((a, b) => String(b.tanggal || "").localeCompare(String(a.tanggal || ""))); // terbaru dulu
+      if (term) rows = rows.filter(r => [r.customer, r.po_id, r.bal_id, r.surat_jalan_no, r.jenis_barang, r.warna, r.size]
+        .some(v => String(v || "").toLowerCase().includes(term)));
+      if (start) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) >= start);
+      if (end) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) <= end);
+
+      if (countEl) countEl.textContent = `${rows.length} kiriman ditampilkan · ${pengSumText(rows)}`;
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Belum ada pengiriman yang cocok.</div></td></tr>`;
+        mobile.innerHTML = `<div class="empty">Belum ada pengiriman yang cocok.</div>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${fmtDateShort(r.tanggal)}</td>
+          <td><strong>${safe(r.customer || "-")}</strong></td>
+          <td>${safe(r.po_id || "-")}</td>
+          <td>${balLink(r.bal_id)}</td>
+          <td>${safe(r.jenis_barang || "-")}<br><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
+          <td><strong>${Number(r.qty || 0)}</strong> ${safe(r.satuan || "")}</td>
+          <td>${safe(r.surat_jalan_no || "-")}</td>
+        </tr>
+      `).join("");
+
+      mobile.innerHTML = rows.map(r => `
+        <div class="bal-card">
+          <div class="bal-card-body">
+            <div class="bal-title">${safe(r.customer || "(tanpa customer)")} · <strong>${Number(r.qty || 0)} ${safe(r.satuan || "")}</strong></div>
+            <div class="small">${fmtDateShort(r.tanggal)} · PO ${safe(r.po_id || "-")}${r.surat_jalan_no ? " · SJ " + safe(r.surat_jalan_no) : ""}</div>
+            <div class="small">${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
+            <div style="margin-top:5px">Bal: ${balLink(r.bal_id)}</div>
           </div>
         </div>
       `).join("");
