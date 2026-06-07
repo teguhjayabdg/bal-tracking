@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.1 Fix Rollback/Reset + Rapikan UI Override)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.2 Pengiriman: Foto + Hapus/Revisi)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1188,17 +1188,7 @@
           <div class="small" id="pengCount" style="margin-top:4px"></div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Tanggal</th>
-                  <th>Customer</th>
-                  <th>PO</th>
-                  <th>Bal asal</th>
-                  <th>Jenis/Warna/Size</th>
-                  <th>Qty</th>
-                  <th>No SJ</th>
-                </tr>
-              </thead>
+              <thead id="pengThead"></thead>
               <tbody id="pengRows"></tbody>
             </table>
           </div>
@@ -6808,6 +6798,11 @@ Alasan: ${cleanReason}`)) return;
         </div>`).join("")}</div>`;
     }
 
+    let _pengBalMap = {};
+
+    async function apiDeletePengiriman(id) { return await api("deletePengiriman", { id }, { cache: false }); }
+    async function apiUpdatePengiriman(payload) { return await api("updatePengiriman", payload, { cache: false }); }
+
     async function renderPengiriman() {
       const summaryEl = document.getElementById("pengSummary");
       try {
@@ -6817,17 +6812,39 @@ Alasan: ${cleanReason}`)) return;
         if (summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
         return;
       }
+      // Ambil bal (cache) untuk foto — petakan bal_id → bal. Gagal pun tidak masalah (foto jadi placeholder).
+      try {
+        const bals = await apiListBals();
+        _pengBalMap = {};
+        (Array.isArray(bals) ? bals : []).forEach(b => { _pengBalMap[b.bal_id] = b; });
+      } catch (e) { _pengBalMap = {}; }
+
       if (summaryEl) summaryEl.innerHTML = `Total ${_pengRows.length} kiriman · ${safe(pengSumText(_pengRows))} keluar`;
       renderPengirimanRecap("pengRecapCustomer", "customer", "Tanpa customer");
       renderPengirimanRecap("pengRecapPo", "po_id", "Tanpa PO");
       renderPengirimanTable();
     }
 
+    function pengPhoto(r) {
+      const b = _pengBalMap[r.bal_id] || { bal_id: r.bal_id };
+      return photoThumb(b);
+    }
+
     function renderPengirimanTable() {
+      const thead = document.getElementById("pengThead");
       const tbody = document.getElementById("pengRows");
       const mobile = document.getElementById("pengMobile");
       const countEl = document.getElementById("pengCount");
       if (!tbody || !mobile) return;
+      const isOwner = currentUser && currentUser.role === "Owner";
+      const colCount = isOwner ? 9 : 8;
+      if (thead) {
+        thead.innerHTML = `<tr>
+          <th>Foto</th><th>Tanggal</th><th>Customer</th><th>PO</th><th>Bal asal</th>
+          <th>Jenis/Warna/Size</th><th>Qty</th><th>No SJ</th>${isOwner ? "<th>Aksi</th>" : ""}
+        </tr>`;
+      }
+
       const term = String(document.getElementById("pengSearch")?.value || "").trim().toLowerCase();
       const start = document.getElementById("pengFilterStart")?.value || "";
       const end = document.getElementById("pengFilterEnd")?.value || "";
@@ -6842,13 +6859,19 @@ Alasan: ${cleanReason}`)) return;
       if (countEl) countEl.textContent = `${rows.length} kiriman ditampilkan · ${pengSumText(rows)}`;
 
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Belum ada pengiriman yang cocok.</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colCount}"><div class="empty">Belum ada pengiriman yang cocok.</div></td></tr>`;
         mobile.innerHTML = `<div class="empty">Belum ada pengiriman yang cocok.</div>`;
         return;
       }
 
+      const aksiCell = (r) => isOwner ? `<td style="white-space:nowrap">
+        <button class="btn-outline btn-sm" title="Revisi" onclick="openPengEdit('${safe(r.id)}')">✏️</button>
+        <button class="btn-danger btn-sm" title="Hapus" onclick="deletePengiriman('${safe(r.id)}')">🗑️</button>
+      </td>` : "";
+
       tbody.innerHTML = rows.map(r => `
         <tr>
+          <td>${pengPhoto(r)}</td>
           <td>${fmtDateShort(r.tanggal)}</td>
           <td><strong>${safe(r.customer || "-")}</strong></td>
           <td>${safe(r.po_id || "-")}</td>
@@ -6856,19 +6879,75 @@ Alasan: ${cleanReason}`)) return;
           <td>${safe(r.jenis_barang || "-")}<br><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
           <td><strong>${Number(r.qty || 0)}</strong> ${safe(r.satuan || "")}</td>
           <td>${safe(r.surat_jalan_no || "-")}</td>
+          ${aksiCell(r)}
         </tr>
       `).join("");
 
       mobile.innerHTML = rows.map(r => `
         <div class="bal-card">
-          <div class="bal-card-body">
-            <div class="bal-title">${safe(r.customer || "(tanpa customer)")} · <strong>${Number(r.qty || 0)} ${safe(r.satuan || "")}</strong></div>
-            <div class="small">${fmtDateShort(r.tanggal)} · PO ${safe(r.po_id || "-")}${r.surat_jalan_no ? " · SJ " + safe(r.surat_jalan_no) : ""}</div>
-            <div class="small">${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
-            <div style="margin-top:5px">Bal: ${balLink(r.bal_id)}</div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            ${pengPhoto(r)}
+            <div class="bal-card-body" style="flex:1;min-width:0">
+              <div class="bal-title">${safe(r.customer || "(tanpa customer)")} · <strong>${Number(r.qty || 0)} ${safe(r.satuan || "")}</strong></div>
+              <div class="small">${fmtDateShort(r.tanggal)} · PO ${safe(r.po_id || "-")}${r.surat_jalan_no ? " · SJ " + safe(r.surat_jalan_no) : ""}</div>
+              <div class="small">${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
+              <div style="margin-top:5px">Bal: ${balLink(r.bal_id)}</div>
+              ${isOwner ? `<div style="margin-top:6px; display:flex; gap:6px">
+                <button class="btn-outline btn-sm" onclick="openPengEdit('${safe(r.id)}')">✏️ Revisi</button>
+                <button class="btn-danger btn-sm" onclick="deletePengiriman('${safe(r.id)}')">🗑️ Hapus</button>
+              </div>` : ""}
+            </div>
           </div>
         </div>
       `).join("");
+    }
+
+    // Revisi 1 kiriman (Owner). Pakai actionModal yang sudah ada.
+    function openPengEdit(id) {
+      const r = _pengRows.find(x => String(x.id) === String(id));
+      if (!r) return alert("Baris kiriman tidak ditemukan.");
+      document.getElementById("actionContent").innerHTML = `
+        <div class="section-title">✏️ Revisi Kiriman</div>
+        <div class="alert alert-info">Bal <span class="mono">${safe(r.bal_id)}</span> · ${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
+        <div class="form-group"><label>Customer</label><input id="pe_customer" value="${safe(r.customer || "")}"></div>
+        <div class="form-group"><label>No SJ</label><input id="pe_sj" value="${safe(r.surat_jalan_no || "")}"></div>
+        <div class="form-group">
+          <label>Qty (${safe(r.satuan || "")})</label>
+          <input id="pe_qty" type="number" step="any" min="0" value="${safe(r.qty || 0)}">
+          <div class="small" style="color:var(--muted); margin-top:4px">Mengubah qty otomatis menyesuaikan stok bal asal (qty naik = stok berkurang, qty turun = stok bertambah).</div>
+        </div>
+        <div class="form-group"><label>Catatan</label><textarea id="pe_note">${safe(r.catatan || "")}</textarea></div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, () => confirmPengEdit('${safe(r.id)}'), 'Menyimpan...')">Simpan Revisi</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmPengEdit(id) {
+      try {
+        const res = await apiUpdatePengiriman({
+          id,
+          customer: document.getElementById("pe_customer").value.trim(),
+          surat_jalan_no: document.getElementById("pe_sj").value.trim(),
+          qty: Number(document.getElementById("pe_qty").value || 0),
+          catatan: document.getElementById("pe_note").value.trim()
+        });
+        if (typeof _balStoreInvalidate === "function") _balStoreInvalidate();
+        closeModal("actionModal");
+        toast((res && res.note) || "Kiriman direvisi.");
+        await renderPengiriman();
+      } catch (e) { alert(e.message); }
+    }
+
+    async function deletePengiriman(id) {
+      const r = _pengRows.find(x => String(x.id) === String(id));
+      const desc = r ? `${Number(r.qty || 0)} ${r.satuan || ""} ke ${r.customer || "(tanpa customer)"}` : "kiriman ini";
+      if (!confirm(`Hapus kiriman ${desc}? Qty akan dikembalikan ke stok bal asal.`)) return;
+      try {
+        const res = await apiDeletePengiriman(id);
+        if (typeof _balStoreInvalidate === "function") _balStoreInvalidate();
+        toast((res && res.note) || "Kiriman dihapus.");
+        await renderPengiriman();
+      } catch (e) { alert(e.message); }
     }
 
     function labelJumlahText(b) {
