@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.2 Pengiriman: Foto + Hapus/Revisi)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.3 Packing Maklon barang kembali = Admin only)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -4050,8 +4050,10 @@ Alasan: ${cleanReason}`)) return;
       if (b.status === "PROSES_PACKING_MAKLON") {
         const targetTxt = b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : "";
         html += `<div class="alert alert-info">🏠 Sedang di MAKLON: <strong>${safe(b.maklon_by || "-")}</strong><br>Keluar: ${fmtDate(b.maklon_keluar_at)}${targetTxt}</div>`;
-        if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
+        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
           html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">📥 Selesai Packing Maklon (Barang Kembali)</button>`;
+        } else {
+          html += `<div class="alert alert-info">Menunggu admin menerima &amp; mengecek barang kembali dari maklon.</div>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
