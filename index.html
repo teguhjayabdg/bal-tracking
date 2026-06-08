@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.3 Packing Maklon barang kembali = Admin only)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.4 Cek qty maklon: Admin/Owner/Checker)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -2332,7 +2332,7 @@
     function roleFocusStatuses(role = currentUser?.role) {
       if (["Owner", "Admin Produksi"].includes(role)) return null;
       if (role === "Operator Mesin") return ["SELESAI_MESIN"];
-      if (role === "Checker / QC") return ["SELESAI_MESIN", "SELESAI_PACKING"];
+      if (role === "Checker / QC") return ["SELESAI_MESIN", "PROSES_PACKING_MAKLON", "SELESAI_PACKING"];
       if (role === "Obras") return ["QTY_TERVERIFIKASI", "MULAI_OBRAS"];
       if (role === "Setting / Steam") return ["SELESAI_OBRAS", "MULAI_SETTING"];
       if (role === "Packing") return ["SIAP_PACKING", "PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON", "SELESAI_PACKING"];
@@ -4050,10 +4050,10 @@ Alasan: ${cleanReason}`)) return;
       if (b.status === "PROSES_PACKING_MAKLON") {
         const targetTxt = b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : "";
         html += `<div class="alert alert-info">🏠 Sedang di MAKLON: <strong>${safe(b.maklon_by || "-")}</strong><br>Keluar: ${fmtDate(b.maklon_keluar_at)}${targetTxt}</div>`;
-        if (["Admin Produksi", "Owner"].includes(currentUser.role)) {
+        if (["Admin Produksi", "Owner", "Checker / QC"].includes(currentUser.role)) {
           html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">📥 Selesai Packing Maklon (Barang Kembali)</button>`;
         } else {
-          html += `<div class="alert alert-info">Menunggu admin menerima &amp; mengecek barang kembali dari maklon.</div>`;
+          html += `<div class="alert alert-info">Menunggu admin atau checker menerima &amp; mengecek barang kembali dari maklon.</div>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
