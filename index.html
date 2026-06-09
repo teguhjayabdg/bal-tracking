@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.4 Cek qty maklon: Admin/Owner/Checker)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.5 Bulk verifikasi: nama verifier tercatat)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -3478,6 +3478,14 @@
       if (!assertBulkAllStatus(bals, "SELESAI_MESIN", "Verifikasi Qty massal")) return;
       if (!assertBulkNoSplit(bals)) return;
 
+      // v42.5: daftar verifier (sama seperti verifikasi satuan) supaya nama verifier tetap tercatat.
+      let verifiers = [];
+      try { verifiers = await apiListVerifiers(); }
+      catch (e) { console.warn("Gagal fetch verifiers, fallback ke text input:", e.message); }
+      const activeVerifiers = (verifiers || []).filter(v => v && v.active);
+      const verifierOpts = activeVerifiers.map(v => `<option value="${safe(v.nama)}">${safe(v.nama)}</option>`).join("");
+      const defaultIsOther = activeVerifiers.length === 0;
+
       document.getElementById("actionTitle").textContent = "Menu Cepat — Verifikasi Qty OK";
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
@@ -3485,6 +3493,16 @@
           Gunakan ini hanya kalau semua bal yang dicentang sudah dicek fisik dan OK.
         </div>
         ${bulkListPreview(bals)}
+        <div class="form-group">
+          <label>Nama Verifier <span class="required">*</span></label>
+          <select id="verifyVerifierSelect" onchange="onVerifierSelectChange()">
+            ${verifierOpts}
+            <option value="__OTHER__"${defaultIsOther ? " selected" : ""}>Lainnya (ketik manual)…</option>
+          </select>
+          <input id="verifyVerifierOther" type="text" placeholder="Nama verifier (pengganti)…"
+                 style="margin-top:6px; ${defaultIsOther ? "" : "display:none"}" autocomplete="off" list="workerNames">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Nama ini dicatat sebagai verifier untuk SEMUA bal yang dicentang. Pilih <em>Lainnya</em> kalau penggantinya belum ada di daftar.</div>
+        </div>
         <div class="form-group">
           <label>Catatan History</label>
           <textarea id="bulkNote">Bulk verifikasi qty OK</textarea>
@@ -3518,6 +3536,22 @@
       const ack = document.getElementById("bulkVerifyAck")?.checked;
       if (!ack) return alert("Centang konfirmasi bahwa semua bal sudah dicek fisik dan qty-nya cocok.");
 
+      // v42.5: nama verifier (dropdown / Lainnya) — wajib, dicatat untuk semua bal.
+      const sel = document.getElementById("verifyVerifierSelect");
+      const other = document.getElementById("verifyVerifierOther");
+      let verifierName = "";
+      if (sel) {
+        if (sel.value === "__OTHER__") {
+          verifierName = titleCase((other?.value || "").trim());
+          if (!verifierName) { other?.classList.add("field-error"); return alert("Nama verifier (Lainnya) wajib diisi."); }
+          if (isGenericWorkerName(verifierName)) { other?.classList.add("field-error"); return alert("Isi nama asli verifier, bukan '" + verifierName + "'."); }
+          if (verifierName.length < 2) { other?.classList.add("field-error"); return alert("Nama verifier minimal 2 karakter."); }
+        } else {
+          verifierName = String(sel.value || "").trim();
+          if (!verifierName) { sel?.classList.add("field-error"); return alert("Nama verifier wajib dipilih."); }
+        }
+      }
+
       const note = document.getElementById("bulkNote")?.value.trim() || "Bulk verifikasi qty OK";
       await runBulkSequential(bals, "Verifikasi qty massal", async (b) => {
         await apiUpdateStatus({
@@ -3525,6 +3559,7 @@
           action: "VERIFIKASI_QTY",
           qty_aktual: Number(b.jumlah || 0),
           qty_note: "Bulk OK",
+          verifier_name: verifierName,
           catatan: note
         });
       });
