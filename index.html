@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.5 Bulk verifikasi: nama verifier tercatat)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.6 Rekap pisah Final/Belum-final + reject obras/setting kurangi target)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -292,6 +292,11 @@
     .st-TERKIRIM { background: #86efac; color: #14532d; }
     .st-DIPECAH { background: #fee2e2; color: #991b1b; }
     .tag { background: #e0e7ff; color: #3730a3; }
+    /* v42.6: badge status rekap produksi — Final borongan vs live/belum final */
+    .wbadge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; white-space: nowrap; vertical-align: middle; }
+    .wbadge-final { background: #dcfce7; color: #166534; }
+    .wbadge-live  { background: #fef3c7; color: #92400e; }
+    .wbadge-rec   { background: #dbeafe; color: #1e40af; }
 
     /* MODAL */
     .modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.68); z-index: 1000; padding: 18px; overflow-y: auto; }
@@ -2735,6 +2740,26 @@
       return Number((b && b.qty_verifikasi) || (b && b.jumlah) || 0);
     }
 
+    // v42.6: reject obras/setting mengurangi TARGET setting (bukan payroll).
+    // Mirror dari helper backend supaya tampilan "sisa" & default qty konsisten.
+    function obrasRejectSatuan(b) {
+      return Number((b && b.obras_qty_reject_satuan) || 0) || 0;
+    }
+    function settingRejectSatuan(b) {
+      const outs = (b && b.output_labels) || [];
+      return outs.reduce((s, o) => s + (Number(o.reject_qty_satuan || 0) || 0), 0);
+    }
+    // Barang yang tiba di setting (output bagus + reject setting) = qty resmi - reject obras.
+    function settingPoolQty(b) {
+      const p = officialQty(b) - obrasRejectSatuan(b);
+      return p > 0 ? Math.round(p * 10000) / 10000 : 0;
+    }
+    // Target output bagus agar setting selesai = pool - reject setting.
+    function settingTargetQty(b) {
+      const t = settingPoolQty(b) - settingRejectSatuan(b);
+      return t > 0 ? Math.round(t * 10000) / 10000 : 0;
+    }
+
     // v40 (issue 1): ringkasan stok vs terkirim untuk status gudang, supaya
     // tidak perlu buka detail. Mengembalikan teks pendek atau "" kalau tak relevan.
     function stokRingkasText(b) {
@@ -4172,8 +4197,8 @@ Alasan: ${cleanReason}`)) return;
       // atau output label kebetulan persis = qty resmi tapi auto-transisi tidak sempat trigger.
       if (b.status === "MULAI_SETTING" && ["Setting / Steam", "Admin Produksi", "Owner"].includes(currentUser.role)) {
         const _fsTotalOut = (b.output_labels || []).reduce((s,o) => s + Number(o.qty || 0), 0);
-        const _fsQtyOff = officialQty(b);
-        if (_fsQtyOff > 0 && _fsTotalOut + 0.0001 >= _fsQtyOff) {
+        const _fsTarget = settingTargetQty(b); // v42.6: qty resmi - reject obras - reject setting
+        if (_fsTarget > 0 && _fsTotalOut + 0.0001 >= _fsTarget) {
           html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openFinishSetting('${b.bal_id}')">✓ Selesai Setting → Siap Packing</button>`;
         }
       }
@@ -4326,7 +4351,7 @@ Alasan: ${cleanReason}`)) return;
           ? `Sudah tercatat dimulai oleh <strong>${safe(bal.obras_by)}</strong>. Kosongkan jika orangnya sama, isi jika beda (ganti shift).`
           : `Nama tukang obras yang ngerjain bal ini.`;
         const rejectObrasHtml = action === "SELESAI_OBRAS" ? `
-          <div class="alert alert-info">Reject obras hanya dicatat untuk evaluasi. Qty HR obras tetap mengikuti qty resmi yang dikerjakan.</div>
+          <div class="alert alert-info">Qty HR (borongan) obras tetap dihitung penuh dari qty resmi. Tetapi qty reject ini <strong>mengurangi target setting</strong>, supaya status tidak nyangkut saat barang berkurang.</div>
           <div class="grid-2">
             <div class="form-group">
               <label>Qty Reject Obras</label>
@@ -4525,10 +4550,11 @@ Alasan: ${cleanReason}`)) return;
       const b = await apiGetBal(bal_id);
       if (b.status !== "MULAI_SETTING") return alert("Manual Selesai Setting hanya bisa saat status MULAI_SETTING.");
       const totalOut = (b.output_labels || []).reduce((s,o)=>s + Number(o.qty||0), 0);
-      const qtyOfficial = officialQty(b);
+      const qtyPool = settingPoolQty(b); // v42.6: qty resmi - reject obras
+      const _sisa = Math.max(0, Math.round((qtyPool - totalOut) * 10000) / 10000);
       const sisaInfo = totalOut > 0
-        ? `<div class="alert alert-warn">Sudah ada ${totalOut} ${safe(b.satuan)} dengan label setting. Sisa ${qtyOfficial-totalOut} ${safe(b.satuan)} akan ditandai selesai tanpa label.</div>`
-        : `<div class="alert alert-warn">Belum ada label setting sama sekali. Seluruh ${qtyOfficial} ${safe(b.satuan)} akan ditandai selesai tanpa proses setting.</div>`;
+        ? `<div class="alert alert-warn">Sudah ada ${totalOut} ${safe(b.satuan)} dengan label setting. Sisa ${_sisa} ${safe(b.satuan)} akan ditandai selesai tanpa label.${obrasRejectSatuan(b) > 0 ? ` (sudah dikurangi reject obras ${obrasRejectSatuan(b)} ${safe(b.satuan)})` : ""}</div>`
+        : `<div class="alert alert-warn">Belum ada label setting sama sekali. Seluruh ${qtyPool} ${safe(b.satuan)} akan ditandai selesai tanpa proses setting.</div>`;
       document.getElementById("actionTitle").textContent = "Selesai Setting MANUAL";
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-danger"><strong>⚠ Aksi khusus Owner / Admin.</strong><br>
@@ -5082,11 +5108,13 @@ Alasan: ${cleanReason}`)) return;
       if (!outs.length && !["MULAI_SETTING", "SELESAI_SETTING"].includes(b.status)) return "";
       const totalOut = outs.reduce((s,o)=>s + Number(o.qty||0), 0);
       const qtyOfficial = officialQty(b);
-      const sisa = qtyOfficial - totalOut;
+      const qtyPool = settingPoolQty(b); // v42.6: qty resmi - reject obras
+      const sisa = Math.max(0, Math.round((qtyPool - totalOut) * 10000) / 10000);
       return `<div class="card" style="margin-top:12px">
         <div class="section-title">Output Setting / Plastik Baru</div>
         <div class="detail-grid">
           ${kv("Total Bal (resmi)", `<strong>${qtyOfficial} ${safe(b.satuan)}</strong>${b.qty_verifikasi ? `<br><span class="small" style="color:var(--muted)">Dari verifikasi checker</span>` : ""}`)}
+          ${obrasRejectSatuan(b) > 0 ? kv("Reject Obras (dikurangi)", `<strong style="color:var(--warning)">− ${obrasRejectSatuan(b)} ${safe(b.satuan)}</strong>`) : ""}
           ${kv("Sudah Label Plastik", `<strong>${totalOut} ${safe(b.satuan)}</strong>`)}
           ${kv("Sisa Belum Label", `<strong>${sisa} ${safe(b.satuan)}</strong>`)}
           ${kv("Jumlah Label", `<strong>${outs.length}</strong>`)}
@@ -5285,11 +5313,12 @@ Alasan: ${cleanReason}`)) return;
       const b = await apiGetBal(bal_id);
       const outs = b.output_labels || [];
       const totalOut = outs.reduce((s,o)=>s+Number(o.qty||0),0);
-      // Sisa = qty resmi (verifikasi atau jumlah) dikurangi yang sudah dilabel.
+      // v42.6: Sisa = pool (qty resmi - reject obras) dikurangi yang sudah dilabel.
       const qtyOfficial = officialQty(b);
-      const remaining = qtyOfficial - totalOut;
-      // Untuk REUSE_MAIN_QR qty resmi sama dengan qtyOfficial.
-      const qtyVerified = qtyOfficial;
+      const qtyPool = settingPoolQty(b);
+      const remaining = Math.max(0, Math.round((qtyPool - totalOut) * 10000) / 10000);
+      // REUSE_MAIN_QR mewakili seluruh barang yang TIBA di setting (pool), bukan qty resmi penuh.
+      const qtyVerified = qtyPool;
       // REUSE_MAIN_QR hanya boleh kalau belum ada output sama sekali. Sekali ada ticket, semua harus ticket.
       const canReuse = outs.length === 0;
       const modeOptions = canReuse
@@ -5297,7 +5326,7 @@ Alasan: ${cleanReason}`)) return;
            <option value="TICKET">Buat QR Tiket Packing Baru (beberapa plastik / bertahap)</option>`
         : `<option value="TICKET">Buat QR Tiket Packing Baru</option>`;
       const reuseInfo = canReuse
-        ? `<div class="alert alert-info">⚙️ Mode <strong>Pakai Ulang QR</strong>: qty otomatis = ${qtyVerified} ${safe(b.satuan)} (qty hasil verifikasi). Tidak bisa diubah karena QR utama mewakili seluruh isi bal.</div>`
+        ? `<div class="alert alert-info">⚙️ Mode <strong>Pakai Ulang QR</strong>: qty otomatis = ${qtyVerified} ${safe(b.satuan)}${obrasRejectSatuan(b) > 0 ? ` (qty resmi ${officialQty(b)} − reject obras ${obrasRejectSatuan(b)})` : ` (qty hasil verifikasi)`}. Tidak bisa diubah karena QR utama mewakili seluruh isi bal.</div>`
         : `<div class="alert alert-warn">Sudah ada label sebelumnya. Sesuai SOP, semua plastik baru wajib pakai <strong>Tiket Packing</strong>. Mode "Pakai Ulang QR" hanya boleh kalau belum ada label sama sekali.</div>`;
       document.getElementById("outputContent").innerHTML = `
         <div class="alert alert-info"><strong>SOP QR:</strong><br>
@@ -5307,6 +5336,7 @@ Alasan: ${cleanReason}`)) return;
         <div class="detail-grid">
           ${kv("Total Bal (operator)", `<strong>${safe(b.jumlah)} ${safe(b.satuan)}</strong>`)}
           ${b.qty_verifikasi ? kv("Qty Verifikasi Checker", `<strong>${safe(b.qty_verifikasi)} ${safe(b.satuan)}</strong>`) : ""}
+          ${obrasRejectSatuan(b) > 0 ? kv("Reject Obras (dikurangi)", `<strong style="color:var(--warning)">− ${obrasRejectSatuan(b)} ${safe(b.satuan)}</strong>`) : ""}
           ${kv("Sudah Dibuat Label", `<strong>${totalOut} ${safe(b.satuan)}</strong>`)}
           ${kv("Sisa", `<strong>${remaining} ${safe(b.satuan)}</strong>`)}
           ${kv("Status", statusBadge(b.status))}
@@ -5324,7 +5354,7 @@ Alasan: ${cleanReason}`)) return;
         <div id="outWorkers">${outputWorkerRow("","")}</div>
         <button class="btn-outline btn-sm" onclick="addOutputWorker()">+ Tambah Pekerja</button>
         <div id="outWorkerTotal" class="alert alert-info" style="margin-top:8px">Total pekerja: 0</div>
-        <div class="alert alert-info">Reject setting hanya dicatat untuk evaluasi. Qty HR setting tetap mengikuti qty output/pekerjaan.</div>
+        <div class="alert alert-info">Qty HR (borongan) setting tetap mengikuti qty output bagus pekerja. Qty reject ini ikut <strong>mengurangi target setting</strong> agar status bisa lanjut ke packing.</div>
         <div class="grid-2">
           <div class="form-group">
             <label>Qty Reject Setting</label>
@@ -5357,9 +5387,9 @@ Alasan: ${cleanReason}`)) return;
       apiGetBal(currentDetailBalId).then(b => {
         const outs = b.output_labels || [];
         const totalOut = outs.reduce((s,o)=>s+Number(o.qty||0),0);
-        const qtyOfficial = officialQty(b);
-        const remaining = qtyOfficial - totalOut;
-        const qtyVerified = qtyOfficial;
+        const qtyPool = settingPoolQty(b); // v42.6: qty resmi - reject obras
+        const remaining = Math.max(0, Math.round((qtyPool - totalOut) * 10000) / 10000);
+        const qtyVerified = qtyPool;
         if (modeEl.value === "REUSE_MAIN_QR") {
           qtyEl.value = qtyVerified;
           qtyEl.setAttribute("readonly", "true");
@@ -7431,11 +7461,17 @@ Alasan: ${cleanReason}`)) return;
     function renderWorkSummary(summaryId, rows, showWorkerCount = true) {
       const el = document.getElementById(summaryId);
       if (!el) return;
-      const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
+      let qtyFinal = 0, qtyLive = 0;
+      for (const r of rows) {
+        if (workRowIsLive(r)) qtyLive += Number(r.qty || 0);
+        else qtyFinal += Number(r.qty || 0);
+      }
+      qtyFinal = Math.round(qtyFinal * 10000) / 10000;
+      qtyLive = Math.round(qtyLive * 10000) / 10000;
       const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
       const stats = showWorkerCount
-        ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
-        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Nama", currentUser?.nama || "-"]];
+        ? [["Pekerjaan", rows.length], ["Qty Final", qtyFinal], ["Qty Belum Final", qtyLive], ["Tahap", workSubLabel(currentWorkSub)]]
+        : [["Pekerjaan", rows.length], ["Qty Final", qtyFinal], ["Qty Belum Final", qtyLive], ["Nama", currentUser?.nama || "-"]];
       el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
     }
 
@@ -7445,6 +7481,17 @@ Alasan: ${cleanReason}`)) return;
       const id = String(balId || "");
       if (!id) return `<span class="small mono">-</span>`;
       return `<span class="small mono bal-link" title="Buka detail bal" onclick="openDetail('${safe(id)}')">${safe(id)}</span>`;
+    }
+
+    // v42.6: Rekap Produksi memisahkan Final borongan vs live/belum final.
+    // source "borongan" = final; "bals_live" = belum final (tahap selesai, belum jadi borongan);
+    // "bals" (checker QC) = tercatat. Hanya "bals_live" yang dihitung sbg "belum final".
+    function workRowIsLive(r) { return String(r && r.source) === "bals_live"; }
+    function workStatusBadge(r) {
+      const src = String((r && r.source) || "");
+      if (src === "bals_live") return `<span class="wbadge wbadge-live">Belum final</span>`;
+      if (src === "borongan")  return `<span class="wbadge wbadge-final">Final</span>`;
+      return `<span class="wbadge wbadge-rec">Tercatat</span>`;
     }
 
     function renderWorkRows(tbodyId, mobileId, rows, options = {}) {
@@ -7470,7 +7517,7 @@ Alasan: ${cleanReason}`)) return;
         tbody.innerHTML = rows.map(r => `
           <tr>
             <td>${safe(r.tanggal)}</td>
-            <td>${safe(r.tahap)}</td>
+            <td>${safe(r.tahap)}<br>${workStatusBadge(r)}</td>
             ${showPegawai ? `<td><strong>${safe(r.pegawai)}</strong></td>` : ""}
             <td>${fotoCell(r.foto_url, r.bal_id)}</td>
             <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
@@ -7488,7 +7535,7 @@ Alasan: ${cleanReason}`)) return;
             ${fotoCell(r.foto_url, r.bal_id)}
             <div class="bal-card-body">
               <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
-              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""}</div>
+              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""} ${workStatusBadge(r)}</div>
               <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
               <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
               <div class="small">${safe(r.catatan || "")}</div>
@@ -7504,14 +7551,16 @@ Alasan: ${cleanReason}`)) return;
       const map = new Map();
       for (const r of rows) {
         const k = r.pegawai || "-";
-        if (!map.has(k)) map.set(k, { pegawai: k, qty: 0, count: 0 });
+        if (!map.has(k)) map.set(k, { pegawai: k, qtyFinal: 0, qtyLive: 0, count: 0 });
         const e = map.get(k);
-        e.qty += Number(r.qty || 0);
+        if (workRowIsLive(r)) e.qtyLive += Number(r.qty || 0);
+        else e.qtyFinal += Number(r.qty || 0);
         e.count += 1;
       }
-      const arr = [...map.values()].sort((a,b) => b.qty - a.qty);
+      const arr = [...map.values()].sort((a,b) => (b.qtyFinal + b.qtyLive) - (a.qtyFinal + a.qtyLive));
+      const r4 = (n) => Math.round(Number(n || 0) * 10000) / 10000;
       el.innerHTML = arr.length
-        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td></tr>`).join("")}</tbody></table></div>`
+        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Qty Final</th><th>Qty Belum Final</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td><strong>${r4(r.qtyFinal)}</strong></td><td>${r.qtyLive > 0 ? `<span style="color:var(--warning)">${r4(r.qtyLive)}</span>` : "0"}</td></tr>`).join("")}</tbody></table></div>`
         : `<div class="empty">Belum ada data.</div>`;
     }
 
