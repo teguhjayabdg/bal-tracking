@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.6 Rekap pisah Final/Belum-final + reject obras/setting kurangi target)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.7 Rekap tunggal tanpa final/belum-final + reject obras/setting kurangi target)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -292,11 +292,6 @@
     .st-TERKIRIM { background: #86efac; color: #14532d; }
     .st-DIPECAH { background: #fee2e2; color: #991b1b; }
     .tag { background: #e0e7ff; color: #3730a3; }
-    /* v42.6: badge status rekap produksi — Final borongan vs live/belum final */
-    .wbadge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; white-space: nowrap; vertical-align: middle; }
-    .wbadge-final { background: #dcfce7; color: #166534; }
-    .wbadge-live  { background: #fef3c7; color: #92400e; }
-    .wbadge-rec   { background: #dbeafe; color: #1e40af; }
 
     /* MODAL */
     .modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.68); z-index: 1000; padding: 18px; overflow-y: auto; }
@@ -7461,17 +7456,11 @@ Alasan: ${cleanReason}`)) return;
     function renderWorkSummary(summaryId, rows, showWorkerCount = true) {
       const el = document.getElementById(summaryId);
       if (!el) return;
-      let qtyFinal = 0, qtyLive = 0;
-      for (const r of rows) {
-        if (workRowIsLive(r)) qtyLive += Number(r.qty || 0);
-        else qtyFinal += Number(r.qty || 0);
-      }
-      qtyFinal = Math.round(qtyFinal * 10000) / 10000;
-      qtyLive = Math.round(qtyLive * 10000) / 10000;
+      const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
       const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
       const stats = showWorkerCount
-        ? [["Pekerjaan", rows.length], ["Qty Final", qtyFinal], ["Qty Belum Final", qtyLive], ["Tahap", workSubLabel(currentWorkSub)]]
-        : [["Pekerjaan", rows.length], ["Qty Final", qtyFinal], ["Qty Belum Final", qtyLive], ["Nama", currentUser?.nama || "-"]];
+        ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
+        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Nama", currentUser?.nama || "-"]];
       el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
     }
 
@@ -7481,17 +7470,6 @@ Alasan: ${cleanReason}`)) return;
       const id = String(balId || "");
       if (!id) return `<span class="small mono">-</span>`;
       return `<span class="small mono bal-link" title="Buka detail bal" onclick="openDetail('${safe(id)}')">${safe(id)}</span>`;
-    }
-
-    // v42.6: Rekap Produksi memisahkan Final borongan vs live/belum final.
-    // source "borongan" = final; "bals_live" = belum final (tahap selesai, belum jadi borongan);
-    // "bals" (checker QC) = tercatat. Hanya "bals_live" yang dihitung sbg "belum final".
-    function workRowIsLive(r) { return String(r && r.source) === "bals_live"; }
-    function workStatusBadge(r) {
-      const src = String((r && r.source) || "");
-      if (src === "bals_live") return `<span class="wbadge wbadge-live">Belum final</span>`;
-      if (src === "borongan")  return `<span class="wbadge wbadge-final">Final</span>`;
-      return `<span class="wbadge wbadge-rec">Tercatat</span>`;
     }
 
     function renderWorkRows(tbodyId, mobileId, rows, options = {}) {
@@ -7517,7 +7495,7 @@ Alasan: ${cleanReason}`)) return;
         tbody.innerHTML = rows.map(r => `
           <tr>
             <td>${safe(r.tanggal)}</td>
-            <td>${safe(r.tahap)}<br>${workStatusBadge(r)}</td>
+            <td>${safe(r.tahap)}</td>
             ${showPegawai ? `<td><strong>${safe(r.pegawai)}</strong></td>` : ""}
             <td>${fotoCell(r.foto_url, r.bal_id)}</td>
             <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
@@ -7535,7 +7513,7 @@ Alasan: ${cleanReason}`)) return;
             ${fotoCell(r.foto_url, r.bal_id)}
             <div class="bal-card-body">
               <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
-              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""} ${workStatusBadge(r)}</div>
+              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""}</div>
               <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
               <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
               <div class="small">${safe(r.catatan || "")}</div>
@@ -7551,16 +7529,14 @@ Alasan: ${cleanReason}`)) return;
       const map = new Map();
       for (const r of rows) {
         const k = r.pegawai || "-";
-        if (!map.has(k)) map.set(k, { pegawai: k, qtyFinal: 0, qtyLive: 0, count: 0 });
+        if (!map.has(k)) map.set(k, { pegawai: k, qty: 0, count: 0 });
         const e = map.get(k);
-        if (workRowIsLive(r)) e.qtyLive += Number(r.qty || 0);
-        else e.qtyFinal += Number(r.qty || 0);
+        e.qty += Number(r.qty || 0);
         e.count += 1;
       }
-      const arr = [...map.values()].sort((a,b) => (b.qtyFinal + b.qtyLive) - (a.qtyFinal + a.qtyLive));
-      const r4 = (n) => Math.round(Number(n || 0) * 10000) / 10000;
+      const arr = [...map.values()].sort((a,b) => b.qty - a.qty);
       el.innerHTML = arr.length
-        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Qty Final</th><th>Qty Belum Final</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td><strong>${r4(r.qtyFinal)}</strong></td><td>${r.qtyLive > 0 ? `<span style="color:var(--warning)">${r4(r.qtyLive)}</span>` : "0"}</td></tr>`).join("")}</tbody></table></div>`
+        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td></tr>`).join("")}</tbody></table></div>`
         : `<div class="empty">Belum ada data.</div>`;
     }
 
