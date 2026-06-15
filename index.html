@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.7 Rekap tunggal tanpa final/belum-final + reject obras/setting kurangi target)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.9 Maklon Packing: terima-kembali bertahap + gabung finish/QC)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1347,6 +1347,7 @@
       "updateBoronganTarif", "setBoronganPaid", "setBoronganPaidBulk", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
+      "maklonReturnBatch", "maklonCloseSelisih",
       "startMaklonEksternal", "finishMaklonEksternal",
       "startMaklonAntislip", "finishMaklonAntislip",
       "finishSetting",
@@ -4038,6 +4039,7 @@ Alasan: ${cleanReason}`)) return;
           b.shipped_at ? `Dikirim: ${fmtDate(b.shipped_at)}` : ""
         ].filter(Boolean).join(" · ");
         html += `<div class="alert alert-success">✓ Bal sudah TERKIRIM.<br><small>${info || ""}</small></div>`;
+        html += maklonReturnBlock(b);
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
@@ -4101,13 +4103,12 @@ Alasan: ${cleanReason}`)) return;
         return html;
       }
 
-      // PROSES_PACKING_MAKLON → Selesai Packing Maklon (barang kembali)
+      // PROSES_PACKING_MAKLON → Terima Kembali Maklon bertahap (v42.9)
       if (b.status === "PROSES_PACKING_MAKLON") {
         const targetTxt = b.maklon_target_kembali ? `<br>Target kembali: ${fmtDate(b.maklon_target_kembali)}` : "";
         html += `<div class="alert alert-info">🏠 Sedang di MAKLON: <strong>${safe(b.maklon_by || "-")}</strong><br>Keluar: ${fmtDate(b.maklon_keluar_at)}${targetTxt}</div>`;
-        if (["Admin Produksi", "Owner", "Checker / QC"].includes(currentUser.role)) {
-          html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">📥 Selesai Packing Maklon (Barang Kembali)</button>`;
-        } else {
+        html += maklonReturnBlock(b);
+        if (!["Admin Produksi", "Owner", "Checker / QC"].includes(currentUser.role)) {
           html += `<div class="alert alert-info">Menunggu admin atau checker menerima &amp; mengecek barang kembali dari maklon.</div>`;
         }
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
@@ -4142,6 +4143,7 @@ Alasan: ${cleanReason}`)) return;
         if (["Admin Produksi", "Owner"].includes(currentUser.role) && stokQty > 0) {
           html += `<button class="btn-success btn-block" style="margin-top:8px" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
         }
+        html += maklonReturnBlock(b);
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
@@ -4157,6 +4159,7 @@ Alasan: ${cleanReason}`)) return;
         if (["Admin Produksi", "Owner"].includes(currentUser.role) && stokQty > 0) {
           html += `<button class="btn-success btn-block" onclick="openMarkShipped('${b.bal_id}')">🚚 Mark Terkirim</button>`;
         }
+        html += maklonReturnBlock(b);
         if (currentUser.role === "Owner") html += ownerOverrideButton(b);
         return html;
       }
@@ -4202,6 +4205,46 @@ Alasan: ${cleanReason}`)) return;
       }
       if (currentUser.role === "Owner") html += ownerOverrideButton(b);
       return html;
+    }
+
+    // v42.9: progress + aksi terima-kembali maklon packing bertahap. Self-guard: hanya MAKLON.
+    function maklonReturnBlock(b) {
+      if (String(b.tipe_packing || "").toUpperCase() !== "MAKLON") return "";
+      let qtyKeluar = Number(b.maklon_qty_keluar || 0);
+      if (qtyKeluar <= 0) qtyKeluar = settingOutputQty(b) || officialQty(b); // fallback bal lama
+      if (qtyKeluar <= 0) return "";
+      let batches = [];
+      try { batches = JSON.parse(b.maklon_return_batches_json || "[]") || []; } catch (e) { batches = []; }
+      const totReal = batches.reduce((s, x) => s + Number(x.qty_real || 0), 0);
+      const totOk = batches.reduce((s, x) => s + Number(x.qty_ok || 0), 0);
+      const totReject = batches.reduce((s, x) => s + Number(x.qty_reject || 0), 0);
+      const selisih = Number(b.maklon_qty_selisih || 0);
+      const sisa = Math.round((qtyKeluar - totReal - selisih) * 10000) / 10000;
+      const sat = safe(b.satuan);
+      let h = `<div class="card" style="margin-top:12px">
+        <div class="section-title">🏭 Maklon Packing — ${safe(b.maklon_by || "vendor")}</div>
+        <div class="detail-grid">
+          ${kv("Qty Keluar", `<strong>${qtyKeluar} ${sat}</strong>`)}
+          ${kv("Sudah Kembali", `<strong>${totReal} ${sat}</strong>${totReal > 0 ? ` (OK ${totOk}${totReject > 0 ? `, reject ${totReject}` : ""})` : ""}`)}
+          ${selisih > 0 ? kv("Selisih (ditutup)", `<strong>${selisih} ${sat}</strong>`) : ""}
+          ${kv("Sisa di Vendor", `<strong style="color:${sisa > 0.0001 ? "var(--warning)" : "var(--success)"}">${sisa} ${sat}</strong>`)}
+        </div>`;
+      if (batches.length) {
+        h += `<div class="small" style="margin-top:8px"><strong>Riwayat kembali:</strong></div><ul style="margin:4px 0 0 18px; padding:0">` +
+          batches.map(x => `<li class="small">Batch ${x.seq}: ${x.qty_real} ${sat} (OK ${x.qty_ok}${Number(x.qty_reject || 0) > 0 ? `, reject ${x.qty_reject}` : ""}) — ${fmtDate(x.tanggal)} oleh ${safe(x.by)}${x.note ? ` · ${safe(x.note)}` : ""}</li>`).join("") +
+          `</ul>`;
+      }
+      if (sisa > 0.0001) {
+        if (["Admin Produksi", "Owner", "Checker / QC"].includes(currentUser.role)) {
+          h += `<button class="btn-success btn-block" style="margin-top:10px" onclick="openMaklonReturn('${b.bal_id}')">📥 Terima Kembali Maklon (Barang Datang)</button>`;
+        }
+        if (currentUser.role === "Owner") {
+          h += `<button class="btn-outline btn-block" style="margin-top:8px" onclick="openMaklonCloseSelisih('${b.bal_id}')">✖ Tutup Sisa sebagai Selisih</button>`;
+        }
+        h += `<div class="small" style="margin-top:8px; color:var(--warning)">⚠ Masih ada <strong>${sisa} ${sat}</strong> di vendor — belum dianggap selesai.</div>`;
+      }
+      h += `</div>`;
+      return h;
     }
 
     function ownerOverrideButton(b) {
@@ -4753,8 +4796,8 @@ Alasan: ${cleanReason}`)) return;
           <hr style="margin:16px 0">
           <div class="alert alert-danger">
             <strong>⚠ Reset / Batalkan Verifikasi</strong><br>
-            Hapus data qty verifikasi dan kembalikan bal ke status SELESAI_MESIN agar bisa diverifikasi ulang oleh checker.<br>
-            <span class="small">Output_labels dan record borongan TIDAK dihapus — kalau bal sudah lewat tahap setting/packing, owner perlu rollback dulu lewat tab Status.</span>
+            Mengembalikan bal sepenuhnya ke status SELESAI_MESIN untuk diverifikasi ulang oleh checker.<br>
+            <span class="small">Ini = rollback PENUH ke awal: qty verifikasi, output label setting, SELURUH record borongan, dan data downstream (packing/QC/stok/kirim) bal ini akan <strong>dihapus</strong> dan pengiriman terkait dibatalkan dari ledger. Pakai ini hanya kalau ingin mengulang dari verifikasi. Kalau cuma mau mundur sebagian (mis. sampai setting saja), pakai tab <strong>Rollback Status</strong>.</span>
           </div>
           <div class="form-group"><label>Alasan Reset Verifikasi <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_qty_reset_reason" rows="2"></textarea></div>
           <button class="btn-danger btn-block" onclick="guardedClick(this, confirmOOResetQty, 'Memproses...')">🔄 Reset / Batalkan Verifikasi</button>
@@ -4780,7 +4823,7 @@ Alasan: ${cleanReason}`)) return;
     async function confirmOOResetQty() {
       const reason = (document.getElementById("oo_qty_reset_reason")?.value || "").trim();
       if (reason.length < 10) return alert("Alasan wajib minimal 10 karakter.");
-      if (!confirm("Yakin reset verifikasi? Bal akan kembali ke status SELESAI_MESIN.")) return;
+      if (!confirm("Yakin reset verifikasi? Bal kembali ke SELESAI_MESIN dan SEMUA data downstream (output setting, borongan, packing, QC, stok, kirim) bal ini dihapus.")) return;
       try {
         const updatedBal = await apiOwnerOverride({ bal_id: ownerOverrideActiveBalId, type: "RESET_QTY", reason });
         alert("Verifikasi berhasil direset. Bal kembali ke SELESAI_MESIN.");
@@ -4815,7 +4858,7 @@ Alasan: ${cleanReason}`)) return;
       return `
         <div class="alert alert-info">
           Status sekarang: <strong>${statusText(b.status)}</strong><br>
-          <span class="small">Rollback v24 akan membersihkan field dan record borongan downstream. Jika rollback ke <strong>Maklon Eksternal</strong>, vendor wajib diisi supaya tombol Selesai Maklon tidak error.</span>
+          <span class="small">Rollback akan membersihkan field dan record borongan downstream. Rollback ke <strong>SELESAI_MESIN</strong> berarti reset penuh (sama dengan tombol Reset Verifikasi di tab Qty). Jika rollback ke <strong>Maklon Eksternal</strong>, vendor wajib diisi supaya tombol Selesai Maklon tidak error.</span>
         </div>
         ${targets.length === 0
           ? (currentIdx === -1
@@ -5581,10 +5624,12 @@ Alasan: ${cleanReason}`)) return;
       const bal = await apiGetBal(bal_id);
       if (bal.status !== "SIAP_PACKING") return alert("Bal harus di status SIAP_PACKING.");
       const qtyOff = officialQty(bal);
+      const qtySetting = settingOutputQty(bal) || qtyOff; // qty hasil setting (sudah dikurangi cacat)
+      const isOwner = currentUser.role === "Owner";
       document.getElementById("actionTitle").textContent = "Mulai Packing";
       document.getElementById("actionContent").innerHTML = `
         <div class="alert alert-info">
-          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong>
+          Bal <strong>${safe(bal.bal_id)}</strong> · Qty resmi: <strong>${qtyOff} ${safe(bal.satuan)}</strong> · Qty hasil setting: <strong>${qtySetting} ${safe(bal.satuan)}</strong>
         </div>
         <div class="form-group">
           <label>Tipe Packing <span class="required">*</span></label>
@@ -5597,6 +5642,11 @@ Alasan: ${cleanReason}`)) return;
           <div class="form-group">
             <label>Nama Pekerja Maklon <span class="required">*</span></label>
             <input id="sp_maklon_by" list="workerNames" autocomplete="off" placeholder="Nama lengkap pekerja yang bawa pulang">
+          </div>
+          <div class="form-group">
+            <label>Qty Keluar ke Vendor ${isOwner ? '<span class="small">(default = qty hasil setting)</span>' : ''}</label>
+            <input id="sp_qty_keluar" type="number" step="any" min="0" value="${qtySetting}" ${isOwner ? "" : "disabled"}>
+            ${isOwner ? '' : '<div class="small" style="color:var(--muted)">Default qty hasil setting. Hanya Owner yang bisa mengubah angka ini.</div>'}
           </div>
           <div class="form-group">
             <label>Target Kembali (opsional)</label>
@@ -5628,6 +5678,12 @@ Alasan: ${cleanReason}`)) return;
           if (isGenericWorkerName(mby)) return alert(`Nama pekerja harus nama asli, bukan '${mby}'. Ketik nama orang yang sebenarnya bawa pulang.`);
           payload.maklon_by = mby;
           payload.maklon_target_kembali = document.getElementById("sp_target_kembali").value;
+          // v42.9: qty keluar hanya dikirim kalau Owner (backend menolak edit oleh selain Owner)
+          const qk = document.getElementById("sp_qty_keluar");
+          if (qk && currentUser.role === "Owner") {
+            const v = Number(qk.value || 0);
+            if (v > 0) payload.maklon_qty_keluar = v;
+          }
         }
         const updatedBal = await apiStartPacking(payload);
         closeModal("actionModal"); closeModal("detailModal");
@@ -5925,6 +5981,108 @@ Alasan: ${cleanReason}`)) return;
           note: document.getElementById("tsk_note").value.trim()
         });
         closeModal("actionModal"); closeModal("detailModal");
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
+      } catch (e) { alert(e.message); }
+    }
+
+    // v42.9: Terima Kembali Maklon (gabungan qty real + reject, 1 layar)
+    async function openMaklonReturn(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      let qtyKeluar = Number(bal.maklon_qty_keluar || 0);
+      if (qtyKeluar <= 0) qtyKeluar = settingOutputQty(bal) || officialQty(bal);
+      let batches = [];
+      try { batches = JSON.parse(bal.maklon_return_batches_json || "[]") || []; } catch (e) { batches = []; }
+      const totReal = batches.reduce((s, x) => s + Number(x.qty_real || 0), 0);
+      const selisih = Number(bal.maklon_qty_selisih || 0);
+      const sisa = Math.round((qtyKeluar - totReal - selisih) * 10000) / 10000;
+      const sat = safe(bal.satuan);
+      if (sisa <= 0.0001) return alert("Semua barang maklon sudah kembali / ditutup.");
+      document.getElementById("actionTitle").textContent = "Terima Kembali Maklon";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          Vendor: <strong>${safe(bal.maklon_by || "-")}</strong><br>
+          Qty keluar: <strong>${qtyKeluar} ${sat}</strong> · Sudah kembali: <strong>${totReal} ${sat}</strong><br>
+          Sisa di vendor: <strong style="color:var(--warning)">${sisa} ${sat}</strong>
+        </div>
+        <div class="form-group">
+          <label>Qty Real Kembali Sekarang <span class="required">*</span></label>
+          <input id="mr_real" type="number" step="any" min="0" max="${sisa}" value="${sisa}" oninput="recalcMaklonReturn('${sat}')">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Maksimal ${sisa} ${sat} (sisa di vendor).</div>
+        </div>
+        <div class="form-group">
+          <label>Qty Reject / cacat (opsional, satuan ${sat})</label>
+          <input id="mr_reject" type="number" step="any" min="0" value="0" oninput="recalcMaklonReturn('${sat}')">
+        </div>
+        <div id="mrHint" class="alert alert-success">OK masuk stok: <strong>${sisa} ${sat}</strong></div>
+        <div class="form-group">
+          <label>Catatan <span class="small">(wajib jika ada reject)</span></label>
+          <textarea id="mr_note" rows="2"></textarea>
+        </div>
+        <input id="mr_satuan" type="hidden" value="${sat}">
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmMaklonReturn('${bal_id}'), 'Menyimpan...')">📥 Simpan Barang Kembali</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    function recalcMaklonReturn(sat) {
+      const real = Number(document.getElementById("mr_real")?.value || 0);
+      const reject = Number(document.getElementById("mr_reject")?.value || 0);
+      const ok = Math.max(0, Math.round((real - reject) * 10000) / 10000);
+      const el = document.getElementById("mrHint");
+      if (el) el.innerHTML = `OK masuk stok: <strong>${ok} ${sat}</strong>${reject > 0 ? ` · Reject: <strong>${reject} ${sat}</strong>` : ""}`;
+    }
+
+    async function confirmMaklonReturn(bal_id) {
+      const real = Number(document.getElementById("mr_real").value || 0);
+      const reject = Number(document.getElementById("mr_reject").value || 0);
+      const note = (document.getElementById("mr_note")?.value || "").trim();
+      const satuan = document.getElementById("mr_satuan")?.value || "lusin";
+      if (!real || real <= 0) return alert("Qty real kembali wajib > 0.");
+      if (reject < 0) return alert("Qty reject tidak boleh negatif.");
+      if (reject > real) return alert("Qty reject tidak boleh melebihi qty kembali.");
+      if (reject > 0 && !note) return alert("Catatan wajib diisi kalau ada reject.");
+      try {
+        const updatedBal = await api("maklonReturnBatch", { bal_id, qty_real: real, qty_reject: reject, qty_reject_unit: satuan, note });
+        closeModal("actionModal");
+        alert("Barang kembali tercatat. Yang OK masuk stok dan bisa dikirim.");
+        await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
+      } catch (e) { alert(e.message); }
+    }
+
+    // v42.9: Owner tutup sisa maklon sebagai selisih/hilang
+    async function openMaklonCloseSelisih(bal_id) {
+      const bal = await apiGetBal(bal_id);
+      let qtyKeluar = Number(bal.maklon_qty_keluar || 0);
+      if (qtyKeluar <= 0) qtyKeluar = settingOutputQty(bal) || officialQty(bal);
+      let batches = [];
+      try { batches = JSON.parse(bal.maklon_return_batches_json || "[]") || []; } catch (e) { batches = []; }
+      const totReal = batches.reduce((s, x) => s + Number(x.qty_real || 0), 0);
+      const selisih = Number(bal.maklon_qty_selisih || 0);
+      const sisa = Math.round((qtyKeluar - totReal - selisih) * 10000) / 10000;
+      const sat = safe(bal.satuan);
+      if (sisa <= 0.0001) return alert("Tidak ada sisa untuk ditutup.");
+      document.getElementById("actionTitle").textContent = "Tutup Sisa sebagai Selisih";
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-danger">
+          Menutup <strong>${sisa} ${sat}</strong> yang tidak kembali dari vendor sebagai <strong>selisih / hilang</strong>.
+          Maklon dianggap tuntas untuk sisa ini. Tercatat di riwayat.
+        </div>
+        <div class="form-group">
+          <label>Alasan <span class="required">*</span> (min 5 karakter)</label>
+          <textarea id="mcs_reason" rows="2" placeholder="mis. vendor konfirmasi sisa hilang/rusak total"></textarea>
+        </div>
+        <button class="btn-danger btn-block" onclick="guardedClick(this, () => confirmMaklonCloseSelisih('${bal_id}'), 'Memproses...')">✖ Tutup ${sisa} ${sat} sebagai Selisih</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmMaklonCloseSelisih(bal_id) {
+      const reason = (document.getElementById("mcs_reason")?.value || "").trim();
+      if (reason.length < 5) return alert("Alasan wajib minimal 5 karakter.");
+      try {
+        const updatedBal = await api("maklonCloseSelisih", { bal_id, reason });
+        closeModal("actionModal");
+        alert("Sisa ditutup sebagai selisih.");
         await refreshAfterMutation(bal_id, { reopenDetail: true, borongan: true, bal: updatedBal });
       } catch (e) { alert(e.message); }
     }
