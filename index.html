@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.9 Maklon Packing: terima-kembali bertahap + gabung finish/QC)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.10 Packing internal: catat siapa yang packing + maklon terima-kembali bertahap)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -4095,7 +4095,7 @@ Alasan: ${cleanReason}`)) return;
 
       // PROSES_PACKING_INTERNAL → Selesai Packing Internal
       if (b.status === "PROSES_PACKING_INTERNAL") {
-        html += `<div class="alert alert-info">🏭 Proses packing INTERNAL di pabrik. Dimulai: ${fmtDate(b.packing_started_at)}</div>`;
+        html += `<div class="alert alert-info">🏭 Proses packing INTERNAL di pabrik. Dimulai: ${fmtDate(b.packing_started_at)}${b.packing_handler ? `<br>📦 Dipacking oleh: <strong>${safe(b.packing_handler)}</strong>` : ""}</div>`;
         if (["Packing", "Admin Produksi", "Owner"].includes(currentUser.role)) {
           html += `<button class="btn-success btn-block" onclick="openFinishPacking('${b.bal_id}')">✓ Selesai Packing Internal</button>`;
         }
@@ -5633,10 +5633,17 @@ Alasan: ${cleanReason}`)) return;
         </div>
         <div class="form-group">
           <label>Tipe Packing <span class="required">*</span></label>
-          <select id="sp_tipe" onchange="document.getElementById('sp_maklon_box').style.display = this.value === 'MAKLON' ? 'block' : 'none'">
+          <select id="sp_tipe" onchange="document.getElementById('sp_maklon_box').style.display = this.value === 'MAKLON' ? 'block' : 'none'; document.getElementById('sp_internal_box').style.display = this.value === 'INTERNAL' ? 'block' : 'none'">
             <option value="INTERNAL">INTERNAL (di pabrik)</option>
             <option value="MAKLON">MAKLON (dibawa pulang pekerja)</option>
           </select>
+        </div>
+        <div id="sp_internal_box">
+          <div class="form-group">
+            <label>Siapa yang Packing? <span class="required">*</span></label>
+            <input id="sp_packing_handler" list="workerNames" autocomplete="off" placeholder="Nama pekerja yang pegang / packing barang">
+            <div class="small" style="margin-top:4px; color:var(--muted)">Untuk catatan lokasi &amp; riwayat (barang ada di siapa). Belum masuk borongan — upah packing tetap diisi saat Selesai Packing.</div>
+          </div>
         </div>
         <div id="sp_maklon_box" style="display:none">
           <div class="form-group">
@@ -5670,6 +5677,13 @@ Alasan: ${cleanReason}`)) return;
           tipe_packing: tipe,
           packing_note: document.getElementById("sp_note").value.trim()
         };
+        if (tipe === "INTERNAL") {
+          const handler = (typeof titleCase === "function"
+            ? titleCase(document.getElementById("sp_packing_handler").value.trim())
+            : document.getElementById("sp_packing_handler").value.trim());
+          if (!handler) return alert("Isi dulu siapa yang packing (pegang barang).");
+          payload.packing_handler = handler;
+        }
         if (tipe === "MAKLON") {
           const mby = (typeof titleCase === "function"
             ? titleCase(document.getElementById("sp_maklon_by").value.trim())
