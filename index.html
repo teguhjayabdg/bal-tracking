@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.10 Packing internal: catat siapa yang packing + maklon terima-kembali bertahap)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.11 Kode bal buku-halaman-urut + sembunyikan Terkirim di Daftar Bal)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -961,6 +961,10 @@
             <select id="filterWarna" onchange="onListFilterChange()"><option value="">Semua Warna</option></select>
             <select id="filterStatus" onchange="onListFilterChange()"><option value="">Semua Status</option></select>
             <select id="filterSort" onchange="onListFilterChange()"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select>
+            <!-- v42.11: default Daftar Bal menyembunyikan TERKIRIM supaya tidak menumpuk. Toggle ini hanya tampil untuk Owner/Admin (di-set di renderList). -->
+            <label id="filterShippedWrap" style="display:none; align-items:center; gap:6px; font-size:13px; white-space:nowrap; cursor:pointer;">
+              <input type="checkbox" id="filterShowShipped" onchange="onListFilterChange()" style="margin:0;"> Tampilkan Terkirim
+            </label>
           </div>
 
           <div id="bulkQuickBar" class="bulk-quick-bar">
@@ -2281,16 +2285,53 @@
        UTIL
        ============================================================ */
 
-    function generateBalId() {
+    // v42.11: kode bal = BAL-{YYMMDD}-{buku}-{halaman}-{urut 2 digit}.
+    // - buku & halaman diambil dari field bal (angka saja; "A" dll dibuang).
+    // - urut = nomor terakhir yang sudah dipakai untuk buku+halaman+tanggal yang SAMA + 1,
+    //   discan dari bal_id yang sudah ada. Dipad 2 digit (01..99); kalau >99 otomatis 3 digit.
+    // - Kalau buku/halaman kosong (data lama / tak wajar) → fallback ke timestamp lama supaya tetap unik.
+    // - Ada pengaman: kalau kandidat ternyata sudah ada, urut dinaikkan sampai bebas.
+    // Catatan: server (apiCreateBal) juga menolak bal_id duplikat sebagai lapis pengaman terakhir.
+    function generateBalId(existingBals, bukuNomor, halamanBuku) {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const dd = String(now.getDate()).padStart(2, "0");
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mi = String(now.getMinutes()).padStart(2, "0");
-      const ss = String(now.getSeconds()).padStart(2, "0");
-      const ms = String(now.getMilliseconds()).padStart(3, "0");
-      return `BAL-${yy}${mm}${dd}-${hh}${mi}${ss}${ms}`;
+      const datePart = `${yy}${mm}${dd}`;
+
+      const book = String(bukuNomor || "").replace(/\D/g, "");
+      const page = String(halamanBuku || "").replace(/\D/g, "");
+
+      // Fallback timestamp (dipakai juga kalau dipanggil tanpa argumen, mis. kode lama).
+      const stamp = () => {
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mi = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+        const ms = String(now.getMilliseconds()).padStart(3, "0");
+        return `BAL-${datePart}-${hh}${mi}${ss}${ms}`;
+      };
+      if (!book || !page) return stamp();
+
+      const prefix = `BAL-${datePart}-${book}-${page}-`;
+      const re = new RegExp(`^BAL-${datePart}-${book}-${page}-(\\d+)$`);
+      const ids = (existingBals || []).map(b => String(b.bal_id || ""));
+      let maxSeq = 0;
+      ids.forEach(id => {
+        const m = re.exec(id);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (Number.isFinite(n) && n > maxSeq) maxSeq = n;
+        }
+      });
+
+      const existingIds = new Set(ids);
+      let seq = maxSeq + 1;
+      let candidate = prefix + String(seq).padStart(2, "0");
+      while (existingIds.has(candidate)) {
+        seq += 1;
+        candidate = prefix + String(seq).padStart(2, "0");
+      }
+      return candidate;
     }
 
     function fmtDate(iso) {
@@ -3205,24 +3246,50 @@
       const dup = (existing || []).find(b => b.po_id === po_id && String(b.nomor_bal) === nomor_bal && String(b.no_mesin) === no_mesin && String(b.tanggal_buat || "").slice(0, 10) === today);
       if (dup && !confirm(`Peringatan: PO + No Bal + Mesin sudah ada hari ini (${dup.bal_id}). Tetap simpan?`)) return;
 
+      // v42.11: kode bal dihitung SEKALI (format buku-halaman-urut) lalu dipakai untuk nama file foto + data bal,
+      // supaya foto dan bal punya ID yang sama persis.
+      let newBalId = generateBalId(existing, buku_nomor, halaman_buku);
+
       try {
         // STEP 1: upload foto ke Drive dulu, dapat URL
         let fotoUrl = "";
         await withLoading("Upload foto...", async () => {
-          const balIdPreview = generateBalId();
-          const res = await apiUploadFoto(pendingPhotoBase64, balIdPreview);
+          const res = await apiUploadFoto(pendingPhotoBase64, newBalId);
           fotoUrl = res.foto_url;
         });
 
         // STEP 2: kirim data bal ke server (tanpa base64, hanya URL)
         const bal = {
-          bal_id: generateBalId(),
+          bal_id: newBalId,
           po_id, nomor_bal, halaman_buku, buku_nomor, line, no_mesin, operator_mesin, jenis_barang, warna, size,
           jumlah, satuan, catatan,
           foto_url: fotoUrl
         };
+        // v42.11: simpan dengan PENGAMAN tabrakan ID. apiListBals tidak memuat bal yang sudah dihapus,
+        // tapi cek-duplikat server memeriksa SEMUA baris (termasuk yang dihapus). Jadi kalau nomor urut
+        // kebetulan bentrok dengan bal yang sudah dihapus (mis. alur "salah input → hapus → input ulang"
+        // di buku+halaman+tanggal yang sama), server akan menolak. Di sini kita naikkan nomor urut lalu
+        // coba lagi sampai dapat ID bebas, supaya tidak macet.
         await withLoading("Menyimpan bal...", async () => {
-          await apiCreateBal(bal);
+          const tried = [];
+          for (let attempt = 0; attempt < 30; attempt++) {
+            bal.bal_id = newBalId;
+            try {
+              await apiCreateBal(bal);
+              return;
+            } catch (e) {
+              const msg = String((e && e.message) || "");
+              const isDup = /sudah ada|already exists/i.test(msg);
+              if (isDup && attempt < 29) {
+                tried.push({ bal_id: newBalId });
+                const next = generateBalId(existing.concat(tried), buku_nomor, halaman_buku);
+                if (next === newBalId) throw e; // tidak bisa maju (mis. mode fallback) → menyerah
+                newBalId = next;
+                continue;
+              }
+              throw e;
+            }
+          }
         });
         toast(`Bal ${bal.bal_id} berhasil disimpan.`, "success");
         clearApiCacheForBal(bal.bal_id);
@@ -3263,6 +3330,10 @@
       if (fj) bals = bals.filter(b => String(b.jenis_barang || "").toLowerCase().trim() === fj);
       if (fw) bals = bals.filter(b => String(b.warna || "").toLowerCase().trim() === fw);
       if (st) bals = bals.filter(b => b.status === st);
+      // v42.11: secara default sembunyikan TERKIRIM supaya tidak menumpuk di Daftar Bal.
+      // Tetap muncul kalau toggle "Tampilkan Terkirim" dicentang ATAU user memang memfilter status = Terkirim.
+      const showShipped = document.getElementById("filterShowShipped")?.checked || false;
+      if (!showShipped && st !== "TERKIRIM") bals = bals.filter(b => b.status !== "TERKIRIM");
       bals.sort((a,b) => sort === "oldest" ? new Date(a.tanggal_buat) - new Date(b.tanggal_buat) : new Date(b.tanggal_buat) - new Date(a.tanggal_buat));
       return bals;
     }
@@ -3271,7 +3342,25 @@
       const bals = await filteredBals();
       const all = await apiListBals();
       // v39.2: isi opsi dropdown Jenis & Warna dari daftar bal sesuai role (sebelum filter).
-      refreshListFacetFilters(focusBalsForRole(all));
+      const focusAll = focusBalsForRole(all);
+      refreshListFacetFilters(focusAll);
+
+      // v42.11: toggle "Tampilkan Terkirim" hanya relevan untuk role yang memang bisa melihat TERKIRIM
+      // (Owner/Admin). Role lain fokusnya tidak memuat TERKIRIM, jadi toggle disembunyikan.
+      const shippedWrap = document.getElementById("filterShippedWrap");
+      if (shippedWrap) {
+        const focus = roleFocusStatuses();
+        const canSeeShipped = focus === null || focus.includes("TERKIRIM");
+        shippedWrap.style.display = canSeeShipped ? "inline-flex" : "none";
+      }
+      // v42.11: hitung berapa TERKIRIM yang sedang disembunyikan, untuk info di listCount.
+      const showShipped = document.getElementById("filterShowShipped")?.checked || false;
+      const stSel = document.getElementById("filterStatus")?.value || "";
+      let hiddenShippedNote = "";
+      if (!showShipped && stSel !== "TERKIRIM") {
+        const hiddenShipped = focusAll.filter(b => b.status === "TERKIRIM").length;
+        if (hiddenShipped > 0) hiddenShippedNote = ` · ${hiddenShipped} Terkirim disembunyikan`;
+      }
 
       // Pagination: render hanya `listRenderLimit` row pertama. Sisanya bisa dimuat
       // via tombol "Load More" di bawah. Total bal yang match filter tetap di-show
@@ -3283,9 +3372,9 @@
       const countEl = document.getElementById("listCount");
       if (countEl) {
         if (bals.length <= listRenderLimit) {
-          countEl.textContent = `${bals.length} bal ditampilkan (total ${all.length} bal aktif)`;
+          countEl.textContent = `${bals.length} bal ditampilkan (total ${all.length} bal aktif)${hiddenShippedNote}`;
         } else {
-          countEl.textContent = `${visible.length} dari ${bals.length} bal ditampilkan (total ${all.length} bal aktif). Klik "Load More" untuk lihat lebih banyak.`;
+          countEl.textContent = `${visible.length} dari ${bals.length} bal ditampilkan (total ${all.length} bal aktif)${hiddenShippedNote}. Klik "Load More" untuk lihat lebih banyak.`;
         }
       }
 
