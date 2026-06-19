@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.11 Kode bal buku-halaman-urut + sembunyikan Terkirim di Daftar Bal)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.13 Per PO: item dikelompokkan per jenis + ringkasan status)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1015,6 +1015,10 @@
           <div class="small" id="bukuSummary" style="margin-top:10px"></div>
           <div class="actions" style="margin-top:10px">
             <button class="btn-outline btn-sm" onclick="manualRefresh(renderBuku)">🔄 Refresh</button>
+            <!-- v42.12: default menyembunyikan TERKIRIM di Tampilan Buku juga (Per Buku & Per PO). -->
+            <label id="bukuShippedWrap" style="display:inline-flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap; cursor:pointer;">
+              <input type="checkbox" id="bukuShowShipped" onchange="renderBuku()" style="margin:0;"> Tampilkan Terkirim
+            </label>
           </div>
         </div>
 
@@ -6788,7 +6792,10 @@ Alasan: ${cleanReason}`)) return;
 
     function onBukuSearch(val) {
       bukuSearchTerm = String(val || "").trim().toLowerCase();
-      const list = _balStoreList();
+      let list = _balStoreList();
+      // v42.12: konsisten dengan renderBuku — sembunyikan TERKIRIM kecuali toggle aktif.
+      const bukuShowShipped = document.getElementById("bukuShowShipped")?.checked || false;
+      if (!bukuShowShipped) list = list.filter(b => b.status !== "TERKIRIM");
       if (!list.length) { renderBuku(); return; }
       if (bukuViewMode === "po") {
         renderBukuTablePo(buildPoGroups(list));
@@ -6819,6 +6826,12 @@ Alasan: ${cleanReason}`)) return;
         return;
       }
 
+      // v42.12: default sembunyikan TERKIRIM di Tampilan Buku (sama seperti Daftar Bal). Toggle "Tampilkan Terkirim" untuk menampilkannya.
+      const bukuShowShipped = document.getElementById("bukuShowShipped")?.checked || false;
+      const hiddenShippedCount = bukuShowShipped ? 0 : bals.filter(b => b.status === "TERKIRIM").length;
+      if (!bukuShowShipped) bals = bals.filter(b => b.status !== "TERKIRIM");
+      const hiddenNote = hiddenShippedCount > 0 ? ` · ${hiddenShippedCount} Terkirim disembunyikan` : "";
+
       if (bukuViewMode === "po") {
         if (chipsTitleEl) chipsTitleEl.textContent = "Pilih PO";
         const groups = buildPoGroups(bals);
@@ -6829,7 +6842,8 @@ Alasan: ${cleanReason}`)) return;
         const nopo = groups.get(BUKU_NOPO_KEY);
         if (summaryEl) {
           summaryEl.innerHTML = `Total ${totalPo} PO · ${bals.length} bal`
-            + (nopo ? ` · <span style="color:var(--danger)">${nopo.bals.length} bal tanpa PO</span>` : "");
+            + (nopo ? ` · <span style="color:var(--danger)">${nopo.bals.length} bal tanpa PO</span>` : "")
+            + hiddenNote;
         }
 
         if (!keys.length) {
@@ -6861,7 +6875,8 @@ Alasan: ${cleanReason}`)) return;
       const nobook = groups.get(BUKU_NOBOOK_KEY);
       if (summaryEl) {
         summaryEl.innerHTML = `Total ${totalBuku} buku · ${bals.length} bal`
-          + (nobook ? ` · <span style="color:var(--danger)">${nobook.bals.length} bal belum ada nomor buku</span>` : "");
+          + (nobook ? ` · <span style="color:var(--danger)">${nobook.bals.length} bal belum ada nomor buku</span>` : "")
+          + hiddenNote;
       }
 
       if (!keys.length) {
@@ -6992,6 +7007,30 @@ Alasan: ${cleanReason}`)) return;
     }
 
     // Tabel mode Per PO: semua bal satu PO lintas buku, urut buku→halaman.
+    // v42.13: kategori kasar status untuk ringkasan per jenis.
+    // "stok" = sudah jadi di gudang/siap kirim; "terkirim" = sudah keluar; selain itu "proses".
+    function statusBucket(st) {
+      if (st === "TERKIRIM") return "terkirim";
+      if (st === "STOK_BARANG" || st === "SIAP_KIRIM") return "stok";
+      return "proses";
+    }
+
+    // v42.13: teks ringkasan status untuk sekumpulan bal (hanya tampilkan yang jumlahnya > 0).
+    function jenisSummaryText(bals) {
+      let stok = 0, proses = 0, terkirim = 0;
+      (bals || []).forEach(b => {
+        const k = statusBucket(b.status);
+        if (k === "stok") stok++;
+        else if (k === "terkirim") terkirim++;
+        else proses++;
+      });
+      const parts = [];
+      if (stok) parts.push(`${stok} di stok`);
+      if (proses) parts.push(`${proses} proses`);
+      if (terkirim) parts.push(`${terkirim} terkirim`);
+      return parts.join(" · ");
+    }
+
     function renderBukuTablePo(groups) {
       const titleEl = document.getElementById("bukuTableTitle");
       const thead = document.getElementById("bukuThead");
@@ -7032,7 +7071,20 @@ Alasan: ${cleanReason}`)) return;
         return `${safe(buku)} <span class="small" style="color:var(--muted)">/ hal ${safe(hal)}</span>`;
       };
 
-      tbody.innerHTML = rows.map(b => `
+      // v42.13: kelompokkan isi PO per JENIS (jenis = dropdown, jadi konsisten — aman dari ejaan warna/size yang beda).
+      const byJenis = new Map();
+      rows.forEach(b => {
+        const jk = String(b.jenis_barang || "").trim() || "(Tanpa jenis)";
+        if (!byJenis.has(jk)) byJenis.set(jk, []);
+        byJenis.get(jk).push(b);
+      });
+      const jenisKeys = [...byJenis.keys()].sort((a, b) => {
+        if (a === "(Tanpa jenis)") return 1;
+        if (b === "(Tanpa jenis)") return -1;
+        return a.localeCompare(b);
+      });
+
+      const rowHtml = (b) => `
         <tr>
           <td><strong>${bukuHalCell(b)}</strong></td>
           <td>${photoThumb(b)}</td>
@@ -7041,10 +7093,15 @@ Alasan: ${cleanReason}`)) return;
           <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}${stokRingkasHtml(b)}</td>
           <td>${statusBadge(b.status)}</td>
           <td>${balLink(b.bal_id)}</td>
-        </tr>
-      `).join("");
+        </tr>`;
 
-      mobile.innerHTML = rows.map(b => `
+      tbody.innerHTML = jenisKeys.map(jk => {
+        const arr = byJenis.get(jk);
+        const head = `<tr class="jenis-head"><td colspan="7" style="background:var(--bg);font-weight:600;color:var(--text)">${safe(jk)} <span class="small" style="font-weight:400;color:var(--muted)">· ${arr.length} item · ${safe(qtySumText(arr))}${jenisSummaryText(arr) ? " · " + safe(jenisSummaryText(arr)) : ""}</span></td></tr>`;
+        return head + arr.map(rowHtml).join("");
+      }).join("");
+
+      const cardHtml = (b) => `
         <div class="bal-card">
           <div style="display:flex;gap:10px;align-items:flex-start">
             ${photoThumb(b)}
@@ -7056,8 +7113,13 @@ Alasan: ${cleanReason}`)) return;
               ${stokRingkasHtml(b, true)}
             </div>
           </div>
-        </div>
-      `).join("");
+        </div>`;
+
+      mobile.innerHTML = jenisKeys.map(jk => {
+        const arr = byJenis.get(jk);
+        const head = `<div style="margin:14px 0 6px;font-weight:600;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:4px">${safe(jk)} <span class="small" style="font-weight:400;color:var(--muted)">· ${arr.length} item${jenisSummaryText(arr) ? " · " + safe(jenisSummaryText(arr)) : ""}</span></div>`;
+        return head + arr.map(cardHtml).join("");
+      }).join("");
     }
 
     /* ============================================================
