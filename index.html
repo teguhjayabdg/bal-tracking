@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.15 Menu Cepat: Tandai Terkirim massal dengan qty per bal bisa diedit)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.16 Buku: recap PO dikurangi terkirim + sortir status/jenis)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1035,6 +1035,12 @@
           <div id="bukuPoSummary"></div>
           <div class="filter-bar">
             <input id="bukuSearch" placeholder="🔍 Cari halaman / buku / PO / jenis / warna / size..." oninput="onBukuSearch(this.value)">
+            <!-- v42.16: sortir isi buku per Halaman / Status / Jenis. -->
+            <select id="bukuSort" onchange="onBukuSortChange(this.value)">
+              <option value="halaman">Urut: Halaman</option>
+              <option value="status">Urut: Status</option>
+              <option value="jenis">Urut: Jenis</option>
+            </select>
           </div>
           <div class="table-wrap">
             <table>
@@ -1389,6 +1395,8 @@
     // v40.1 Buku per PO: mode tampilan ("buku" | "po") + PO yang sedang dilihat.
     let bukuViewMode = "buku";
     let currentPoKey = "";
+    // v42.16: mode sortir isi buku ("halaman" | "status" | "jenis").
+    let bukuSortMode = "halaman";
     // v42: ingat customer terakhir saat Mark Terkirim (1 order bisa beberapa bal).
     let lastShippedCustomer = "";
     const hrSelectedBoronganIds = new Set();
@@ -6905,16 +6913,17 @@ Alasan: ${cleanReason}`)) return;
 
     function onBukuSearch(val) {
       bukuSearchTerm = String(val || "").trim().toLowerCase();
-      let list = _balStoreList();
+      const listFull = _balStoreList();
       // v42.12: konsisten dengan renderBuku — sembunyikan TERKIRIM kecuali toggle aktif.
+      // v42.16: recap pakai listFull (termasuk terkirim) supaya "terkirim"/"sisa" benar.
       const bukuShowShipped = document.getElementById("bukuShowShipped")?.checked || false;
-      if (!bukuShowShipped) list = list.filter(b => b.status !== "TERKIRIM");
+      const list = bukuShowShipped ? listFull : listFull.filter(b => b.status !== "TERKIRIM");
       if (!list.length) { renderBuku(); return; }
       if (bukuViewMode === "po") {
         renderBukuTablePo(buildPoGroups(list));
       } else {
         const g = buildBukuGroups(list);
-        renderBukuPoSummary(g.get(currentBukuKey));
+        renderBukuPoSummary(buildBukuGroups(listFull).get(currentBukuKey));
         renderBukuTable(g);
       }
     }
@@ -6931,18 +6940,19 @@ Alasan: ${cleanReason}`)) return;
       const chipEl = document.getElementById("bukuChips");
       if (!chipEl) return;
 
-      let bals;
+      let balsFull;
       try {
-        bals = await apiListBals();
+        balsFull = await apiListBals();
       } catch (e) {
         chipEl.innerHTML = `<div class="empty">Gagal memuat data: ${safe(e.message || String(e))}</div>`;
         return;
       }
 
       // v42.12: default sembunyikan TERKIRIM di Tampilan Buku (sama seperti Daftar Bal). Toggle "Tampilkan Terkirim" untuk menampilkannya.
+      // v42.16: balsFull (termasuk terkirim) dipakai recap PO supaya "terkirim" & "sisa" terhitung; bals (terfilter) untuk daftar/chips.
       const bukuShowShipped = document.getElementById("bukuShowShipped")?.checked || false;
-      const hiddenShippedCount = bukuShowShipped ? 0 : bals.filter(b => b.status === "TERKIRIM").length;
-      if (!bukuShowShipped) bals = bals.filter(b => b.status !== "TERKIRIM");
+      const hiddenShippedCount = bukuShowShipped ? 0 : balsFull.filter(b => b.status === "TERKIRIM").length;
+      let bals = bukuShowShipped ? balsFull : balsFull.filter(b => b.status !== "TERKIRIM");
       const hiddenNote = hiddenShippedCount > 0 ? ` · ${hiddenShippedCount} Terkirim disembunyikan` : "";
 
       if (bukuViewMode === "po") {
@@ -7006,11 +7016,68 @@ Alasan: ${cleanReason}`)) return;
         }).join("");
       }
 
-      renderBukuPoSummary(groups.get(currentBukuKey));
+      renderBukuPoSummary(buildBukuGroups(balsFull).get(currentBukuKey));
       renderBukuTable(groups);
     }
 
     // Ringkasan total per PO untuk SATU buku (hanya tampil di mode "buku").
+    // v42.16: bandingkan halaman (numerik, kosong di belakang) lalu bal_id sebagai tie-break.
+    function halamanCompare(a, b) {
+      const ha = Number(a.halaman_buku), hb = Number(b.halaman_buku);
+      const oka = Number.isFinite(ha) && String(a.halaman_buku || "").trim() !== "";
+      const okb = Number.isFinite(hb) && String(b.halaman_buku || "").trim() !== "";
+      if (oka && okb && ha !== hb) return ha - hb;
+      if (oka && !okb) return -1;
+      if (!oka && okb) return 1;
+      return String(a.bal_id || "").localeCompare(String(b.bal_id || ""));
+    }
+    // v42.16: urutkan kumpulan bal sesuai mode sortir aktif (default halaman).
+    function sortBukuRows(rows, mode) {
+      const arr = (rows || []).slice();
+      if (mode === "status") {
+        arr.sort((a, b) => {
+          const sa = STATUS_ORDER.indexOf(a.status), sb = STATUS_ORDER.indexOf(b.status);
+          if (sa !== sb) return (sa < 0 ? 999 : sa) - (sb < 0 ? 999 : sb);
+          return halamanCompare(a, b);
+        });
+      } else if (mode === "jenis") {
+        arr.sort((a, b) => {
+          const c = String(a.jenis_barang || "").localeCompare(String(b.jenis_barang || ""), "id", { sensitivity: "base" });
+          if (c !== 0) return c;
+          return halamanCompare(a, b);
+        });
+      } else {
+        arr.sort(halamanCompare);
+      }
+      return arr;
+    }
+    function onBukuSortChange(val) {
+      bukuSortMode = val || "halaman";
+      renderBuku();
+    }
+
+    // v42.16: qty terkirim per bal. Pakai shipped_qty; bal TERKIRIM lama tanpa shipped_qty dianggap terkirim penuh.
+    function balShippedQty(b) {
+      const shipped = Number((b && b.shipped_qty) || 0);
+      if (shipped > 0) return shipped;
+      if (b && b.status === "TERKIRIM") return officialQty(b);
+      return 0;
+    }
+    // v42.16: jumlah qty per satuan dengan fungsi nilai bebas (mis. official, terkirim, sisa).
+    function sumPerSatuan(bals, fn) {
+      const m = new Map();
+      (bals || []).forEach(b => {
+        const sat = String(b.satuan || "").trim() || "?";
+        m.set(sat, (m.get(sat) || 0) + (Number(fn(b)) || 0));
+      });
+      return m;
+    }
+    function fmtSatuanMap(m) {
+      const e = [...m.entries()].map(([s, q]) => [s, Math.round(q * 10000) / 10000]).filter(([, q]) => q !== 0);
+      if (!e.length) return "0";
+      return e.map(([s, q]) => `${q} ${s}`.trim()).join(" · ");
+    }
+
     function renderBukuPoSummary(bookGroup) {
       const el = document.getElementById("bukuPoSummary");
       if (!el) return;
@@ -7031,13 +7098,22 @@ Alasan: ${cleanReason}`)) return;
       );
       const items = keys.map(k => {
         const g = poMap.get(k);
+        const total = sumPerSatuan(g.bals, officialQty);
+        const ship = sumPerSatuan(g.bals, balShippedQty);
+        const sisa = sumPerSatuan(g.bals, b => officialQty(b) - balShippedQty(b));
+        const hasShip = [...ship.values()].some(v => Math.round(v * 10000) / 10000 > 0);
+        const nHal = g.bals.length;
+        const qtyCell = hasShip
+          ? `<strong>${safe(fmtSatuanMap(sisa))}</strong> <span class="small" style="color:var(--muted);font-weight:400">belum terkirim</span>`
+            + `<br><span class="small" style="color:var(--muted);font-weight:400">Total ${safe(fmtSatuanMap(total))} · 🚚 ${safe(fmtSatuanMap(ship))} terkirim · ${nHal} hal</span>`
+          : `<strong>${safe(fmtSatuanMap(total))}</strong> <span class="small" style="color:var(--muted);font-weight:400">(${nHal} hal)</span>`;
         return `<div class="buku-po-item">
           <span class="buku-po-name">${k === BUKU_NOPO_KEY ? "⚠️ Tanpa PO" : safe(g.label)}</span>
           <span class="buku-po-jenis">${safe(jenisBreakdownText(g.bals))}</span>
-          <span class="buku-po-qty">${safe(qtySumText(g.bals))} <span class="small" style="color:var(--muted);font-weight:400">(${g.bals.length} hal)</span></span>
+          <span class="buku-po-qty">${qtyCell}</span>
         </div>`;
       }).join("");
-      el.innerHTML = `<div class="buku-po-summary"><div class="buku-po-head"><span>PO</span><span>Per jenis barang</span><span style="text-align:right">Total</span></div>${items}</div>`;
+      el.innerHTML = `<div class="buku-po-summary"><div class="buku-po-head"><span>PO</span><span>Per jenis barang</span><span style="text-align:right">Belum terkirim</span></div>${items}</div>`;
     }
 
     function renderBukuTable(groups) {
@@ -7074,6 +7150,8 @@ Alasan: ${cleanReason}`)) return;
         rows = rows.filter(b => [b.halaman_buku, b.po_id, b.nomor_bal, b.jenis_barang, b.warna, b.size, b.bal_id]
           .some(v => String(v || "").toLowerCase().includes(bukuSearchTerm)));
       }
+      // v42.16: urutkan sesuai pilihan (halaman/status/jenis).
+      rows = sortBukuRows(rows, bukuSortMode);
 
       if (!rows.length) {
         const msg = bukuSearchTerm ? "Tidak ada halaman yang cocok dengan pencarian." : "Buku ini belum ada isinya.";
@@ -7196,6 +7274,8 @@ Alasan: ${cleanReason}`)) return;
         if (b === "(Tanpa jenis)") return -1;
         return a.localeCompare(b);
       });
+      // v42.16: urutkan isi tiap grup jenis sesuai pilihan sortir (halaman/status; "jenis" jadi no-op di dalam grup).
+      byJenis.forEach((arr, jk) => byJenis.set(jk, sortBukuRows(arr, bukuSortMode)));
 
       const rowHtml = (b) => `
         <tr>
