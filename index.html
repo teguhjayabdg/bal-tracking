@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.14 Tampilan Buku: foto bal lebih besar & jelas di HP)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.15 Menu Cepat: Tandai Terkirim massal dengan qty per bal bisa diedit)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -985,6 +985,7 @@
               <button id="bulkBtnObras" class="btn-primary btn-sm" type="button" onclick="openBulkMulaiObras()">▶ Mulai Obras</button>
               <button id="bulkBtnMaklon" class="btn-warning btn-sm" type="button" onclick="openBulkMaklonEksternal()">🏭 Kirim Maklon Eksternal</button>
               <button id="bulkBtnAntislip" class="btn-warning btn-sm" type="button" onclick="openBulkMaklonAntislip()">🧦 Kirim Antislip</button>
+              <button id="bulkBtnShip" class="btn-success btn-sm" type="button" onclick="openBulkMarkShipped()">🚚 Tandai Terkirim</button>
             </div>
             <div class="bulk-help" style="margin-top:8px">Centang bal yang statusnya sama, lalu pilih aksi. QC Packing tetap satu-satu dulu supaya qty reject dan stok tidak salah.</div>
           </div>
@@ -2835,6 +2836,17 @@
       return outs.reduce((sum, o) => sum + Number(o.qty || 0), 0);
     }
 
+    // v42.15: stok tersedia per bal (mirror backend apiMarkShipped) — dipakai sebagai default qty kirim massal.
+    function availableStockQty(b) {
+      if (!b) return 0;
+      const qtyOk = Number(b.qc_qty_ok || 0);
+      const alreadyShipped = Number(b.shipped_qty || 0);
+      const hasStok = b.stok_qty !== "" && b.stok_qty !== undefined && b.stok_qty !== null;
+      const baselineOk = qtyOk > 0 ? qtyOk : officialQty(b);
+      const stok = hasStok ? Number(b.stok_qty || 0) : Math.max(0, baselineOk - alreadyShipped);
+      return Math.max(0, Math.round(stok * 10000) / 10000);
+    }
+
 
     function rejectQtyToPcs(qty, unit) {
       const q = Number(qty || 0);
@@ -3487,7 +3499,7 @@
       const n = bulkSelectedBalIds.size;
       const info = document.getElementById("bulkSelectedInfo");
       if (info) info.textContent = n ? `${n} bal dipilih.` : "Belum ada bal dipilih.";
-      ["bulkBtnVerify", "bulkBtnObras", "bulkBtnMaklon", "bulkBtnAntislip"].forEach(id => {
+      ["bulkBtnVerify", "bulkBtnObras", "bulkBtnMaklon", "bulkBtnAntislip", "bulkBtnShip"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.disabled = n === 0;
       });
@@ -3585,6 +3597,95 @@
       } else {
         toast(`${label} berhasil untuk ${ok.length} bal.`, "success", 5000);
       }
+    }
+
+    // v42.15: Tandai Terkirim massal. Pilih banyak bal STOK_BARANG → atur qty tiap bal (default penuh dari
+    // stok, bisa dikurangi kalau ada cacat) → customer/SJ diisi sekali → kirim satu per satu via apiMarkShipped.
+    // Konsisten dengan Mark Terkirim satuan: qty penuh → bal TERKIRIM; qty < stok → sisa tetap di STOK_BARANG.
+    let _bulkShipBals = [];
+
+    async function openBulkMarkShipped() {
+      const bals = await getBulkSelectedBals();
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Owner", "Admin Produksi"], "Tandai Terkirim massal")) return;
+      const badStatus = bals.filter(b => !["STOK_BARANG", "SIAP_KIRIM"].includes(b.status));
+      if (badStatus.length) {
+        return alert(`Tandai Terkirim hanya untuk bal yang sudah di Stok Gudang.\n\nStatus terpilih sekarang: ${bulkStatusSummary(bals)}`);
+      }
+      if (!assertBulkNoSplit(bals)) return;
+
+      _bulkShipBals = bals;
+      const rowsHtml = bals.map((b, i) => {
+        const avail = availableStockQty(b);
+        const sat = safe(b.satuan || "");
+        const label = `<span class="mono">${safe(b.bal_id)}</span><br><span class="small" style="color:var(--muted)">${safe(b.po_id || "-")} · ${safe(b.warna || "-")}/${safe(b.size || "-")}</span>`;
+        if (avail <= 0) {
+          return `<tr><td>${label}</td><td class="small" style="color:var(--danger)">0 ${sat}<br>dilewati</td><td><input type="number" id="bship_qty_${i}" value="0" disabled style="width:84px"></td></tr>`;
+        }
+        return `<tr><td>${label}</td><td class="small"><strong>${avail}</strong> ${sat}</td><td><input type="number" id="bship_qty_${i}" value="${avail}" min="0" max="${avail}" step="any" style="width:84px"></td></tr>`;
+      }).join("");
+
+      document.getElementById("actionTitle").textContent = `Menu Cepat — Tandai Terkirim (${bals.length} bal)`;
+      document.getElementById("actionContent").innerHTML = `
+        <div class="alert alert-info">
+          <strong>${bals.length} bal</strong> akan ditandai <strong>Terkirim</strong>. Qty sudah diisi penuh dari stok tiap bal — ubah kalau ada yang kurang (mis. <strong>25 → 24</strong> karena 1 cacat). Set <strong>0</strong> kalau bal itu belum mau dikirim sekarang.
+          <br><span class="small" style="color:#92400e">Catatan: kirim penuh → bal jadi Terkirim. Kirim sebagian → sisanya tetap di Stok (sama seperti Mark Terkirim satuan).</span>
+        </div>
+        <div class="form-group">
+          <label>Tujuan / Customer (opsional)</label>
+          <input id="bship_to" placeholder="Nama customer atau tujuan kirim" value="${safe(lastShippedCustomer || "")}">
+        </div>
+        <div class="form-group">
+          <label>No. Surat Jalan (opsional, dari Accurate)</label>
+          <input id="bship_sj" placeholder="SJ-2026-XXX">
+        </div>
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="bship_note"></textarea>
+        </div>
+        <div class="table-wrap" style="max-height:280px; overflow:auto; margin:10px 0">
+          <table><thead><tr><th>Bal / PO</th><th>Stok</th><th>Qty Kirim</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        </div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, confirmBulkMarkShipped, 'Mengirim...')">🚚 Konfirmasi Terkirim</button>
+      `;
+      document.getElementById("actionModal").classList.add("show");
+    }
+
+    async function confirmBulkMarkShipped() {
+      const bals = _bulkShipBals || [];
+      if (!assertBulkNotEmpty(bals)) return;
+      if (!assertBulkRole(["Owner", "Admin Produksi"], "Tandai Terkirim massal")) return;
+
+      const shipTo = (document.getElementById("bship_to")?.value || "").trim();
+      const sjNo = (document.getElementById("bship_sj")?.value || "").trim();
+      const note = (document.getElementById("bship_note")?.value || "").trim();
+
+      // Kumpulkan qty per bal + validasi sebelum mulai kirim.
+      const toShip = [];
+      for (let i = 0; i < bals.length; i++) {
+        const b = bals[i];
+        const avail = availableStockQty(b);
+        const qty = Number(document.getElementById(`bship_qty_${i}`)?.value || 0);
+        if (qty <= 0) continue; // dilewati (0 atau stok kosong)
+        if (qty > avail + 0.0001) {
+          return alert(`Qty kirim bal ${b.bal_id} (${qty}) melebihi stok tersedia (${avail} ${b.satuan || ""}).`);
+        }
+        toShip.push({ bal: b, qty });
+      }
+      if (!toShip.length) return alert("Tidak ada bal dengan qty kirim > 0.");
+
+      const qtyMap = new Map(toShip.map(x => [String(x.bal.bal_id), x.qty]));
+      if (shipTo) lastShippedCustomer = shipTo;
+
+      await runBulkSequential(toShip.map(x => x.bal), "Tandai Terkirim", async (b) => {
+        await apiMarkShipped({
+          bal_id: b.bal_id,
+          shipped_qty: qtyMap.get(String(b.bal_id)),
+          shipped_to: shipTo,
+          surat_jalan_no: sjNo,
+          shipped_note: note
+        });
+      });
     }
 
     async function openBulkVerifyQty() {
