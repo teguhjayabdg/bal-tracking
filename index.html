@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.13 Per PO: item dikelompokkan per jenis + ringkasan status)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.14 Tampilan Buku: foto bal lebih besar & jelas di HP)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -200,6 +200,8 @@
     td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
     tr:hover { background: #fafafa; }
     .thumb { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; background: #e5e7eb; cursor: pointer; }
+    .thumb-buku { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; background: #e5e7eb; cursor: pointer; }
+    .bal-card .thumb-buku { width: 120px; height: 120px; }
     .bal-link { color: var(--primary); cursor: pointer; text-decoration: none; }
     .bal-link:hover { text-decoration: underline; }
     /* v39.4 Tampilan Buku */
@@ -3898,6 +3900,8 @@
         div.className = "detail-photo";
         div.style.width = "100%";
         div.style.minHeight = "160px";
+      } else if (img.classList.contains("thumb-buku")) {
+        div.className = "thumb-buku";
       } else {
         div.className = "thumb";
         if (img.style.width) div.style.width = img.style.width;
@@ -3918,6 +3922,14 @@
       return src
         ? `<img src="${safe(src)}" class="thumb" loading="lazy" decoding="async" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
         : photoFallbackHtml();
+    }
+    // v42.14: foto lebih besar & tajam KHUSUS Tampilan Buku (Per Buku & Per PO) — biar motif jelas dilihat di HP.
+    // Sumber thumbnail diminta lebih besar (400px) supaya tidak buram saat diperbesar.
+    function photoThumbBuku(b) {
+      const src = driveThumbUrl(b?.foto_url || b?.foto_bal_url || b?.foto_bal_base64_demo || "", 400);
+      return src
+        ? `<img src="${safe(src)}" class="thumb-buku" loading="lazy" decoding="async" onclick="openPhoto('${b.bal_id}')" onerror="handlePhotoError(this)">`
+        : `<div class="thumb-buku" style="display:flex;align-items:center;justify-content:center;font-size:30px">📷</div>`;
     }
     function splitBadges(b) {
       let html = "";
@@ -6981,7 +6993,7 @@ Alasan: ${cleanReason}`)) return;
       tbody.innerHTML = rows.map(b => `
         <tr>
           <td><strong>${halShow(b)}</strong>${dupBadge(b)}</td>
-          <td>${photoThumb(b)}</td>
+          <td>${photoThumbBuku(b)}</td>
           <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
           <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
           <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}${stokRingkasHtml(b)}</td>
@@ -6993,7 +7005,7 @@ Alasan: ${cleanReason}`)) return;
       mobile.innerHTML = rows.map(b => `
         <div class="bal-card">
           <div style="display:flex;gap:10px;align-items:flex-start">
-            ${photoThumb(b)}
+            ${photoThumbBuku(b)}
             <div class="bal-card-body" style="flex:1;min-width:0">
               <div class="bal-title">Halaman ${halShow(b)}${dupBadge(b)}</div>
               <div class="small"><strong>${safe(b.po_id || "-")}</strong> · Bal #${safe(b.nomor_bal || "-")}</div>
@@ -7087,7 +7099,7 @@ Alasan: ${cleanReason}`)) return;
       const rowHtml = (b) => `
         <tr>
           <td><strong>${bukuHalCell(b)}</strong></td>
-          <td>${photoThumb(b)}</td>
+          <td>${photoThumbBuku(b)}</td>
           <td><span class="small">Bal #${safe(b.nomor_bal || "-")}</span></td>
           <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
           <td><strong>${officialQty(b)}</strong> ${safe(b.satuan || "")}${stokRingkasHtml(b)}</td>
@@ -7104,7 +7116,7 @@ Alasan: ${cleanReason}`)) return;
       const cardHtml = (b) => `
         <div class="bal-card">
           <div style="display:flex;gap:10px;align-items:flex-start">
-            ${photoThumb(b)}
+            ${photoThumbBuku(b)}
             <div class="bal-card-body" style="flex:1;min-width:0">
               <div class="bal-title">${safe(bukuNomorDisplay(b.buku_nomor) || "-")} / hal ${safe(String(b.halaman_buku || "").trim() || "-")}</div>
               <div class="small">Bal #${safe(b.nomor_bal || "-")}</div>
