@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v43.3 + Stok Plastik Pusat)</title>
+  <title>Bal Tracking 3.0 - Cloud (v43.4 + Plastik Ukuran Pusat)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -840,7 +840,7 @@
       button { min-height: 42px; }
     }
 
-    /* ===== v43.3 PLASTIK ===== */
+    /* ===== v43.4 PLASTIK ===== */
     .plastik-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
     .plastik-card-top { display: flex; gap: 12px; }
     .plastik-thumb { width: 64px; height: 64px; flex: none; border-radius: 10px; object-fit: cover; background: #f1f5f9; border: 1px solid var(--line); cursor: pointer; }
@@ -857,6 +857,21 @@
     .plastik-type { background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 9px 10px; margin-top: 8px; }
     .plastik-type-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .plastik-form-sec { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+    .plastik-layout { display:grid; grid-template-columns: 1fr 1.15fr; gap:12px; align-items:start; }
+    .plastik-panel { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; }
+    .plastik-panel-title { font-weight:900; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .plastik-master-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:8px; }
+    .plastik-master-mini { border:1px solid var(--line); border-radius:12px; padding:10px; background:#f8fafc; }
+    .plastik-master-name { font-weight:900; margin-bottom:8px; }
+    .plastik-mini-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 0; border-top:1px solid #eef2f7; font-size:12px; }
+    .plastik-size-chip { display:inline-flex; align-items:center; gap:5px; font-weight:800; background:#fff; border:1px solid #e2e8f0; border-radius:999px; padding:3px 8px; white-space:nowrap; }
+    .plastik-stock-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:8px; }
+    .plastik-stock-mini { border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; }
+    .plastik-stock-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+    .plastik-stock-title { font-size:15px; font-weight:900; }
+    .plastik-stock-kg { font-size:16px; font-weight:900; }
+    .plastik-usedby { font-size:12px; color:#475569; margin-top:5px; line-height:1.35; }
+    @media (max-width: 980px) { .plastik-layout { grid-template-columns:1fr; } .plastik-master-grid, .plastik-stock-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -1232,7 +1247,7 @@
         </div>
       </div>
 
-      <!-- PLASTIK (v43.3) -->
+      <!-- PLASTIK (v43.4) -->
       <div id="tab-plastik" class="tab-content">
         <div class="card">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
@@ -1243,9 +1258,9 @@
               <button id="plastikAddBtn" class="btn-primary btn-sm" onclick="openPlastikForm('')">🗂 Tambah Master Plastik</button>
             </div>
           </div>
-          <p class="sub-note">Master plastik disimpan per <strong>jenis barang</strong>. <strong>Stok awal tidak diinput di form master</strong>. Semua pergerakan stok dilakukan terpusat lewat menu <strong>Input Plastik</strong> dan <strong>Keluar Plastik</strong>, sehingga tim packing bisa lihat stok, ukuran, supplier, dan foto item dengan jelas sebelum mengambil.</p>
+          <p class="sub-note">Master dibaca per <strong>jenis barang</strong>, tetapi stok pusat dibaca per <strong>ukuran plastik unik</strong>. Jadi ukuran sama seperti <strong>11x26</strong> hanya muncul 1 kali walaupun dipakai beberapa model.</p>
           <div class="filter-bar" style="grid-template-columns:1fr auto">
-            <input id="plastikSearch" placeholder="🔍 Cari item plastik / ukuran / supplier / model pemakaian..." oninput="renderPlastik()">
+            <input id="plastikSearch" placeholder="🔍 Cari jenis barang / ukuran plastik / supplier..." oninput="renderPlastik()">
             <button class="btn-secondary btn-sm" onclick="manualRefresh(renderPlastik)">🔄 Refresh</button>
           </div>
           <div id="plastikList" style="margin-top:12px"></div>
@@ -7429,16 +7444,17 @@ Alasan: ${cleanReason}`)) return;
     async function apiUpdatePengiriman(payload) { return await api("updatePengiriman", payload, { cache: false }); }
 
     /* ============================================================
-       PLASTIK (v43.3) — master plastik + stok masuk/keluar terpusat.
-       Akses: Owner + Admin Produksi + Packing untuk lihat/keluar. Owner/Admin juga bisa input stok dari 1 pusat. Stok dilacak dalam kg; tiap MASUK / KELUAR tercatat sebagai jejak audit. Modul berdiri sendiri (TIDAK auto-potong dari packing bal).
+       PLASTIK (v43.4) — master jenis barang + stok pusat per ukuran unik.
+       - Master kecil: mensock → Satuan 11x26, Lusin 32x40.
+       - Stok pusat: Satuan 11x26 hanya 1 baris walau dipakai banyak model.
        ============================================================ */
-    let _plastikCache = [];
+    let _plastikMasters = [];
+    let _plastikStokCache = [];
     let _plastikPhotoBase64 = "";
     let _plastikEditId = "";
     let _plastikExistingFotoUrl = "";
 
-    // Thin API wrappers (tidak di-cache — selalu ambil fresh).
-    async function apiListPlastik(payload = {}) { return await api("listPlastik", payload, { cache: false }); }
+    async function apiListPlastikBundle(payload = {}) { return await api("listPlastikBundle", payload, { cache: false }); }
     async function apiCreatePlastik(payload) { return await api("createPlastik", payload, { cache: false }); }
     async function apiUpdatePlastik(payload) { return await api("updatePlastik", payload, { cache: false }); }
     async function apiDeletePlastik(payload) { return await api("deletePlastik", payload, { cache: false }); }
@@ -7451,23 +7467,22 @@ Alasan: ${cleanReason}`)) return;
       const v = Number(n || 0);
       return (Math.round(v * 100) / 100).toString();
     }
-
     function plastikStokTone_(kg) {
       const v = Number(kg || 0);
       if (v <= 0) return { color: "var(--danger)", label: "habis" };
       if (v < 20) return { color: "var(--warning)", label: "menipis" };
       return { color: "var(--success)", label: "" };
     }
-
+    function plastikSizeText_(uk, alt) {
+      return [uk, alt ? "alt " + alt : ""].filter(Boolean).join(" / ") || "-";
+    }
     function setPlastikModal(title, html) {
       const t = document.getElementById("plastikModalTitle");
       const c = document.getElementById("plastikModalContent");
       if (t) t.textContent = title;
       if (c) c.innerHTML = html;
     }
-    function showPlastikModal() {
-      document.getElementById("plastikModal").classList.add("show");
-    }
+    function showPlastikModal() { document.getElementById("plastikModal").classList.add("show"); }
 
     async function renderPlastik() {
       const wrap = document.getElementById("plastikList");
@@ -7478,87 +7493,79 @@ Alasan: ${cleanReason}`)) return;
       if (addBtn) addBtn.style.display = canManagePlastik ? "" : "none";
       if (inBtn) inBtn.style.display = canManagePlastik ? "" : "none";
       wrap.innerHTML = `<div class="muted" style="padding:14px">Memuat data plastik...</div>`;
-      let rows = [];
       try {
-        rows = await apiListPlastik();
+        const bundle = await apiListPlastikBundle();
+        _plastikMasters = bundle.masters || [];
+        _plastikStokCache = bundle.stok || [];
       } catch (e) {
         wrap.innerHTML = `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`;
         return;
       }
-      _plastikCache = rows || [];
 
       const term = (document.getElementById("plastikSearch")?.value || "").trim().toLowerCase();
-      let list = _plastikCache;
+      let masters = _plastikMasters;
+      let stok = _plastikStokCache;
       if (term) {
-        list = list.filter(p =>
-          [p.nama, p.supplier, p.supplier_satuan, p.supplier_lusin, p.ukuran_satuan, p.ukuran_satuan_alt, p.ukuran_lusin, p.ukuran_lusin_alt, p.catatan]
-            .map(x => String(x || "").toLowerCase()).join(" ").includes(term));
+        masters = masters.filter(p => [p.nama, p.ukuran_satuan, p.ukuran_satuan_alt, p.ukuran_lusin, p.ukuran_lusin_alt, p.supplier_satuan, p.supplier_lusin, p.catatan]
+          .map(x => String(x || "").toLowerCase()).join(" ").includes(term));
+        stok = stok.filter(s => [s.tipe, s.ukuran, s.ukuran_alt, s.supplier, (s.dipakai_oleh || []).join(" ")]
+          .map(x => String(x || "").toLowerCase()).join(" ").includes(term));
       }
 
-      if (!list.length) {
-        wrap.innerHTML = `<div class="muted" style="padding:18px; text-align:center">${
-          _plastikCache.length
-            ? "Tidak ada plastik yang cocok dengan pencarian."
-: "Belum ada data plastik. Admin/Owner bisa klik <strong>🗂 Tambah Master Plastik</strong> untuk mulai."
-        }</div>`;
+      if (!_plastikMasters.length && !_plastikStokCache.length) {
+        wrap.innerHTML = `<div class="muted" style="padding:18px; text-align:center">Belum ada data plastik. Admin/Owner bisa klik <strong>🗂 Tambah Master Plastik</strong>.</div>`;
         return;
       }
-      wrap.innerHTML = list.map(plastikCardHtml).join("");
+
+      wrap.innerHTML = `
+        <div class="plastik-layout">
+          <div class="plastik-panel">
+            <div class="plastik-panel-title">
+              <span>🗂 Master pemakaian per jenis</span>
+              <span class="badge tag">${masters.length} jenis</span>
+            </div>
+            <div class="sub-note" style="margin:0 0 10px">Hanya informasi ukuran untuk tiap jenis barang. Tidak menampilkan stok supaya tidak penuh.</div>
+            ${masters.length ? `<div class="plastik-master-grid">${masters.map(plastikMasterMiniHtml).join("")}</div>` : `<div class="empty">Tidak ada master yang cocok.</div>`}
+          </div>
+          <div class="plastik-panel">
+            <div class="plastik-panel-title">
+              <span>📦 Stok pusat per ukuran plastik</span>
+              <span class="badge tag">${stok.length} ukuran</span>
+            </div>
+            <div class="sub-note" style="margin:0 0 10px">Ukuran sama digabung. Contoh Satuan 11x26 hanya 1 stok walau dipakai banyak jenis.</div>
+            ${stok.length ? `<div class="plastik-stock-grid">${stok.map(plastikStockMiniHtml).join("")}</div>` : `<div class="empty">Belum ada ukuran plastik pusat.</div>`}
+          </div>
+        </div>`;
     }
 
-    
-function plastikTypeBlockHtml(p, tipe) {
-  const isSat = tipe === "Satuan";
-  const kg = Number(isSat ? p.stok_satuan_kg : p.stok_lusin_kg) || 0;
-  const uk = isSat ? p.ukuran_satuan : p.ukuran_lusin;
-  const ukAlt = isSat ? p.ukuran_satuan_alt : p.ukuran_lusin_alt;
-  const supplier = isSat ? (p.supplier_satuan || p.supplier || "") : (p.supplier_lusin || p.supplier || "");
-  const tone = plastikStokTone_(kg);
-  const ukuranTxt = uk
-    ? safe(uk) + (ukAlt ? ` <span class="muted">/ alt ${safe(ukAlt)}</span>` : "")
-    : `<span class="muted">ukuran belum diisi</span>`;
-  const stokTxt = kg <= 0 ? "0 kg · habis" : (tone.label ? `${plastikFmtKg(kg)} kg · ${tone.label}` : `${plastikFmtKg(kg)} kg`);
-  const barW = Math.max(0, Math.min(100, kg));
-  const badgeStyle = isSat ? "background:#dbeafe;color:#1e3a8a" : "background:#fef3c7;color:#92400e";
-  return `
-    <div class="plastik-type">
-      <div class="plastik-type-head">
-        <span class="badge" style="${badgeStyle}">${tipe}</span>
-        <span class="plastik-card-meta" style="margin:0">Ukuran ${ukuranTxt}</span>
-      </div>
-      <div class="plastik-card-meta" style="margin-top:6px"><strong>Supplier:</strong> ${safe(supplier || "-")}</div>
-      <div class="plastik-stok-row" style="margin-top:6px">
-        <span class="muted" style="font-size:12px">Sisa stok</span>
-        <span style="font-weight:900; color:${tone.color}">${stokTxt}</span>
-      </div>
-      <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${barW}%; background:${tone.color}"></div></div>
-    </div>`;
-}
+    function plastikMasterMiniHtml(p) {
+      const canManage = ["Owner", "Admin Produksi"].includes(currentUser?.role);
+      const satuan = plastikSizeText_(p.ukuran_satuan, p.ukuran_satuan_alt);
+      const lusin = plastikSizeText_(p.ukuran_lusin, p.ukuran_lusin_alt);
+      return `<div class="plastik-master-mini">
+        <div class="plastik-master-name">${safe(p.nama || "-")}</div>
+        <div class="plastik-mini-row"><span class="badge" style="background:#dbeafe;color:#1e3a8a">Satuan</span><span class="plastik-size-chip">${safe(satuan)}</span></div>
+        <div class="plastik-mini-row"><span class="badge" style="background:#fef3c7;color:#92400e">Lusin</span><span class="plastik-size-chip">${safe(lusin)}</span></div>
+        ${canManage ? `<div class="actions" style="margin-top:8px"><button class="btn-outline btn-sm" onclick="openPlastikForm('${safe(p.id)}')">✏️ Edit</button><button class="btn-danger btn-sm" onclick="openPlastikDelete('${safe(p.id)}')">🗑 Hapus</button></div>` : ""}
+      </div>`;
+    }
 
-function plastikCardHtml(p) {
-      const canManagePlastik = ["Owner", "Admin Produksi"].includes(currentUser?.role);
-      const canSeeRiwayat = ["Owner", "Admin Produksi", "Packing"].includes(currentUser?.role);
-      const foto = p.foto_url
-        ? `<img src="${safe(p.foto_url)}" alt="foto" class="plastik-thumb" onclick="openPlastikPhoto('${safe(p.foto_url)}')" referrerpolicy="no-referrer">`
-        : `<div class="plastik-thumb plastik-thumb-empty">📷</div>`;
-      return `
-      <div class="plastik-card">
-        <div class="plastik-card-top">
-          ${foto}
-          <div class="plastik-card-info">
-            <div class="plastik-card-namerow">
-              <span class="plastik-card-name">${safe(p.nama || "-")}</span><span class="badge" style="background:#eef2ff;color:#3730a3">Jenis barang</span>
-            </div>
-            ${p.catatan ? `<div class="plastik-card-meta"><strong>Dipakai untuk/catatan:</strong> ${safe(p.catatan)}</div>` : ""}
+    function plastikStockMiniHtml(s) {
+      const tone = plastikStokTone_(s.stok_kg);
+      const size = plastikSizeText_(s.ukuran, s.ukuran_alt);
+      const used = (s.dipakai_oleh || []).slice(0, 8).join(", ");
+      const more = (s.dipakai_oleh || []).length > 8 ? ` +${(s.dipakai_oleh || []).length - 8} lagi` : "";
+      return `<div class="plastik-stock-mini">
+        <div class="plastik-stock-head">
+          <div>
+            <div class="plastik-stock-title"><span class="badge" style="${s.tipe === 'Satuan' ? 'background:#dbeafe;color:#1e3a8a' : 'background:#fef3c7;color:#92400e'}">${safe(s.tipe || '-')}</span> ${safe(size)}</div>
+            <div class="plastik-card-meta" style="margin-top:6px"><strong>Supplier:</strong> ${safe(s.supplier || "-")}</div>
           </div>
+          <div class="plastik-stock-kg" style="color:${tone.color}">${plastikFmtKg(s.stok_kg)} kg</div>
         </div>
-        ${plastikTypeBlockHtml(p, "Satuan")}
-        ${plastikTypeBlockHtml(p, "Lusin")}
-        <div class="plastik-actions" style="margin-top:10px; border-top:1px solid var(--line); padding-top:10px">
-          ${canSeeRiwayat ? `<button class="btn-outline btn-sm" onclick="openPlastikRiwayat('${p.id}')">🕒 Riwayat</button>` : ""}
-          ${canManagePlastik ? `<button class="btn-outline btn-sm" onclick="openPlastikForm('${p.id}')">✏️ Edit</button>
-          <button class="btn-danger btn-sm" onclick="openPlastikDelete('${p.id}')">🗑 Hapus</button>` : ""}
-        </div>
+        <div class="plastik-bar" style="margin-top:8px"><div class="plastik-bar-fill" style="width:${Math.max(0, Math.min(100, Number(s.stok_kg || 0)))}%; background:${tone.color}"></div></div>
+        <div class="plastik-usedby"><strong>Dipakai:</strong> ${safe(used || "belum terkait master")}${safe(more)}</div>
+        <div class="actions" style="margin-top:8px"><button class="btn-outline btn-sm" onclick="openPlastikRiwayat('${safe(s.stok_id)}')">🕒 Riwayat</button></div>
       </div>`;
     }
 
@@ -7568,77 +7575,43 @@ function plastikCardHtml(p) {
       showPlastikModal();
     }
 
-    
-function openPlastikForm(id) {
-  _plastikEditId = id ? String(id) : "";
-  _plastikPhotoBase64 = "";
-  const p = _plastikEditId ? (_plastikCache.find(x => String(x.id) === _plastikEditId) || {}) : {};
-  _plastikExistingFotoUrl = p.foto_url || "";
-  const isEdit = !!_plastikEditId;
-  setPlastikModal(isEdit ? "✏️ Edit Master Plastik" : "➕ Tambah Plastik", `
-    <div class="form-group">
-      <label>Jenis barang <span class="required">*</span></label>
-      <input id="pf_nama" value="${safe(p.nama || "")}" placeholder="Mis. Sport / Mensock / Muslimah S-M">
-    </div>
-
-    <div class="plastik-form-sec">
-      <span class="badge" style="background:#dbeafe;color:#1e3a8a">Plastik Satuan</span>
-      <div class="grid-2" style="margin-top:8px">
+    function openPlastikForm(id) {
+      _plastikEditId = id ? String(id) : "";
+      _plastikPhotoBase64 = "";
+      const p = _plastikEditId ? (_plastikMasters.find(x => String(x.id) === _plastikEditId) || {}) : {};
+      _plastikExistingFotoUrl = p.foto_url || "";
+      const isEdit = !!_plastikEditId;
+      setPlastikModal(isEdit ? "✏️ Edit Master Plastik" : "➕ Tambah Plastik", `
+        <div class="form-group"><label>Jenis barang <span class="required">*</span></label><input id="pf_nama" value="${safe(p.nama || "")}" placeholder="Mis. Mensock / Jempol Zasirah"></div>
+        <div class="plastik-form-sec">
+          <span class="badge" style="background:#dbeafe;color:#1e3a8a">Plastik Satuan</span>
+          <div class="grid-2" style="margin-top:8px">
+            <div class="form-group"><label>Supplier</label><input id="pf_sup_sat" value="${safe(p.supplier_satuan || p.supplier || "")}" placeholder="Supplier satuan"></div>
+            <div class="form-group"><label>Ukuran</label><input id="pf_uk_sat" value="${safe(p.ukuran_satuan || "")}" placeholder="Mis. 11x26"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0"><label>Ukuran alternatif</label><input id="pf_uk_sat_alt" value="${safe(p.ukuran_satuan_alt || "")}" placeholder="opsional"></div>
+        </div>
+        <div class="plastik-form-sec">
+          <span class="badge" style="background:#fef3c7;color:#92400e">Plastik Lusin</span>
+          <div class="grid-2" style="margin-top:8px">
+            <div class="form-group"><label>Supplier</label><input id="pf_sup_lus" value="${safe(p.supplier_lusin || p.supplier || "")}" placeholder="Supplier lusin"></div>
+            <div class="form-group"><label>Ukuran</label><input id="pf_uk_lus" value="${safe(p.ukuran_lusin || "")}" placeholder="Mis. 32x40"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0"><label>Ukuran alternatif</label><input id="pf_uk_lus_alt" value="${safe(p.ukuran_lusin_alt || "")}" placeholder="opsional"></div>
+        </div>
+        <div class="form-group"><label>Catatan (opsional)</label><textarea id="pf_catatan" placeholder="Mis. dipakai untuk PO tertentu / catatan packing">${safe(p.catatan || "")}</textarea></div>
         <div class="form-group">
-          <label>Supplier</label>
-          <input id="pf_sup_sat" value="${safe(p.supplier_satuan || p.supplier || "")}" placeholder="Nama supplier plastik satuan">
+          <label>Foto plastik / contoh pemakaian (opsional)</label>
+          <input type="file" id="pf_foto" accept="image/*" class="hidden" onchange="handlePlastikPhotoSelect(event)">
+          <label for="pf_foto" class="photo-picker">
+            <div id="pfPhotoPlaceholder" ${p.foto_url ? 'style="display:none"' : ""}><div style="font-size:30px">📷</div><strong>Klik untuk pilih / ambil foto</strong><br><span class="small">boleh nanti — max 10MB</span></div>
+            <img id="pfPhotoPreview" class="photo-preview" alt="Preview" ${p.foto_url ? `src="${safe(p.foto_url)}" style="display:block"` : ""}>
+          </label>
         </div>
-        <div class="form-group">
-          <label>Ukuran</label>
-          <input id="pf_uk_sat" value="${safe(p.ukuran_satuan || "")}" placeholder="Mis. 11x24">
-        </div>
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label>Ukuran alternatif</label>
-        <input id="pf_uk_sat_alt" value="${safe(p.ukuran_satuan_alt || "")}" placeholder="Mis. 11x26">
-      </div>
-    </div>
-
-    <div class="plastik-form-sec">
-      <span class="badge" style="background:#fef3c7;color:#92400e">Plastik Lusin</span>
-      <div class="grid-2" style="margin-top:8px">
-        <div class="form-group">
-          <label>Supplier</label>
-          <input id="pf_sup_lus" value="${safe(p.supplier_lusin || p.supplier || "")}" placeholder="Nama supplier plastik lusin">
-        </div>
-        <div class="form-group">
-          <label>Ukuran</label>
-          <input id="pf_uk_lus" value="${safe(p.ukuran_lusin || "")}" placeholder="Mis. 32x40">
-        </div>
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label>Ukuran alternatif</label>
-        <input id="pf_uk_lus_alt" value="${safe(p.ukuran_lusin_alt || "")}" placeholder="opsional">
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>Dipakai untuk / catatan (opsional)</label>
-      <textarea id="pf_catatan" placeholder="Mis. SP204, Mensock, Muslimah S/M — isi supaya packing mudah cari plastik">${safe(p.catatan || "")}</textarea>
-    </div>
-    <div class="form-group">
-      <label>Foto plastik / contoh pemakaian (opsional)</label>
-      <input type="file" id="pf_foto" accept="image/*" class="hidden" onchange="handlePlastikPhotoSelect(event)">
-      <label for="pf_foto" class="photo-picker">
-        <div id="pfPhotoPlaceholder" ${p.foto_url ? 'style="display:none"' : ""}>
-          <div style="font-size:30px">📷</div>
-          <strong>Klik untuk pilih / ambil foto</strong><br>
-          <span class="small">boleh nanti — foto besar, max 10MB</span>
-        </div>
-        <img id="pfPhotoPreview" class="photo-preview" alt="Preview" ${p.foto_url ? `src="${safe(p.foto_url)}" style="display:block"` : ""}>
-      </label>
-      ${isEdit && p.foto_url ? `<span class="small muted">Biarkan kosong untuk tetap pakai foto lama; pilih foto baru untuk mengganti.</span>` : ""}
-    </div>
-    <div class="alert alert-info">Stok awal tidak diinput dari form master. Silakan pakai menu <strong>Input Plastik</strong> setelah master disimpan.</div>
-    <button class="btn-primary btn-block" onclick="guardedClick(this, submitPlastikForm, 'Menyimpan...')">💾 Simpan</button>
-  `);
-  showPlastikModal();
-}
+        <div class="alert alert-info">Form ini hanya master pemakaian. Stok akan digabung otomatis berdasarkan <strong>tipe + ukuran plastik</strong>, bukan berdasarkan jenis barang.</div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, submitPlastikForm, 'Menyimpan...')">💾 Simpan</button>`);
+      showPlastikModal();
+    }
 
     function handlePlastikPhotoSelect(event) {
       const file = event.target.files && event.target.files[0];
@@ -7652,7 +7625,7 @@ function openPlastikForm(id) {
         img.onerror = () => alert("File rusak atau bukan gambar valid.");
         img.onload = () => {
           try {
-            const MAX = 1000; // plastik pakai foto lebih besar dari foto bal (600) biar motif jelas
+            const MAX = 1000;
             let w = img.width, h = img.height;
             if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
             else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
@@ -7673,1902 +7646,195 @@ function openPlastikForm(id) {
       reader.readAsDataURL(file);
     }
 
-    
-async function submitPlastikForm() {
-  const nama = (document.getElementById("pf_nama")?.value || "").trim();
-  const supplier_satuan = (document.getElementById("pf_sup_sat")?.value || "").trim();
-  const supplier_lusin = (document.getElementById("pf_sup_lus")?.value || "").trim();
-  const ukuran_satuan = (document.getElementById("pf_uk_sat")?.value || "").trim();
-  const ukuran_satuan_alt = (document.getElementById("pf_uk_sat_alt")?.value || "").trim();
-  const ukuran_lusin = (document.getElementById("pf_uk_lus")?.value || "").trim();
-  const ukuran_lusin_alt = (document.getElementById("pf_uk_lus_alt")?.value || "").trim();
-  const catatan = (document.getElementById("pf_catatan")?.value || "").trim();
-  if (!nama) return alert("Jenis barang wajib diisi.");
+    async function submitPlastikForm() {
+      const nama = (document.getElementById("pf_nama")?.value || "").trim();
+      const supplier_satuan = (document.getElementById("pf_sup_sat")?.value || "").trim();
+      const supplier_lusin = (document.getElementById("pf_sup_lus")?.value || "").trim();
+      const ukuran_satuan = (document.getElementById("pf_uk_sat")?.value || "").trim();
+      const ukuran_satuan_alt = (document.getElementById("pf_uk_sat_alt")?.value || "").trim();
+      const ukuran_lusin = (document.getElementById("pf_uk_lus")?.value || "").trim();
+      const ukuran_lusin_alt = (document.getElementById("pf_uk_lus_alt")?.value || "").trim();
+      const catatan = (document.getElementById("pf_catatan")?.value || "").trim();
+      if (!nama) return alert("Jenis barang wajib diisi.");
 
-  let foto_url = _plastikExistingFotoUrl || "";
-  try {
-    if (_plastikPhotoBase64) {
-      const up = await apiUploadFoto(_plastikPhotoBase64);
-      foto_url = up.foto_url || foto_url;
-    }
-  } catch (e) {
-    return alert("Gagal upload foto: " + e.message);
-  }
-
-  try {
-    const payloadData = {
-      nama,
-      supplier_satuan,
-      supplier_lusin,
-      catatan,
-      foto_url,
-      ukuran_satuan,
-      ukuran_satuan_alt,
-      ukuran_lusin,
-      ukuran_lusin_alt
-    };
-    if (_plastikEditId) {
-      await apiUpdatePlastik({ id: _plastikEditId, updates: payloadData });
-      toast("Master plastik diperbarui.", "success");
-    } else {
-      await apiCreatePlastik({ data: payloadData });
-      toast("Master plastik ditambahkan.", "success");
-    }
-    closeModal("plastikModal");
-    _plastikPhotoBase64 = ""; _plastikExistingFotoUrl = ""; _plastikEditId = "";
-    await renderPlastik();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-    function plastikPreviewSisa(qtyId, outId, current, isMinus) {
-      const q = Number(document.getElementById(qtyId)?.value || 0) || 0;
-      let sisa = isMinus ? current - q : current + q;
-      sisa = Math.round(sisa * 100) / 100;
-      const out = document.getElementById(outId);
-      if (out) {
-        out.textContent = plastikFmtKg(sisa) + " kg";
-        out.style.color = (isMinus && sisa < 0) ? "var(--danger)" : "";
-      }
-    }
-
-    function plastikAmbilOptions_() {
-      const rows = Array.isArray(_plastikCache) ? _plastikCache : [];
-      const out = [];
-      rows.forEach(p => {
-        ["Satuan", "Lusin"].forEach(tipe => {
-          const isSat = tipe === "Satuan";
-          const kg = Number(isSat ? p.stok_satuan_kg : p.stok_lusin_kg) || 0;
-          const uk = isSat ? p.ukuran_satuan : p.ukuran_lusin;
-          const ukAlt = isSat ? p.ukuran_satuan_alt : p.ukuran_lusin_alt;
-          out.push({ p, tipe, kg, uk: uk || "", ukAlt: ukAlt || "", key: `${p.id}||${tipe}` });
-        });
-      });
-      out.sort((a, b) => String(a.p.nama || "").localeCompare(String(b.p.nama || "")) || a.tipe.localeCompare(b.tipe));
-      return out;
-    }
-
-    function getPlastikAmbilSelected_() {
-      const val = document.getElementById("pa_select")?.value || "";
-      const [id, tipe] = val.split("||");
-      return plastikAmbilOptions_().find(x => String(x.p.id) === String(id) && x.tipe === tipe) || null;
-    }
-
-    async function openPlastikAmbilMenu(defaultId = "", defaultTipe = "") {
-      setPlastikModal("➖ Keluar Plastik", `<div class="muted" style="padding:10px">Memuat daftar plastik...</div>`);
-      showPlastikModal();
+      let foto_url = _plastikExistingFotoUrl || "";
       try {
-        if (!_plastikCache.length) _plastikCache = await apiListPlastik();
-      } catch (e) {
-        setPlastikModal("➖ Keluar Plastik", `<div class="alert alert-danger">Gagal memuat plastik: ${safe(e.message)}</div>`);
-        return;
-      }
+        if (_plastikPhotoBase64) {
+          const up = await apiUploadFoto(_plastikPhotoBase64);
+          foto_url = up.foto_url || foto_url;
+        }
+      } catch (e) { return alert("Gagal upload foto: " + e.message); }
 
-      const options = plastikAmbilOptions_();
-      const available = options.filter(x => x.kg > 0);
-      if (!options.length) {
-        setPlastikModal("➖ Keluar Plastik", `<div class="empty">Belum ada item plastik. Admin/Owner perlu tambah item dulu.</div>`);
-        return;
-      }
-
-      const defaultKey = defaultId && defaultTipe ? `${defaultId}||${defaultTipe}` : (available[0]?.key || options[0].key);
-      const optsHtml = options.map(x => {
-        const size = [x.uk, x.ukAlt ? "alt " + x.ukAlt : ""].filter(Boolean).join(" / ") || "ukuran belum diisi";
-        const disabled = x.kg <= 0 ? "disabled" : "";
-        const selected = x.key === defaultKey ? "selected" : "";
-        return `<option value="${safe(x.key)}" ${selected} ${disabled}>${safe(x.p.nama || "-")} — ${safe(x.tipe)} — ${safe(size)} — stok ${plastikFmtKg(x.kg)} kg${x.kg <= 0 ? " (habis)" : ""}</option>`;
-      }).join("");
-
-      setPlastikModal("➖ Keluar Plastik", `
-        <div class="alert alert-info">
-          Pilih item plastik dari pusat stok ini. Stok, ukuran, supplier, foto, dan catatan pemakaian ditampilkan sebelum dicatat keluar.
-        </div>
-        <div class="form-group">
-          <label>Pilih item plastik <span class="required">*</span></label>
-          <select id="pa_select" onchange="updatePlastikAmbilPilihan()">${optsHtml}</select>
-        </div>
-        <div id="pa_info"></div>
-        <div class="grid-2">
-          <div class="form-group">
-            <label>Jumlah keluar (kg) <span class="required">*</span></label>
-            <input id="pa_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 5" oninput="updatePlastikAmbilSisa()">
-          </div>
-          <div class="form-group">
-            <label>Untuk model / PO / packing</label>
-            <input id="pa_model" placeholder="Mis. SP204 / PO-1234 / packing hari ini">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Catatan tambahan (opsional)</label>
-          <input id="pa_ket" placeholder="Mis. diambil oleh Sandi / rak A3">
-        </div>
-        <div class="muted" style="font-size:13px; margin-bottom:10px">Sisa setelah ambil: <strong id="pa_sisa">-</strong></div>
-        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmPlastikAmbilSelected, 'Menyimpan...')">✓ Catat Plastik Keluar</button>
-      `);
-      updatePlastikAmbilPilihan();
-    }
-
-    function updatePlastikAmbilPilihan() {
-      const item = getPlastikAmbilSelected_();
-      const info = document.getElementById("pa_info");
-      if (!item || !info) return;
-      const tone = plastikStokTone_(item.kg);
-      const foto = item.p.foto_url
-        ? `<img src="${safe(item.p.foto_url)}" alt="foto" class="plastik-thumb" style="width:82px;height:82px" referrerpolicy="no-referrer">`
-        : `<div class="plastik-thumb plastik-thumb-empty" style="width:82px;height:82px">📷</div>`;
-      const ukuran = [item.uk, item.ukAlt ? "alt " + item.ukAlt : ""].filter(Boolean).join(" / ") || "ukuran belum diisi";
-      info.innerHTML = `
-        <div class="plastik-card" style="box-shadow:none;background:#f8fafc">
-          <div class="plastik-card-top">
-            ${foto}
-            <div class="plastik-card-info">
-              <div class="plastik-card-name">${safe(item.p.nama || "-")} <span class="badge" style="background:#eef2ff;color:#3730a3">${safe(item.tipe)}</span></div>
-              <div class="plastik-card-meta"><strong>Ukuran:</strong> ${safe(ukuran)}</div>
-              <div class="plastik-card-meta"><strong>Supplier:</strong> ${safe(item.tipe === "Satuan" ? (item.p.supplier_satuan || item.p.supplier || "-") : (item.p.supplier_lusin || item.p.supplier || "-"))}</div>
-              ${item.p.catatan ? `<div class="plastik-card-meta"><strong>Dipakai untuk/catatan:</strong> ${safe(item.p.catatan)}</div>` : ""}
-              <div class="plastik-stok-row" style="margin-top:8px">
-                <span class="muted">Stok sekarang</span>
-                <span style="font-weight:900;color:${tone.color}">${plastikFmtKg(item.kg)} kg${tone.label ? " · " + tone.label : ""}</span>
-              </div>
-              <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${Math.max(0, Math.min(100, item.kg))}%; background:${tone.color}"></div></div>
-            </div>
-          </div>
-        </div>`;
-      updatePlastikAmbilSisa();
-    }
-
-    function updatePlastikAmbilSisa() {
-      const item = getPlastikAmbilSelected_();
-      const out = document.getElementById("pa_sisa");
-      if (!item || !out) return;
-      const q = Number(document.getElementById("pa_qty")?.value || 0) || 0;
-      const sisa = Math.round((item.kg - q) * 100) / 100;
-      out.textContent = plastikFmtKg(sisa) + " kg";
-      out.style.color = sisa < -0.0001 ? "var(--danger)" : "";
-    }
-
-    // Backward-compatible wrapper. Tombol ambil per-card sudah dihapus; semua lewat 1 menu.
-    function openPlastikAmbil(id, tipe) {
-      openPlastikAmbilMenu(id, tipe);
-    }
-
-    async function confirmPlastikAmbilSelected() {
-      const item = getPlastikAmbilSelected_();
-      if (!item) return alert("Pilih item plastik dulu.");
-      const qty = Number(document.getElementById("pa_qty")?.value || 0);
-      const model = (document.getElementById("pa_model")?.value || "").trim();
-      const ket = (document.getElementById("pa_ket")?.value || "").trim();
-      if (!(qty > 0)) return alert("Jumlah diambil wajib > 0.");
-      if (qty > item.kg + 0.0001) return alert(`Jumlah diambil melebihi stok. Sisa sekarang ${plastikFmtKg(item.kg)} kg.`);
-      const keterangan = [model ? "Untuk: " + model : "", ket].filter(Boolean).join(" | ");
       try {
-        await apiPlastikStockOut({ id: item.p.id, tipe: item.tipe, qty_kg: qty, keterangan });
+        const payloadData = { nama, supplier_satuan, supplier_lusin, catatan, foto_url, ukuran_satuan, ukuran_satuan_alt, ukuran_lusin, ukuran_lusin_alt };
+        if (_plastikEditId) { await apiUpdatePlastik({ id: _plastikEditId, updates: payloadData }); toast("Master plastik diperbarui.", "success"); }
+        else { await apiCreatePlastik({ data: payloadData }); toast("Master plastik ditambahkan.", "success"); }
         closeModal("plastikModal");
+        _plastikPhotoBase64 = ""; _plastikExistingFotoUrl = ""; _plastikEditId = "";
         await renderPlastik();
-        toast(`Tercatat: plastik keluar ${plastikFmtKg(qty)} kg — ${item.p.nama} (${item.tipe}).`, "success");
       } catch (e) { alert(e.message); }
     }
 
-function getPlastikInputSelected_() {
-  const val = document.getElementById("pi_select")?.value || "";
-  const [id, tipe] = val.split("||");
-  return plastikAmbilOptions_().find(x => String(x.p.id) === String(id) && x.tipe === tipe) || null;
-}
+    function plastikOptions_() {
+      const rows = Array.isArray(_plastikStokCache) ? _plastikStokCache : [];
+      return rows.slice().sort((a,b) => String(a.tipe||"").localeCompare(String(b.tipe||"")) || String(a.ukuran||"").localeCompare(String(b.ukuran||"")));
+    }
+    function getPlastikSelected_(selectId) {
+      const id = document.getElementById(selectId)?.value || "";
+      return plastikOptions_().find(x => String(x.stok_id) === String(id)) || null;
+    }
+    function plastikOptionHtml_(s, selectedId = "", allowZero = true) {
+      const used = (s.dipakai_oleh || []).slice(0, 3).join(", ");
+      const label = `${s.tipe} — ${plastikSizeText_(s.ukuran, s.ukuran_alt)} — stok ${plastikFmtKg(s.stok_kg)} kg${used ? " — dipakai " + used : ""}`;
+      const disabled = !allowZero && Number(s.stok_kg || 0) <= 0 ? "disabled" : "";
+      const selected = String(s.stok_id) === String(selectedId) ? "selected" : "";
+      return `<option value="${safe(s.stok_id)}" ${selected} ${disabled}>${safe(label)}</option>`;
+    }
 
-async function openPlastikInputMenu(defaultId = "", defaultTipe = "") {
-  setPlastikModal("➕ Input Plastik", `<div class="muted" style="padding:10px">Memuat daftar plastik...</div>`);
-  showPlastikModal();
-  try {
-    if (!_plastikCache.length) _plastikCache = await apiListPlastik();
-  } catch (e) {
-    setPlastikModal("➕ Input Plastik", `<div class="alert alert-danger">Gagal memuat plastik: ${safe(e.message)}</div>`);
-    return;
-  }
+    async function openPlastikInputMenu(defaultStokId = "") {
+      setPlastikModal("➕ Input Plastik", `<div class="muted" style="padding:10px">Memuat stok pusat...</div>`);
+      showPlastikModal();
+      try { if (!_plastikStokCache.length) { const b = await apiListPlastikBundle(); _plastikMasters = b.masters || []; _plastikStokCache = b.stok || []; } }
+      catch (e) { setPlastikModal("➕ Input Plastik", `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`); return; }
+      const options = plastikOptions_();
+      if (!options.length) { setPlastikModal("➕ Input Plastik", `<div class="empty">Belum ada ukuran plastik pusat. Tambah master plastik dulu.</div>`); return; }
+      const selectedId = defaultStokId || options[0].stok_id;
+      setPlastikModal("➕ Input Plastik", `
+        <div class="alert alert-info">Pilih berdasarkan <strong>ukuran plastik</strong>, bukan jenis barang. Ukuran sama sudah digabung otomatis.</div>
+        <div class="form-group"><label>Pilih ukuran plastik <span class="required">*</span></label><select id="pi_select" onchange="updatePlastikInputPilihan()">${options.map(s => plastikOptionHtml_(s, selectedId, true)).join("")}</select></div>
+        <div id="pi_info"></div>
+        <div class="grid-2"><div class="form-group"><label>Jumlah masuk (kg) <span class="required">*</span></label><input id="pi_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 25" oninput="updatePlastikInputSisa()"></div><div class="form-group"><label>Keterangan</label><input id="pi_ket" placeholder="Mis. nota / tanggal beli"></div></div>
+        <div class="muted" style="font-size:13px;margin-bottom:10px">Stok setelah input: <strong id="pi_sisa">-</strong></div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, confirmPlastikInputSelected, 'Menyimpan...')">✓ Catat Plastik Masuk</button>`);
+      updatePlastikInputPilihan();
+    }
 
-  const options = plastikAmbilOptions_();
-  if (!options.length) {
-    setPlastikModal("➕ Input Plastik", `<div class="empty">Belum ada master plastik. Tambah master dulu sebelum input stok.</div>`);
-    return;
-  }
-  const defaultKey = defaultId && defaultTipe ? `${defaultId}||${defaultTipe}` : options[0].key;
-  const optsHtml = options.map(x => {
-    const supplier = x.tipe === "Satuan" ? (x.p.supplier_satuan || x.p.supplier || "-") : (x.p.supplier_lusin || x.p.supplier || "-");
-    const size = [x.uk, x.ukAlt ? "alt " + x.ukAlt : ""].filter(Boolean).join(" / ") || "ukuran belum diisi";
-    const selected = x.key === defaultKey ? "selected" : "";
-    return `<option value="${safe(x.key)}" ${selected}>${safe(x.p.nama || "-")} — ${safe(x.tipe)} — ${safe(size)} — supplier ${safe(supplier)} — stok ${plastikFmtKg(x.kg)} kg</option>`;
-  }).join("");
+    function plastikInfoHtml_(item, mode) {
+      const tone = plastikStokTone_(item.stok_kg);
+      const used = (item.dipakai_oleh || []).join(", ") || "belum terkait master";
+      return `<div class="plastik-card" style="box-shadow:none;background:#f8fafc">
+        <div class="plastik-stock-head"><div><div class="plastik-stock-title"><span class="badge" style="${item.tipe === 'Satuan' ? 'background:#dbeafe;color:#1e3a8a' : 'background:#fef3c7;color:#92400e'}">${safe(item.tipe)}</span> ${safe(plastikSizeText_(item.ukuran, item.ukuran_alt))}</div><div class="plastik-card-meta"><strong>Supplier:</strong> ${safe(item.supplier || "-")}</div><div class="plastik-usedby"><strong>Dipakai:</strong> ${safe(used)}</div></div><div class="plastik-stock-kg" style="color:${tone.color}">${plastikFmtKg(item.stok_kg)} kg</div></div>
+        <div class="plastik-bar" style="margin-top:8px"><div class="plastik-bar-fill" style="width:${Math.max(0, Math.min(100, Number(item.stok_kg || 0)))}%; background:${tone.color}"></div></div>
+      </div>`;
+    }
+    function updatePlastikInputPilihan() {
+      const item = getPlastikSelected_("pi_select");
+      const info = document.getElementById("pi_info");
+      if (item && info) info.innerHTML = plastikInfoHtml_(item, "in");
+      updatePlastikInputSisa();
+    }
+    function updatePlastikInputSisa() {
+      const item = getPlastikSelected_("pi_select");
+      const out = document.getElementById("pi_sisa");
+      if (!item || !out) return;
+      const q = Number(document.getElementById("pi_qty")?.value || 0) || 0;
+      out.textContent = plastikFmtKg((Number(item.stok_kg || 0) + q)) + " kg";
+    }
+    async function confirmPlastikInputSelected() {
+      const item = getPlastikSelected_("pi_select");
+      if (!item) return alert("Pilih ukuran plastik dulu.");
+      const qty = Number(document.getElementById("pi_qty")?.value || 0);
+      const ket = (document.getElementById("pi_ket")?.value || "").trim();
+      if (!(qty > 0)) return alert("Jumlah masuk wajib > 0.");
+      try {
+        await apiPlastikStockIn({ stok_id: item.stok_id, qty_kg: qty, keterangan: ket });
+        closeModal("plastikModal");
+        await renderPlastik();
+        toast(`Tercatat: masuk ${plastikFmtKg(qty)} kg — ${item.tipe} ${plastikSizeText_(item.ukuran, item.ukuran_alt)}.`, "success");
+      } catch (e) { alert(e.message); }
+    }
 
-  setPlastikModal("➕ Input Plastik", `
-    <div class="alert alert-info">Input stok dilakukan dari 1 pusat. Pilih item plastik, lihat stok saat ini, lalu catat jumlah masuk.</div>
-    <div class="form-group">
-      <label>Pilih item plastik <span class="required">*</span></label>
-      <select id="pi_select" onchange="updatePlastikInputPilihan()">${optsHtml}</select>
-    </div>
-    <div id="pi_info"></div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>Jumlah masuk (kg) <span class="required">*</span></label>
-        <input id="pi_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 25" oninput="updatePlastikInputSisa()">
-      </div>
-      <div class="form-group">
-        <label>Keterangan (opsional)</label>
-        <input id="pi_ket" placeholder="Mis. beli 25 kg / nota 0012 / supplier datang pagi">
-      </div>
-    </div>
-    <div class="muted" style="font-size:13px; margin-bottom:10px">Stok setelah input: <strong id="pi_sisa">-</strong></div>
-    <button class="btn-success btn-block" onclick="guardedClick(this, confirmPlastikInputSelected, 'Menyimpan...')">✓ Catat Plastik Masuk</button>
-  `);
-  updatePlastikInputPilihan();
-}
+    async function openPlastikAmbilMenu(defaultStokId = "") {
+      setPlastikModal("➖ Keluar Plastik", `<div class="muted" style="padding:10px">Memuat stok pusat...</div>`);
+      showPlastikModal();
+      try { if (!_plastikStokCache.length) { const b = await apiListPlastikBundle(); _plastikMasters = b.masters || []; _plastikStokCache = b.stok || []; } }
+      catch (e) { setPlastikModal("➖ Keluar Plastik", `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`); return; }
+      const options = plastikOptions_();
+      if (!options.length) { setPlastikModal("➖ Keluar Plastik", `<div class="empty">Belum ada ukuran plastik pusat.</div>`); return; }
+      const available = options.filter(x => Number(x.stok_kg || 0) > 0);
+      const selectedId = defaultStokId || (available[0]?.stok_id || options[0].stok_id);
+      setPlastikModal("➖ Keluar Plastik", `
+        <div class="alert alert-info">Packing pilih berdasarkan <strong>ukuran plastik</strong>. Tidak dobel walaupun ukuran dipakai banyak model.</div>
+        <div class="form-group"><label>Pilih ukuran plastik <span class="required">*</span></label><select id="pa_select" onchange="updatePlastikAmbilPilihan()">${options.map(s => plastikOptionHtml_(s, selectedId, false)).join("")}</select></div>
+        <div id="pa_info"></div>
+        <div class="grid-2"><div class="form-group"><label>Jumlah keluar (kg) <span class="required">*</span></label><input id="pa_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 5" oninput="updatePlastikAmbilSisa()"></div><div class="form-group"><label>Untuk model / PO / packing</label><input id="pa_model" placeholder="Mis. SP204 / PO-1234 / packing hari ini"></div></div>
+        <div class="form-group"><label>Catatan tambahan</label><input id="pa_ket" placeholder="Mis. diambil oleh Sandi / rak A3"></div>
+        <div class="muted" style="font-size:13px;margin-bottom:10px">Sisa setelah keluar: <strong id="pa_sisa">-</strong></div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, confirmPlastikAmbilSelected, 'Menyimpan...')">✓ Catat Plastik Keluar</button>`);
+      updatePlastikAmbilPilihan();
+    }
+    function updatePlastikAmbilPilihan() {
+      const item = getPlastikSelected_("pa_select");
+      const info = document.getElementById("pa_info");
+      if (item && info) info.innerHTML = plastikInfoHtml_(item, "out");
+      updatePlastikAmbilSisa();
+    }
+    function updatePlastikAmbilSisa() {
+      const item = getPlastikSelected_("pa_select");
+      const out = document.getElementById("pa_sisa");
+      if (!item || !out) return;
+      const q = Number(document.getElementById("pa_qty")?.value || 0) || 0;
+      const sisa = Math.round((Number(item.stok_kg || 0) - q) * 100) / 100;
+      out.textContent = plastikFmtKg(sisa) + " kg";
+      out.style.color = sisa < -0.0001 ? "var(--danger)" : "";
+    }
+    async function confirmPlastikAmbilSelected() {
+      const item = getPlastikSelected_("pa_select");
+      if (!item) return alert("Pilih ukuran plastik dulu.");
+      const qty = Number(document.getElementById("pa_qty")?.value || 0);
+      const model = (document.getElementById("pa_model")?.value || "").trim();
+      const ket = (document.getElementById("pa_ket")?.value || "").trim();
+      if (!(qty > 0)) return alert("Jumlah keluar wajib > 0.");
+      if (qty > Number(item.stok_kg || 0) + 0.0001) return alert(`Jumlah keluar melebihi stok. Sisa sekarang ${plastikFmtKg(item.stok_kg)} kg.`);
+      const keterangan = [model ? "Untuk: " + model : "", ket].filter(Boolean).join(" | ");
+      try {
+        await apiPlastikStockOut({ stok_id: item.stok_id, qty_kg: qty, keterangan });
+        closeModal("plastikModal");
+        await renderPlastik();
+        toast(`Tercatat: keluar ${plastikFmtKg(qty)} kg — ${item.tipe} ${plastikSizeText_(item.ukuran, item.ukuran_alt)}.`, "success");
+      } catch (e) { alert(e.message); }
+    }
 
-function updatePlastikInputPilihan() {
-  const item = getPlastikInputSelected_();
-  const info = document.getElementById("pi_info");
-  if (!item || !info) return;
-  const tone = plastikStokTone_(item.kg);
-  const foto = item.p.foto_url
-    ? `<img src="${safe(item.p.foto_url)}" alt="foto" class="plastik-thumb" style="width:82px;height:82px" referrerpolicy="no-referrer">`
-    : `<div class="plastik-thumb plastik-thumb-empty" style="width:82px;height:82px">📷</div>`;
-  const ukuran = [item.uk, item.ukAlt ? "alt " + item.ukAlt : ""].filter(Boolean).join(" / ") || "ukuran belum diisi";
-  const supplier = item.tipe === "Satuan" ? (item.p.supplier_satuan || item.p.supplier || "-") : (item.p.supplier_lusin || item.p.supplier || "-");
-  info.innerHTML = `
-    <div class="plastik-card" style="box-shadow:none;background:#f8fafc">
-      <div class="plastik-card-top">
-        ${foto}
-        <div class="plastik-card-info">
-          <div class="plastik-card-name">${safe(item.p.nama || "-")} <span class="badge" style="background:#eef2ff;color:#3730a3">${safe(item.tipe)}</span></div>
-          <div class="plastik-card-meta"><strong>Ukuran:</strong> ${safe(ukuran)}</div>
-          <div class="plastik-card-meta"><strong>Supplier:</strong> ${safe(supplier)}</div>
-          ${item.p.catatan ? `<div class="plastik-card-meta"><strong>Dipakai untuk/catatan:</strong> ${safe(item.p.catatan)}</div>` : ""}
-          <div class="plastik-stok-row" style="margin-top:8px">
-            <span class="muted">Stok sekarang</span>
-            <span style="font-weight:900;color:${tone.color}">${plastikFmtKg(item.kg)} kg${tone.label ? " · " + tone.label : ""}</span>
-          </div>
-          <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${Math.max(0, Math.min(100, item.kg))}%; background:${tone.color}"></div></div>
-        </div>
-      </div>
-    </div>`;
-  updatePlastikInputSisa();
-}
-
-function updatePlastikInputSisa() {
-  const item = getPlastikInputSelected_();
-  const out = document.getElementById("pi_sisa");
-  if (!item || !out) return;
-  const q = Number(document.getElementById("pi_qty")?.value || 0) || 0;
-  const sisa = Math.round((item.kg + q) * 100) / 100;
-  out.textContent = plastikFmtKg(sisa) + " kg";
-  out.style.color = "";
-}
-
-async function confirmPlastikInputSelected() {
-  const item = getPlastikInputSelected_();
-  if (!item) return alert("Pilih item plastik dulu.");
-  const qty = Number(document.getElementById("pi_qty")?.value || 0);
-  const ket = (document.getElementById("pi_ket")?.value || "").trim();
-  if (!(qty > 0)) return alert("Jumlah masuk wajib > 0.");
-  try {
-    await apiPlastikStockIn({ id: item.p.id, tipe: item.tipe, qty_kg: qty, keterangan: ket });
-    closeModal("plastikModal");
-    await renderPlastik();
-    toast(`Tercatat: plastik masuk ${plastikFmtKg(qty)} kg — ${item.p.nama} (${item.tipe}).`, "success");
-  } catch (e) { alert(e.message); }
-}
-
-
-    function openPlastikTambahStok(id, tipe) { openPlastikInputMenu(id, tipe); }
-
+    function openPlastikAmbil(idOrStokId, tipe) { openPlastikAmbilMenu(idOrStokId); }
+    function openPlastikTambahStok(idOrStokId, tipe) { openPlastikInputMenu(idOrStokId); }
     async function confirmPlastikTambahStok(id, tipe) { return await confirmPlastikInputSelected(); }
 
-    async function openPlastikRiwayat(id) {
-      const p = _plastikCache.find(x => String(x.id) === String(id));
-      setPlastikModal(`🕒 Riwayat stok — ${p ? p.nama : id}`, `<div class="muted" style="padding:10px">Memuat...</div>`);
+    async function openPlastikRiwayat(stokId) {
+      const s = _plastikStokCache.find(x => String(x.stok_id) === String(stokId));
+      setPlastikModal(`🕒 Riwayat stok — ${s ? `${s.tipe} ${plastikSizeText_(s.ukuran, s.ukuran_alt)}` : stokId}`, `<div class="muted" style="padding:10px">Memuat...</div>`);
       showPlastikModal();
       let rows = [];
-      try {
-        rows = await apiListPlastikMutasi({ plastik_id: id });
-      } catch (e) {
-        setPlastikModal(`🕒 Riwayat stok`, `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`);
-        return;
-      }
+      try { rows = await apiListPlastikMutasi({ stok_id: stokId }); }
+      catch (e) { setPlastikModal(`🕒 Riwayat stok`, `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`); return; }
       const isOwner = currentUser?.role === "Owner";
       const body = rows.length ? rows.map(m => {
         const masuk = String(m.tipe_mutasi).toUpperCase() === "MASUK";
         const sign = masuk ? "+" : "−";
         const color = masuk ? "var(--success)" : "var(--danger)";
-        const tipe = safe(m.tipe || "-");
-        const delBtn = isOwner
-          ? `<button class="btn-danger btn-sm" style="margin-top:6px" onclick="guardedClick(this, () => confirmDeletePlastikMutasi('${safe(m.id)}','${safe(id)}'), 'Menghapus...')">🗑 Hapus baris</button>`
-          : "";
-        return `<div class="history-item" style="border-left-color:${color}">
-          <div><span class="badge" style="background:#eef2f7;color:#475569">${tipe}</span> <strong style="color:${color}">${sign}${plastikFmtKg(m.qty_kg)} kg</strong> · ${masuk ? "Stok masuk" : "Diambil"} · sisa ${plastikFmtKg(m.saldo_sesudah)} kg</div>
-          <div class="muted">${fmtDate(m.tanggal)} · ${safe(m.oleh || "-")}${m.keterangan ? " · " + safe(m.keterangan) : ""}</div>
-          ${delBtn}
-        </div>`;
+        const delBtn = isOwner ? `<button class="btn-danger btn-sm" style="margin-top:6px" onclick="guardedClick(this, () => confirmDeletePlastikMutasi('${safe(m.id)}','${safe(stokId)}'), 'Menghapus...')">🗑 Hapus baris</button>` : "";
+        return `<div class="history-item" style="border-left-color:${color}"><div><strong style="color:${color}">${sign}${plastikFmtKg(m.qty_kg)} kg</strong> · ${masuk ? "Stok masuk" : "Keluar"} · sisa ${plastikFmtKg(m.saldo_sesudah)} kg</div><div class="muted">${fmtDate(m.tanggal)} · ${safe(m.oleh || "-")}${m.keterangan ? " · " + safe(m.keterangan) : ""}</div>${delBtn}</div>`;
       }).join("") : `<div class="muted" style="padding:10px">Belum ada riwayat.</div>`;
-      setPlastikModal(`🕒 Riwayat stok — ${p ? p.nama : id}`, `
-        <div class="alert alert-info">Riwayat stok Satuan &amp; Lusin (MASUK/KELUAR).${isOwner ? " Owner bisa menghapus baris yang salah (stok dikoreksi otomatis)." : ""}</div>
-        ${body}
-      `);
+      setPlastikModal(`🕒 Riwayat stok — ${s ? `${s.tipe} ${plastikSizeText_(s.ukuran, s.ukuran_alt)}` : stokId}`, `<div class="alert alert-info">Riwayat stok pusat per ukuran plastik.${isOwner ? " Owner bisa menghapus baris yang salah (stok dikoreksi otomatis)." : ""}</div>${body}`);
     }
-
-    async function confirmDeletePlastikMutasi(mutasiId, plastikId) {
+    async function confirmDeletePlastikMutasi(mutasiId, stokId) {
       if (!confirm("Hapus baris riwayat ini? Stok akan dikoreksi otomatis.")) return;
-      try {
-        await apiDeletePlastikMutasi({ id: mutasiId });
-        await renderPlastik();
-        await openPlastikRiwayat(plastikId);
-        toast("Baris riwayat dihapus, stok dikoreksi.", "success");
-      } catch (e) { alert(e.message); }
+      try { await apiDeletePlastikMutasi({ id: mutasiId }); await renderPlastik(); await openPlastikRiwayat(stokId); toast("Baris riwayat dihapus, stok dikoreksi.", "success"); }
+      catch (e) { alert(e.message); }
     }
 
     function openPlastikDelete(id) {
-      const p = _plastikCache.find(x => String(x.id) === String(id));
-      if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
-      setPlastikModal(`🗑 Hapus plastik`, `
-        <div class="alert alert-warn">Hapus <strong>${safe(p.nama)}</strong>? Item (Satuan &amp; Lusin) disembunyikan dari daftar. Riwayat stok tetap tersimpan.</div>
-        <div class="form-group">
-          <label>Alasan hapus <span class="required">*</span></label>
-          <input id="pd_reason" placeholder="Mis. salah input / tidak dipakai lagi">
-        </div>
-        <button class="btn-danger btn-block" onclick="guardedClick(this, () => confirmPlastikDelete('${p.id}'), 'Menghapus...')">🗑 Hapus</button>
-      `);
+      const p = _plastikMasters.find(x => String(x.id) === String(id));
+      if (!p) return alert("Master plastik tidak ditemukan, refresh dulu.");
+      setPlastikModal(`🗑 Hapus master plastik`, `<div class="alert alert-warn">Hapus master <strong>${safe(p.nama)}</strong>? Ini hanya menghapus mapping jenis barang. Stok pusat ukuran plastik tidak ikut dihapus.</div><div class="form-group"><label>Alasan hapus <span class="required">*</span></label><input id="pd_reason" placeholder="Mis. salah input / tidak dipakai lagi"></div><button class="btn-danger btn-block" onclick="guardedClick(this, () => confirmPlastikDelete('${safe(p.id)}'), 'Menghapus...')">🗑 Hapus</button>`);
       showPlastikModal();
     }
-
     async function confirmPlastikDelete(id) {
       const reason = (document.getElementById("pd_reason")?.value || "").trim();
-      if (reason.length < 4) return alert("Alasan hapus wajib (min 4 karakter).");
-      try {
-        await apiDeletePlastik({ id, reason });
-        closeModal("plastikModal");
-        await renderPlastik();
-        toast("Plastik dihapus.", "success");
-      } catch (e) { alert(e.message); }
+      if (reason.length < 4) return alert("Alasan hapus minimal 4 karakter.");
+      try { await apiDeletePlastik({ id, reason }); closeModal("plastikModal"); await renderPlastik(); toast("Master plastik dihapus.", "success"); }
+      catch (e) { alert(e.message); }
     }
 
-
-    async function renderPengiriman() {
-      const summaryEl = document.getElementById("pengSummary");
-      try {
-        const res = await apiListPengiriman();
-        _pengRows = Array.isArray(res) ? res : [];
-      } catch (e) {
-        if (summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
-        return;
-      }
-      // Ambil bal (cache) untuk foto — petakan bal_id → bal. Gagal pun tidak masalah (foto jadi placeholder).
-      try {
-        const bals = await apiListBals();
-        _pengBalMap = {};
-        (Array.isArray(bals) ? bals : []).forEach(b => { _pengBalMap[b.bal_id] = b; });
-      } catch (e) { _pengBalMap = {}; }
-
-      if (summaryEl) summaryEl.innerHTML = `Total ${_pengRows.length} kiriman · ${safe(pengSumText(_pengRows))} keluar`;
-      renderPengirimanRecap("pengRecapCustomer", "customer", "Tanpa customer");
-      renderPengirimanRecap("pengRecapPo", "po_id", "Tanpa PO");
-      renderPengirimanTable();
-    }
-
-    function pengPhoto(r) {
-      const b = _pengBalMap[r.bal_id] || { bal_id: r.bal_id };
-      return photoThumb(b);
-    }
-
-    function renderPengirimanTable() {
-      const thead = document.getElementById("pengThead");
-      const tbody = document.getElementById("pengRows");
-      const mobile = document.getElementById("pengMobile");
-      const countEl = document.getElementById("pengCount");
-      if (!tbody || !mobile) return;
-      const isOwner = currentUser && currentUser.role === "Owner";
-      const colCount = isOwner ? 9 : 8;
-      if (thead) {
-        thead.innerHTML = `<tr>
-          <th>Foto</th><th>Tanggal</th><th>Customer</th><th>PO</th><th>Bal asal</th>
-          <th>Jenis/Warna/Size</th><th>Qty</th><th>No SJ</th>${isOwner ? "<th>Aksi</th>" : ""}
-        </tr>`;
-      }
-
-      const term = String(document.getElementById("pengSearch")?.value || "").trim().toLowerCase();
-      const start = document.getElementById("pengFilterStart")?.value || "";
-      const end = document.getElementById("pengFilterEnd")?.value || "";
-
-      let rows = _pengRows.slice();
-      rows.sort((a, b) => String(b.tanggal || "").localeCompare(String(a.tanggal || ""))); // terbaru dulu
-      if (term) rows = rows.filter(r => [r.customer, r.po_id, r.bal_id, r.surat_jalan_no, r.jenis_barang, r.warna, r.size]
-        .some(v => String(v || "").toLowerCase().includes(term)));
-      if (start) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) >= start);
-      if (end) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) <= end);
-
-      if (countEl) countEl.textContent = `${rows.length} kiriman ditampilkan · ${pengSumText(rows)}`;
-
-      if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${colCount}"><div class="empty">Belum ada pengiriman yang cocok.</div></td></tr>`;
-        mobile.innerHTML = `<div class="empty">Belum ada pengiriman yang cocok.</div>`;
-        return;
-      }
-
-      const aksiCell = (r) => isOwner ? `<td style="white-space:nowrap">
-        <button class="btn-outline btn-sm" title="Revisi" onclick="openPengEdit('${safe(r.id)}')">✏️</button>
-        <button class="btn-danger btn-sm" title="Hapus" onclick="deletePengiriman('${safe(r.id)}')">🗑️</button>
-      </td>` : "";
-
-      tbody.innerHTML = rows.map(r => `
-        <tr>
-          <td>${pengPhoto(r)}</td>
-          <td>${fmtDateShort(r.tanggal)}</td>
-          <td><strong>${safe(r.customer || "-")}</strong></td>
-          <td>${safe(r.po_id || "-")}</td>
-          <td>${balLink(r.bal_id)}</td>
-          <td>${safe(r.jenis_barang || "-")}<br><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
-          <td><strong>${Number(r.qty || 0)}</strong> ${safe(r.satuan || "")}</td>
-          <td>${safe(r.surat_jalan_no || "-")}</td>
-          ${aksiCell(r)}
-        </tr>
-      `).join("");
-
-      mobile.innerHTML = rows.map(r => `
-        <div class="bal-card">
-          <div style="display:flex;gap:10px;align-items:flex-start">
-            ${pengPhoto(r)}
-            <div class="bal-card-body" style="flex:1;min-width:0">
-              <div class="bal-title">${safe(r.customer || "(tanpa customer)")} · <strong>${Number(r.qty || 0)} ${safe(r.satuan || "")}</strong></div>
-              <div class="small">${fmtDateShort(r.tanggal)} · PO ${safe(r.po_id || "-")}${r.surat_jalan_no ? " · SJ " + safe(r.surat_jalan_no) : ""}</div>
-              <div class="small">${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
-              <div style="margin-top:5px">Bal: ${balLink(r.bal_id)}</div>
-              ${isOwner ? `<div style="margin-top:6px; display:flex; gap:6px">
-                <button class="btn-outline btn-sm" onclick="openPengEdit('${safe(r.id)}')">✏️ Revisi</button>
-                <button class="btn-danger btn-sm" onclick="deletePengiriman('${safe(r.id)}')">🗑️ Hapus</button>
-              </div>` : ""}
-            </div>
-          </div>
-        </div>
-      `).join("");
-    }
-
-    // Revisi 1 kiriman (Owner). Pakai actionModal yang sudah ada.
-    function openPengEdit(id) {
-      const r = _pengRows.find(x => String(x.id) === String(id));
-      if (!r) return alert("Baris kiriman tidak ditemukan.");
-      document.getElementById("actionContent").innerHTML = `
-        <div class="section-title">✏️ Revisi Kiriman</div>
-        <div class="alert alert-info">Bal <span class="mono">${safe(r.bal_id)}</span> · ${safe(r.jenis_barang || "-")} / ${safe(r.warna || "-")} / ${safe(r.size || "-")}</div>
-        <div class="form-group"><label>Customer</label><input id="pe_customer" value="${safe(r.customer || "")}"></div>
-        <div class="form-group"><label>No SJ</label><input id="pe_sj" value="${safe(r.surat_jalan_no || "")}"></div>
-        <div class="form-group">
-          <label>Qty (${safe(r.satuan || "")})</label>
-          <input id="pe_qty" type="number" step="any" min="0" value="${safe(r.qty || 0)}">
-          <div class="small" style="color:var(--muted); margin-top:4px">Mengubah qty otomatis menyesuaikan stok bal asal (qty naik = stok berkurang, qty turun = stok bertambah).</div>
-        </div>
-        <div class="form-group"><label>Catatan</label><textarea id="pe_note">${safe(r.catatan || "")}</textarea></div>
-        <button class="btn-primary btn-block" onclick="guardedClick(this, () => confirmPengEdit('${safe(r.id)}'), 'Menyimpan...')">Simpan Revisi</button>
-      `;
-      document.getElementById("actionModal").classList.add("show");
-    }
-
-    async function confirmPengEdit(id) {
-      try {
-        const res = await apiUpdatePengiriman({
-          id,
-          customer: document.getElementById("pe_customer").value.trim(),
-          surat_jalan_no: document.getElementById("pe_sj").value.trim(),
-          qty: Number(document.getElementById("pe_qty").value || 0),
-          catatan: document.getElementById("pe_note").value.trim()
-        });
-        if (typeof _balStoreInvalidate === "function") _balStoreInvalidate();
-        closeModal("actionModal");
-        toast((res && res.note) || "Kiriman direvisi.");
-        await renderPengiriman();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function deletePengiriman(id) {
-      const r = _pengRows.find(x => String(x.id) === String(id));
-      const desc = r ? `${Number(r.qty || 0)} ${r.satuan || ""} ke ${r.customer || "(tanpa customer)"}` : "kiriman ini";
-      if (!confirm(`Hapus kiriman ${desc}? Qty akan dikembalikan ke stok bal asal.`)) return;
-      try {
-        const res = await apiDeletePengiriman(id);
-        if (typeof _balStoreInvalidate === "function") _balStoreInvalidate();
-        toast((res && res.note) || "Kiriman dihapus.");
-        await renderPengiriman();
-      } catch (e) { alert(e.message); }
-    }
-
-    function labelJumlahText(b) {
-      const satuan = b.satuan || "";
-      const qtyOperator = Number(b.jumlah || 0);
-      const qtyResmi = Number(b.qty_verifikasi || b.jumlah || 0);
-
-      if (
-        b.qty_verifikasi !== "" &&
-        b.qty_verifikasi !== undefined &&
-        b.qty_verifikasi !== null
-      ) {
-        return `${qtyResmi} ${satuan} (op:${qtyOperator})`;
-      }
-
-      return `${qtyOperator} ${satuan}`;
-    }
-
-    function showLabel(b) {
-      const settingText = labelSettingWorkersText(b);
-      const bukuText = labelBukuText(b);
-      const jumlahText = labelJumlahText(b);
-
-      const titleEl = document.getElementById("labelModalTitle") || document.querySelector("#labelModal .modal-head strong");
-      if (titleEl) titleEl.textContent = "Label Bal";
-      applyPrintMode("label");
-
-      document.getElementById("labelContent").innerHTML = `
-        <div class="label-area" id="printLabelArea">
-          <div class="label-final-title">
-            LABEL BAL ${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}
-          </div>
-
-          <div class="label-final-grid">
-            <div class="label-main">
-              <div class="label-main-row"><div class="k">ID</div><div class="v id-cell">${safe(b.bal_id)}</div></div>
-              <div class="label-main-row"><div class="k">PO/No</div><div class="v">${safe(b.po_id || "-")} / ${safe(b.nomor_bal || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Buku</div><div class="v">${safe(bukuText)}</div></div>
-              <div class="label-main-row"><div class="k">Tanggal</div><div class="v">${fmtDate(b.tanggal_buat)}</div></div>
-              <div class="label-main-row"><div class="k">Line/MC</div><div class="v">${safe(b.line || "-")} / MC ${safe(b.no_mesin || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jenis</div><div class="v">${safe(b.jenis_barang || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Warna</div><div class="v">${safe(b.warna || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Size</div><div class="v">${safe(b.size || "-")}</div></div>
-              <div class="label-main-row"><div class="k">Jumlah</div><div class="v">${safe(jumlahText)}</div></div>
-            </div>
-
-            <div class="label-right">
-              <div class="label-qr">
-                <div id="qrLabel"></div>
-              </div>
-
-              <div class="label-workers">
-                <div class="label-workers-title">PEKERJA</div>
-                <div class="label-worker-row"><div class="k">Op Mesin</div><div class="v">${safe(b.operator_mesin || "-")}</div></div>
-                <div class="label-worker-row"><div class="k">P Obras</div><div class="v">${safe(b.obras_by || "-")}</div></div>
-                <div class="label-worker-row setting"><div class="k">P Setting</div><div class="v">${safe(settingText || "-")}</div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-
-      const qr = document.getElementById("qrLabel");
-      qr.innerHTML = "";
-      new QRCode(qr, { text: b.bal_id, width: 180, height: 180 });
-      document.getElementById("labelModal").classList.add("show");
-    }
-
-    async function findTicket(ticket_id) {
-      try {
-        const found = await apiFindQr(ticket_id);
-        if (found && found.type === "ticket") return { bal: found.bal, ticket: found.ticket };
-        return null;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function renderTicketDetail(found) {
-      if (!found) return alert("Tiket packing tidak ditemukan");
-      const { bal, ticket } = found;
-      document.getElementById("detailContent").innerHTML = `
-        <div class="alert alert-info"><strong>Detail Tiket Packing / Plastik Baru</strong><br>QR ini mewakili plastik baru hasil setting, bukan bal induk baru.</div>
-        <div class="detail-grid">
-          ${kv("Ticket ID", `<span class="mono">${safe(ticket.ticket_id)}</span>`)}
-          ${kv("Parent Bal", `<button class="btn-outline btn-sm" onclick="openDetail('${bal.bal_id}')">${safe(bal.bal_id)}</button>`)}
-          ${kv("PO / Artikel", safe(bal.po_id))}
-          ${kv("Qty", `<strong>${safe(ticket.qty)} ${safe(ticket.satuan)}</strong>`)}
-          ${kv("Status Tiket", safe(ticket.status || "-"))}
-          ${kv("Dibuat", fmtDate(ticket.created_at))}
-        </div>
-        <div class="card"><div class="section-title">Pekerja Setting</div>${(ticket.workers||[]).map(w=>`<div class="history-item"><strong>${safe(w.name)}</strong> · ${safe(w.qty)} ${safe(ticket.satuan)}</div>`).join("")}</div>
-        <div class="actions"><button class="btn-primary btn-block" onclick="printOutputLabel('${bal.bal_id}','${ticket.output_id || ""}')">Cetak Tiket Packing</button></div>
-      `;
-      document.getElementById("detailModal").classList.add("show");
-    }
-
-    async function openTicketDetail(ticket_id, foundData = null) {
-      const found = foundData || await findTicket(ticket_id);
-      renderTicketDetail(found);
-    }
-
-    /* ============================================================
-       SCANNER
-       ============================================================ */
-
-    function startScan() {
-      if (!currentUser) return alert("Login dulu.");
-      document.getElementById("btnStartScan").classList.add("hidden");
-      document.getElementById("btnStopScan").classList.remove("hidden");
-      document.getElementById("scanMessage").innerHTML = "";
-      scanner = new Html5Qrcode("scanner-area");
-      scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 260 } }, onScanSuccess, () => {})
-        .catch(err => { alert("Gagal buka kamera: " + err); stopScan(); });
-    }
-    function stopScan() {
-      if (scanner) scanner.stop().then(() => { scanner.clear(); scanner = null; }).catch(() => {});
-      document.getElementById("btnStartScan")?.classList.remove("hidden");
-      document.getElementById("btnStopScan")?.classList.add("hidden");
-      const area = document.getElementById("scanner-area"); if (area) area.innerHTML = "";
-    }
-    async function openQrFast(id, sourceLabel = "QR") {
-      const qrId = normalizeQrText(id);
-      if (!qrId) return alert("ID QR kosong.");
-      document.getElementById("scanMessage").innerHTML = `<div class="alert alert-info">${safe(sourceLabel)} terbaca: <span class="mono">${safe(qrId)}</span><br>Mengambil data cepat...</div>`;
-      try {
-        const found = await apiFindQr(qrId);
-        if (found.type === "bal") {
-          const perfText = found.elapsed_ms ? ` <span class="small">Server ${safe(found.elapsed_ms)}ms</span>` : "";
-          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Bal ditemukan: <span class="mono">${safe(qrId)}</span>${perfText}</div>`;
-          openDetail(found.bal, { lazyHistory: true });
-          return;
-        }
-        if (found.type === "ticket") {
-          const perfText = found.elapsed_ms ? ` <span class="small">Server ${safe(found.elapsed_ms)}ms</span>` : "";
-          document.getElementById("scanMessage").innerHTML = `<div class="alert alert-success">QR Tiket ditemukan: <span class="mono">${safe(qrId)}</span>${perfText}</div>`;
-          openTicketDetail(qrId, { bal: found.bal, ticket: found.ticket });
-          return;
-        }
-        throw new Error("Jenis QR tidak dikenal.");
-      } catch (e) {
-        document.getElementById("scanMessage").innerHTML = `<div class="alert alert-danger">QR tidak ditemukan: <span class="mono">${safe(qrId)}</span><br>${safe(e.message)}</div>`;
-      }
-    }
-    async function onScanSuccess(decodedText) {
-      stopScan();
-      openQrFast(decodedText, "QR");
-    }
-    async function openManualBal() {
-      const id = normalizeQrText(document.getElementById("manualBalId").value);
-      if (!id) return alert("Isi ID Bal / Ticket dulu.");
-      openQrFast(id, "Input manual");
-    }
-
-    /* ============================================================
-       HISTORY
-       ============================================================ */
-
-    async function renderGlobalHistory() {
-      const h = (await apiGetHistory()).slice().reverse().slice(0, 100);
-      document.getElementById("globalHistory").innerHTML = h.length ? h.map(historyHtml).join("") : `<div class="empty">Belum ada history</div>`;
-    }
-    function historyHtml(h) {
-      return `<div class="history-item"><strong>${safe(h.action)}</strong> · <span class="mono">${safe(h.bal_id)}</span><br>${h.status_lama ? `${statusText(h.status_lama)} → ` : ""}<strong>${statusText(h.status_baru)}</strong><br><span class="small">${safe(h.user_name)} (${safe(h.user_role)}) · ${fmtDate(h.timestamp)}</span>${h.catatan ? `<br><span class="small">📝 ${safe(h.catatan)}</span>` : ""}</div>`;
-    }
-
-    /* ============================================================
-       HR BORONGAN
-       Otomatis generate record saat bal mencapai SELESAI_PACKING.
-       Owner mengisi tarif sekali per kombinasi tahap+jenis,
-       sistem ingat untuk record berikutnya.
-       Tidak generate untuk Mesin (gaji harian) atau Packing (menyusul).
-       ============================================================ */
-
-    /* ============================================================
-       MAKLON VENDOR BOARD (OWNER / ADMIN)
-       ============================================================ */
-
-    function maklonTipeFromStatusClient(status) {
-      const st = String(status || "").toUpperCase().trim();
-      return st.startsWith("MAKLON_") ? st.replace(/^MAKLON_/, "") : "";
-    }
-
-    function isExternalMaklonBal(b) {
-      return !!(b.maklon_eks_tipe || b.maklon_eks_vendor || maklonTipeFromStatusClient(b.status));
-    }
-
-    function maklonBoardTipe(b) {
-      return b.maklon_eks_tipe || maklonTipeFromStatusClient(b.status) || "";
-    }
-
-    function maklonBoardVendor(b) {
-      return b.maklon_eks_vendor || "";
-    }
-
-    function daysSince(iso) {
-      if (!iso) return "-";
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return "-";
-      const days = Math.floor((Date.now() - d.getTime()) / 86400000);
-      if (days <= 0) return "Hari ini";
-      return days + " hari";
-    }
-
-    function refreshMaklonFilters(rows) {
-      const vendorEl = document.getElementById("maklonFilterVendor");
-      const tipeEl = document.getElementById("maklonFilterTipe");
-      if (vendorEl) {
-        const cur = vendorEl.value || "";
-        const vendors = [...new Set(rows.map(maklonBoardVendor).filter(Boolean))].sort();
-        vendorEl.innerHTML = `<option value="">Semua Vendor</option>` + vendors.map(v => `<option value="${safe(v)}" ${cur === v ? "selected" : ""}>${safe(v)}</option>`).join("");
-      }
-      if (tipeEl) {
-        const curT = tipeEl.value || "";
-        const tipes = [...new Set(rows.map(maklonBoardTipe).filter(Boolean))].sort();
-        tipeEl.innerHTML = `<option value="">Semua Tipe Maklon</option>` + tipes.map(t => `<option value="${safe(t)}" ${curT === t ? "selected" : ""}>${safe(MAKLON_EKS_TIPE_LABEL[t] || t)}</option>`).join("");
-      }
-    }
-
-    async function renderMaklonVendor() {
-      try {
-        const all = await apiListBals();
-        let rows = (all || []).filter(b => !b.deleted && isExternalMaklonBal(b));
-        refreshMaklonFilters(rows);
-
-        const vendor = document.getElementById("maklonFilterVendor")?.value || "";
-        const mode = document.getElementById("maklonFilterStatus")?.value || "aktif";
-        const tipe = document.getElementById("maklonFilterTipe")?.value || "";
-        const q = (document.getElementById("maklonFilterSearch")?.value || "").toLowerCase().trim();
-
-        rows = rows.filter(b => {
-          const hasVendor = !!maklonBoardVendor(b);
-          const active = String(b.status || "").startsWith("MAKLON_") || (!!b.maklon_eks_keluar_at && !b.maklon_eks_kembali_at);
-          const selesai = !!b.maklon_eks_kembali_at || ["SELESAI_OBRAS", "SIAP_PACKING", "SELESAI_PACKING", "STOK_BARANG", "TERKIRIM"].includes(String(b.status || ""));
-          const corrupt = String(b.status || "").startsWith("MAKLON_") && (!b.maklon_eks_vendor || !b.maklon_eks_tipe);
-          if (vendor && maklonBoardVendor(b) !== vendor) return false;
-          if (tipe && maklonBoardTipe(b) !== tipe) return false;
-          if (mode === "aktif" && !active) return false;
-          if (mode === "selesai" && !selesai) return false;
-          if (mode === "corrupt" && !corrupt) return false;
-          if (q) {
-            const hay = [b.bal_id, b.po_id, b.jenis_barang, b.warna, b.size, b.status, maklonBoardVendor(b), maklonBoardTipe(b)].join(" ").toLowerCase();
-            if (!hay.includes(q)) return false;
-          }
-          return true;
-        });
-
-        rows.sort((a,b) => String(b.maklon_eks_keluar_at || b.last_update_at || b.created_at || "").localeCompare(String(a.maklon_eks_keluar_at || a.last_update_at || a.created_at || "")));
-
-        const byVendor = new Map();
-        for (const b of rows) {
-          const v = maklonBoardVendor(b) || "⚠ Vendor kosong";
-          if (!byVendor.has(v)) byVendor.set(v, { vendor: v, count: 0, qty: 0 });
-          const e = byVendor.get(v);
-          e.count += 1;
-          e.qty += officialQty(b);
-        }
-        const summaryArr = [...byVendor.values()].sort((a,b) => b.count - a.count);
-        const summary = document.getElementById("maklonSummary");
-        if (summary) {
-          summary.innerHTML = [
-            ["Total Bal", rows.length],
-            ["Total Qty", rows.reduce((s,b)=>s+officialQty(b),0)],
-            ["Vendor", summaryArr.length],
-            ["Perlu Repair", rows.filter(b => String(b.status || "").startsWith("MAKLON_") && (!b.maklon_eks_vendor || !b.maklon_eks_tipe)).length]
-          ].map(([label,val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
-        }
-
-        const fotoCell = (foto, balId) => {
-          const src = driveThumbUrl(foto || "", 160);
-          return src ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">` : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
-        };
-        const actionCell = (b) => {
-          const active = String(b.status || "").startsWith("MAKLON_");
-          const repair = active && (!b.maklon_eks_vendor || !b.maklon_eks_tipe);
-          return `<div class="actions" style="margin-top:0">
-            <button class="btn-outline btn-sm" onclick="openDetail('${safe(b.bal_id)}')">Detail</button>
-            ${active && !repair ? `<button class="btn-success btn-sm" onclick="openFinishMaklonEksternal('${safe(b.bal_id)}')">Selesai</button>` : ""}
-            ${repair ? `<button class="btn-warning btn-sm" onclick="openOwnerOverride('${safe(b.bal_id)}')">Repair</button>` : ""}
-          </div>`;
-        };
-
-        const tbody = document.getElementById("maklonRows");
-        const mobile = document.getElementById("maklonMobile");
-        if (!rows.length) {
-          const empty = `<div class="empty">Tidak ada bal maklon sesuai filter.</div>`;
-          if (tbody) tbody.innerHTML = `<tr><td colspan="11">${empty}</td></tr>`;
-          if (mobile) mobile.innerHTML = empty;
-          return;
-        }
-        if (tbody) {
-          tbody.innerHTML = rows.map(b => `
-            <tr>
-              <td>${fotoCell(b.foto_url, b.bal_id)}</td>
-              <td><strong>${safe(b.po_id || "-")}</strong><br><span class="small mono">${safe(b.bal_id)}</span></td>
-              <td><strong>${safe(maklonBoardVendor(b) || "⚠ Vendor kosong")}</strong></td>
-              <td>${safe(MAKLON_EKS_TIPE_LABEL[maklonBoardTipe(b)] || maklonBoardTipe(b) || "-")}</td>
-              <td>${fmtDate(b.maklon_eks_keluar_at)}</td>
-              <td>${safe(daysSince(b.maklon_eks_keluar_at))}</td>
-              <td>${safe(b.jenis_barang || "-")}</td>
-              <td><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
-              <td><strong>${officialQty(b)} ${safe(b.satuan || "")}</strong></td>
-              <td>${statusBadge(b.status)}</td>
-              <td>${actionCell(b)}</td>
-            </tr>
-          `).join("");
-        }
-        if (mobile) {
-          mobile.innerHTML = rows.map(b => `
-            <div class="bal-card">
-              ${fotoCell(b.foto_url, b.bal_id)}
-              <div class="bal-card-body">
-                <div class="small mono">${safe(b.bal_id)} · ${fmtDate(b.maklon_eks_keluar_at)}</div>
-                <div class="bal-title">${safe(maklonBoardVendor(b) || "⚠ Vendor kosong")} · ${safe(MAKLON_EKS_TIPE_LABEL[maklonBoardTipe(b)] || maklonBoardTipe(b) || "-")}</div>
-                <div class="small">${safe(b.po_id)} · ${safe(b.jenis_barang)} · ${safe(b.warna)}/${safe(b.size)}</div>
-                <div class="small">Qty: <strong>${officialQty(b)} ${safe(b.satuan)}</strong> · Umur: ${safe(daysSince(b.maklon_eks_keluar_at))}</div>
-                <div style="margin-top:6px">${statusBadge(b.status)}</div>
-                ${actionCell(b)}
-              </div>
-            </div>
-          `).join("");
-        }
-      } catch (e) {
-        toast("Gagal load Maklon Vendor: " + e.message, "error");
-      }
-    }
-
-    /* ============================================================
-       HR BORONGAN (CLOUD)
-       Data borongan otomatis di-generate server saat bal SELESAI_PACKING.
-       Tarif tersimpan di sheet 'tarif' di server, lookup otomatis.
-       Owner edit tarif via tabel di tab HR → API auto-propagate.
-       ============================================================ */
-
-    let currentWorkSub = "obras";
-
-    function workSubLabel(sub) {
-      if (sub === "obras") return "Obras";
-      if (sub === "setting") return "Setting";
-      if (sub === "packing") return "Packing";
-      if (sub === "checker") return "Checker/QC";
-      return sub || "-";
-    }
-
-    function workSubForRole(role = currentUser?.role) {
-      if (role === "Obras") return "obras";
-      if (role === "Setting / Steam") return "setting";
-      if (role === "Packing") return "packing";
-      if (role === "Checker / QC") return "checker";
-      return "obras";
-    }
-
-    function getLocalMonthRange() {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const toKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      return { start: toKey(start), end: toKey(end) };
-    }
-
-    function formatPeriodID(startKey, endKey) {
-      const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-      const parseKey = key => {
-        const m = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (!m) return null;
-        return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
-      };
-      const s = parseKey(startKey);
-      const e = parseKey(endKey);
-      if (!s || !e) return `${startKey || "-"} s/d ${endKey || "-"}`;
-      if (s.y === e.y && s.m === e.m) return `${s.d} – ${e.d} ${bulan[s.m - 1]} ${s.y}`;
-      if (s.y === e.y) return `${s.d} ${bulan[s.m - 1]} – ${e.d} ${bulan[e.m - 1]} ${s.y}`;
-      return `${s.d} ${bulan[s.m - 1]} ${s.y} – ${e.d} ${bulan[e.m - 1]} ${e.y}`;
-    }
-
-    function ensureWorkFilterDefaults() {
-      const range = getLocalMonthRange();
-      const s = document.getElementById("workFilterStart");
-      const e = document.getElementById("workFilterEnd");
-      if (s && !s.value) s.value = range.start;
-      if (e && !e.value) e.value = range.end;
-    }
-
-    function isFullWorkRecapRole(role = currentUser?.role) {
-      return ["Owner", "Admin Produksi"].includes(role);
-    }
-
-    function syncWorkRecapUI() {
-      const full = isFullWorkRecapRole();
-      const roleSub = workSubForRole();
-      if (!full) currentWorkSub = roleSub;
-
-      ["obras", "setting", "packing", "checker"].forEach(s => {
-        const btn = document.getElementById(`workSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
-        if (!btn) return;
-        btn.classList.toggle("hidden", !full && s !== roleSub);
-      });
-
-      const workerFilter = document.getElementById("workFilterWorker");
-      if (workerFilter) {
-        workerFilter.disabled = false;
-      }
-
-      const note = document.getElementById("workRecapNote");
-      if (note) {
-        note.textContent = full
-          ? "Menampilkan rekap pekerjaan semua pegawai."
-          : "Menampilkan semua pekerja pada tahap akun ini.";
-      }
-    }
-
-    function switchWorkSub(sub) {
-      currentWorkSub = isFullWorkRecapRole() ? (sub || "obras") : workSubForRole();
-      syncWorkRecapUI();
-      ["obras", "setting", "packing", "checker"].forEach(s => {
-        const btn = document.getElementById(`workSub${s.charAt(0).toUpperCase()+s.slice(1)}Btn`);
-        if (!btn) return;
-        if (s === currentWorkSub) {
-          btn.style.background = "var(--primary)";
-          btn.style.color = "white";
-        } else {
-          btn.style.background = "white";
-          btn.style.color = "var(--primary)";
-        }
-      });
-      renderWorkRekap();
-    }
-
-    function sanitizeWorkRowsByJenis(rows, jenisText) {
-      const j = String(jenisText || "").toLowerCase().trim();
-      if (!j) return rows;
-      return rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
-    }
-
-    function fillWorkerOptions(selectId, rows) {
-      const sel = document.getElementById(selectId);
-      if (!sel) return;
-      const cur = sel.value;
-      const workers = [...new Set((rows || []).map(r => r.pegawai).filter(Boolean))].sort();
-      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${cur === n ? "selected" : ""}>${safe(n)}</option>`).join("");
-      if (cur && !workers.includes(cur)) sel.value = "";
-    }
-
-    function renderWorkSummary(summaryId, rows, showWorkerCount = true) {
-      const el = document.getElementById(summaryId);
-      if (!el) return;
-      const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
-      const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
-      const stats = showWorkerCount
-        ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
-        : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Nama", currentUser?.nama || "-"]];
-      el.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
-    }
-
-    // v39.3: render nomor bal sebagai link yang bisa diklik → buka detail bal.
-    // Dipakai di tabel Rekap Produksi & HR Borongan. Guard kalau bal_id kosong.
-    function balLink(balId) {
-      const id = String(balId || "");
-      if (!id) return `<span class="small mono">-</span>`;
-      return `<span class="small mono bal-link" title="Buka detail bal" onclick="openDetail('${safe(id)}')">${safe(id)}</span>`;
-    }
-
-    function renderWorkRows(tbodyId, mobileId, rows, options = {}) {
-      const tbody = document.getElementById(tbodyId);
-      const mobile = document.getElementById(mobileId);
-      const showPegawai = options.showPegawai !== false;
-      const colSpan = showPegawai ? 9 : 8;
-      const fotoCell = (foto, balId) => {
-        const src = driveThumbUrl(foto || "", 160);
-        return src
-          ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
-          : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
-      };
-
-      if (!rows.length) {
-        const empty = `<div class="empty">Belum ada data rekap untuk periode ini.</div>`;
-        if (tbody) tbody.innerHTML = `<tr><td colspan="${colSpan}">${empty}</td></tr>`;
-        if (mobile) mobile.innerHTML = empty;
-        return;
-      }
-
-      if (tbody) {
-        tbody.innerHTML = rows.map(r => `
-          <tr>
-            <td>${safe(r.tanggal)}</td>
-            <td>${safe(r.tahap)}</td>
-            ${showPegawai ? `<td><strong>${safe(r.pegawai)}</strong></td>` : ""}
-            <td>${fotoCell(r.foto_url, r.bal_id)}</td>
-            <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
-            <td>${safe(r.jenis || "-")}</td>
-            <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
-            <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
-            <td><span class="small">${safe(r.catatan || "-")}</span></td>
-          </tr>
-        `).join("");
-      }
-
-      if (mobile) {
-        mobile.innerHTML = rows.map(r => `
-          <div class="bal-card">
-            ${fotoCell(r.foto_url, r.bal_id)}
-            <div class="bal-card-body">
-              <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
-              <div class="bal-title">${safe(r.tahap)}${showPegawai ? " · " + safe(r.pegawai) : ""}</div>
-              <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
-              <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
-              <div class="small">${safe(r.catatan || "")}</div>
-            </div>
-          </div>
-        `).join("");
-      }
-    }
-
-    function renderWorkEmployeeRecap(rows) {
-      const el = document.getElementById("workRekapPegawai");
-      if (!el) return;
-      const map = new Map();
-      for (const r of rows) {
-        const k = r.pegawai || "-";
-        if (!map.has(k)) map.set(k, { pegawai: k, qty: 0, count: 0 });
-        const e = map.get(k);
-        e.qty += Number(r.qty || 0);
-        e.count += 1;
-      }
-      const arr = [...map.values()].sort((a,b) => b.qty - a.qty);
-      el.innerHTML = arr.length
-        ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th></tr></thead><tbody>${arr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td></tr>`).join("")}</tbody></table></div>`
-        : `<div class="empty">Belum ada data.</div>`;
-    }
-
-    async function renderWorkRekap() {
-      try {
-        ensureWorkFilterDefaults();
-        syncWorkRecapUI();
-        const full = isFullWorkRecapRole();
-        const targetSub = full ? currentWorkSub : workSubForRole();
-        const start = document.getElementById("workFilterStart")?.value || "";
-        const end = document.getElementById("workFilterEnd")?.value || "";
-        const jenis = document.getElementById("workFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: full ? "all" : "role_stage", tahap: targetSub, start_date: start, end_date: end });
-        let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
-        fillWorkerOptions("workFilterWorker", rows);
-        const worker = document.getElementById("workFilterWorker")?.value || "";
-        if (worker) rows = rows.filter(r => r.pegawai === worker);
-        const info = document.getElementById("workPeriodInfo");
-        if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
-        renderWorkSummary("workSummary", rows, true);
-        renderWorkEmployeeRecap(rows);
-        renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
-      } catch (e) {
-        toast("Gagal load Rekap Produksi: " + e.message, "error");
-      }
-    }
-
-
-    const HR_SUBS = [
-      { key: "obras", label: "Obras", aliases: ["obras"], btnId: "hrSubObrasBtn" },
-      { key: "setting", label: "Setting", aliases: ["setting"], btnId: "hrSubSettingBtn" },
-      { key: "packing", label: "Packing", aliases: ["packing", "packing maklon"], btnId: "hrSubPackingBtn" },
-      { key: "maklon_antislip", label: "Maklon Sablon Antislip", aliases: ["maklon sablon antislip", "sablon antislip", "maklon antislip"], btnId: "hrSubMaklonAntislipBtn" },
-      { key: "maklon_obras", label: "Maklon Obras Saja", aliases: ["maklon obras saja", "maklon obras only"], btnId: "hrSubMaklonObrasBtn" },
-      { key: "maklon_setting", label: "Maklon Setting Saja", aliases: ["maklon setting saja", "maklon setting only"], btnId: "hrSubMaklonSettingBtn" },
-      { key: "maklon_packing", label: "Maklon Packing Saja", aliases: ["maklon packing saja", "maklon packing only"], btnId: "hrSubMaklonPackingBtn" },
-      { key: "maklon_setting_packing", label: "Maklon Setting Packing", aliases: ["maklon setting packing", "maklon setting+packing", "maklon setting + packing"], btnId: "hrSubMaklonSettingPackingBtn" },
-      { key: "maklon_obras_setting", label: "Maklon Obras Setting", aliases: ["maklon obras setting", "maklon obras+setting", "maklon obras + setting"], btnId: "hrSubMaklonObrasSettingBtn" },
-      { key: "maklon_obras_setting_packing", label: "Maklon Obras Setting Packing", aliases: ["maklon obras setting packing", "maklon obras+setting+packing", "maklon obras + setting + packing"], btnId: "hrSubMaklonObrasSettingPackingBtn" }
-    ];
-
-    function getHrSubConfig(sub = currentHrSub) {
-      return HR_SUBS.find(x => x.key === sub) || HR_SUBS[0];
-    }
-
-    function hrSubLabel(sub) {
-      return getHrSubConfig(sub).label;
-    }
-
-    function ensureHrFilterDefaults() {
-      const range = getLocalMonthRange();
-      const s = document.getElementById("hrFilterStart");
-      const e = document.getElementById("hrFilterEnd");
-      if (s && !s.value) s.value = range.start;
-      if (e && !e.value) e.value = range.end;
-    }
-
-    function normalizeHrTahapName(value) {
-      return String(value || "")
-        .toLowerCase()
-        .trim()
-        .replace(/\s*\+\s*/g, "+")
-        .replace(/\s+/g, " ");
-    }
-
-    function hrTahapMatches(row, sub = currentHrSub) {
-      const cfg = getHrSubConfig(sub);
-      const tahap = normalizeHrTahapName(row.tahap);
-      return cfg.aliases.map(normalizeHrTahapName).includes(tahap);
-    }
-
-    function isPendingBorongan(r) {
-      return String(r?.hr_status || "").toUpperCase() === "BELUM_FINAL" ||
-        String(r?.source || "") === "bals_live" ||
-        String(r?.id || "").indexOf("LIVE-") === 0;
-    }
-
-    function isEarlyPaidBorongan(r) {
-      return String(r?.hr_status || "").toUpperCase() === "DIBAYAR_AWAL";
-    }
-
-    function hrFinalBadge(r) {
-      if (isPendingBorongan(r)) {
-        return `<span class="badge" style="background:#fef3c7; color:#92400e">Belum QC</span>`;
-      }
-      if (isEarlyPaidBorongan(r)) {
-        return `<span class="badge" style="background:#dbeafe; color:#1e40af">Dibayar awal</span>`;
-      }
-      return `<span class="badge" style="background:#dcfce7; color:#166534">Final</span>`;
-    }
-
-    function hrRowCatatan(r) {
-      const parts = [];
-      const catatan = r.catatan_hr || r.catatan || "";
-      if (isPendingBorongan(r) && !String(catatan).toLowerCase().includes("menunggu qc")) {
-        parts.push("Menunggu QC, tetapi sudah boleh dibayar sesuai periode kerja");
-      }
-      if (isEarlyPaidBorongan(r) && !String(catatan).toLowerCase().includes("dibayar awal")) {
-        parts.push("Dibayar awal sebelum QC; reject/potongan diproses manual bila ada");
-      }
-      if (catatan) parts.push(catatan);
-      if (r.ticket_id) parts.push("Ticket: " + r.ticket_id);
-      else if (r.output_id) parts.push("Output: " + r.output_id);
-      if (r.reject_info) parts.push(r.reject_info);
-      if (normalizeHrTahapName(r.tahap).startsWith("maklon")) parts.push("Vendor maklon eksternal");
-      return [...new Set(parts.filter(Boolean))].join(". ") || "Final borongan";
-    }
-
-    function switchHrSub(sub) {
-      currentHrSub = getHrSubConfig(sub).key;
-      HR_SUBS.forEach(cfg => {
-        const btn = document.getElementById(cfg.btnId);
-        if (!btn) return;
-        if (cfg.key === currentHrSub) {
-          btn.style.background = "var(--primary)";
-          btn.style.color = "white";
-          btn.classList.add("active");
-        } else {
-          btn.style.background = "white";
-          btn.style.color = "var(--primary)";
-          btn.classList.remove("active");
-        }
-      });
-      renderBorongan();
-    }
-
-    async function getHrBaseRows() {
-      ensureHrFilterDefaults();
-      const all = await apiListBorongan();
-      let rows = (all || []).filter(r => hrTahapMatches(r, currentHrSub));
-      const s = document.getElementById("hrFilterStart")?.value || "";
-      const e = document.getElementById("hrFilterEnd")?.value || "";
-      const j = (document.getElementById("hrFilterJenis")?.value || "").toLowerCase().trim();
-
-      if (s) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) >= s);
-      if (e) rows = rows.filter(r => String(r.tanggal || "").slice(0, 10) <= e);
-      if (j) rows = rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
-
-      rows.sort((a,b) => String((b.tanggal || "") + (b.created_at || "")).localeCompare(String((a.tanggal || "") + (a.created_at || ""))));
-      return rows;
-    }
-
-    async function getFilteredBorongan() {
-      let rows = await getHrBaseRows();
-      const w = document.getElementById("hrFilterWorker")?.value || "";
-      if (w) rows = rows.filter(r => r.pegawai === w);
-      return rows;
-    }
-
-    function refreshHrWorkerFilter(rows) {
-      fillWorkerOptions("hrFilterWorker", rows || []);
-    }
-
-    function boronganPaidStatus(r) {
-      const st = String(r.paid_status || "").toUpperCase().trim();
-      if (st === "SUDAH" || r.paid_at) return "SUDAH";
-      return "BELUM";
-    }
-
-    function boronganPaidBadge(r) {
-      const paid = boronganPaidStatus(r) === "SUDAH";
-      return `<span class="badge" style="background:${paid ? '#dcfce7' : '#fee2e2'}; color:${paid ? '#166534' : '#991b1b'}">${paid ? 'Sudah dibayar' : 'Belum dibayar'}</span>`;
-    }
-
-    function boronganPaidCell(r) {
-      const paid = boronganPaidStatus(r) === "SUDAH";
-      const label = paid ? "↩ Belum" : (isPendingBorongan(r) ? "✓ Bayar awal" : "✓ Bayar");
-      const cls = paid ? "btn-secondary" : "btn-success";
-      const title = paid && r.paid_at
-        ? `Dibayar ${fmtDate(r.paid_at)} oleh ${safe(r.paid_by || '-')}`
-        : (isPendingBorongan(r) ? "Bayar sebelum QC; reject/potongan diproses manual bila ada" : "Belum dibayar");
-      return `${boronganPaidBadge(r)}<br><button class="${cls} btn-sm" style="margin-top:5px" onclick="toggleBoronganPaid('${safe(r.id)}', ${paid ? 'true' : 'false'})" title="${title}">${label}</button>`;
-    }
-
-    function toggleHrBoronganSelection(id, checked) {
-      const key = String(id || "");
-      if (!key) return;
-      if (checked) hrSelectedBoronganIds.add(key);
-      else hrSelectedBoronganIds.delete(key);
-      updateHrSelectedInfo();
-    }
-
-    function updateHrSelectedInfo(currentRows = null) {
-      const info = document.getElementById("hrSelectedInfo");
-      if (!info) return;
-      const selectedCount = hrSelectedBoronganIds.size;
-      let visibleSelected = 0;
-      let visibleUnpaid = 0;
-      if (Array.isArray(currentRows)) {
-        visibleSelected = currentRows.filter(r => hrSelectedBoronganIds.has(String(r.id))).length;
-        visibleUnpaid = currentRows.filter(r => boronganPaidStatus(r) !== "SUDAH").length;
-      }
-      info.textContent = selectedCount
-        ? `${selectedCount} pekerjaan dipilih${Array.isArray(currentRows) ? ` (${visibleSelected} terlihat). Belum dibayar yang tampil: ${visibleUnpaid}.` : "."}`
-        : `Belum ada pekerjaan dipilih${Array.isArray(currentRows) ? `. Belum dibayar yang tampil: ${visibleUnpaid}.` : "."}`;
-    }
-
-    function clearHrSelection() {
-      hrSelectedBoronganIds.clear();
-      updateHrSelectedInfo();
-      renderBorongan();
-    }
-
-    async function selectVisibleBorongan() {
-      try {
-        const rows = await getFilteredBorongan();
-        const eligible = rows.filter(r => String(r.id || ""));
-        if (!eligible.length) { toast("Tidak ada pekerjaan yang bisa dipilih.", "warn"); return; }
-        eligible.forEach(r => hrSelectedBoronganIds.add(String(r.id)));
-        toast(`${eligible.length} pekerjaan yang tampil dipilih.`, "success");
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function bulkSetSelectedBoronganPaid(paid) {
-      try {
-        const rows = await getFilteredBorongan();
-        const rowById = new Map(rows.map(r => [String(r.id), r]));
-        const ids = [...hrSelectedBoronganIds].filter(id => {
-          const r = rowById.get(String(id));
-          if (!r) return false;
-          // Row live/menunggu QC boleh dibayar awal. Untuk "Belumkan", hanya record yang sudah tersimpan/final.
-          return paid ? true : !isPendingBorongan(r);
-        });
-        if (!ids.length) { toast(paid ? "Pilih minimal 1 pekerjaan yang terlihat." : "Pilih minimal 1 record tersimpan/final yang terlihat.", "warn"); return; }
-        const actionText = paid ? "SUDAH DIBAYAR" : "BELUM DIBAYAR";
-        if (!confirm(`Ubah ${ids.length} record terpilih menjadi ${actionText}?`)) return;
-        const note = paid ? (prompt("Catatan pembayaran massal (opsional):", "") || "") : "";
-        const res = await withLoading("Update bayar massal...", async () => await apiSetBoronganPaidBulk(ids, paid, note));
-        toast(`${Number(res?.updated || 0)} record diubah, ${Number(res?.created || 0)} pembayaran awal dibuat.`, "success");
-        ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function bulkPayAllVisibleBorongan() {
-      try {
-        const rows = await getFilteredBorongan();
-        const ids = rows
-          .filter(r => boronganPaidStatus(r) !== "SUDAH")
-          .map(r => String(r.id));
-        if (!ids.length) { toast("Tidak ada record belum dibayar yang tampil.", "warn"); return; }
-        if (!confirm(`Bayar semua ${ids.length} record BELUM DIBAYAR yang sedang tampil sesuai filter?`)) return;
-        const note = prompt("Catatan pembayaran massal (opsional):", "") || "";
-        const res = await withLoading("Bayar semua yang tampil...", async () => await apiSetBoronganPaidBulk(ids, true, note));
-        toast(`${Number(res?.updated || 0)} record ditandai sudah dibayar, ${Number(res?.created || 0)} pembayaran awal dibuat.`, "success");
-        ids.forEach(id => hrSelectedBoronganIds.delete(String(id)));
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function toggleBoronganPaid(id, currentlyPaid) {
-      const nextPaid = !currentlyPaid;
-      const msg = nextPaid ? "Tandai pekerjaan ini SUDAH DIBAYAR? Row menunggu QC akan disimpan sebagai pembayaran awal." : "Kembalikan status menjadi BELUM DIBAYAR?";
-      if (!confirm(msg)) return;
-      let note = "";
-      if (nextPaid) note = prompt("Catatan pembayaran (opsional):", "") || "";
-      try {
-        await withLoading("Update status bayar...", async () => await apiSetBoronganPaid(id, nextPaid, note));
-        toast(nextPaid ? "Ditandai sudah dibayar." : "Ditandai belum dibayar.", "success");
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function renderBorongan() {
-      try {
-        const baseRows = await getHrBaseRows();
-        refreshHrWorkerFilter(baseRows);
-        const worker = document.getElementById("hrFilterWorker")?.value || "";
-        const rows = worker ? baseRows.filter(r => r.pegawai === worker) : baseRows;
-
-        updateHrSelectedInfo(rows);
-
-        const start = document.getElementById("hrFilterStart")?.value || "";
-        const end = document.getElementById("hrFilterEnd")?.value || "";
-        const info = document.getElementById("hrPeriodInfo");
-        if (info) info.textContent = `Periode: ${formatPeriodID(start, end)}.`;
-
-        const totalQty = rows.reduce((s,r)=>s + Number(r.qty||0), 0);
-        const totalRp = rows.reduce((s,r)=>s + Number(r.total||0), 0);
-        const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
-        const pendingCount = rows.filter(r => isPendingBorongan(r) || isEarlyPaidBorongan(r)).length;
-        const finalRows = rows.filter(r => !isPendingBorongan(r));
-        const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
-
-        const summary = document.getElementById("hrSummary");
-        if (summary) {
-          summary.innerHTML = [
-            ["Pekerjaan", rows.length],
-            ["Pegawai", uniqueWorkers],
-            ["Total Qty", totalQty],
-            ["Tahap", hrSubLabel(currentHrSub)],
-            ["Total Borongan", rupiah(totalRp)],
-            ["Belum Dibayar", rows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
-            ["Belum QC", pendingCount],
-            ["Belum Ada Tarif", totalUntarif]
-          ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
-        }
-
-        const rekapMap = new Map();
-        for (const r of rows) {
-          const k = r.pegawai || "-";
-          if (!rekapMap.has(k)) rekapMap.set(k, { pegawai: k, qty: 0, total: 0, count: 0 });
-          const e = rekapMap.get(k);
-          e.qty += Number(r.qty || 0);
-          e.total += Number(r.total || 0);
-          e.count += 1;
-        }
-        const rekapArr = [...rekapMap.values()].sort((a,b) => b.total - a.total);
-        const rekapEl = document.getElementById("hrRekapPegawai");
-        if (rekapEl) {
-          rekapEl.innerHTML = rekapArr.length
-            ? `<div class="table-wrap"><table><thead><tr><th>Pegawai</th><th>Jumlah Pekerjaan</th><th>Total Qty</th><th>Total Borongan</th></tr></thead><tbody>${rekapArr.map(r => `<tr><td><strong>${safe(r.pegawai)}</strong></td><td>${r.count}</td><td>${r.qty}</td><td><strong>${rupiah(r.total)}</strong></td></tr>`).join("")}</tbody></table></div>`
-            : `<div class="empty">Belum ada data borongan untuk ${safe(hrSubLabel(currentHrSub))}.</div>`;
-        }
-
-        const tbody = document.getElementById("hrRows");
-        const mobile = document.getElementById("hrMobile");
-        if (!rows.length) {
-          const empty = `<div class="empty">Belum ada pekerjaan ${safe(hrSubLabel(currentHrSub))} untuk periode ini.</div>`;
-          if (tbody) tbody.innerHTML = `<tr><td colspan="14">${empty}</td></tr>`;
-          if (mobile) mobile.innerHTML = empty;
-          return;
-        }
-
-        const fotoCell = (foto, balId) => {
-          const src = driveThumbUrl(foto || "", 160);
-          return src
-            ? `<img src="${safe(src)}" class="thumb" style="width:40px;height:40px" loading="lazy" decoding="async" onclick="openPhoto('${safe(balId)}')" onerror="handlePhotoError(this)">`
-            : `<div class="thumb" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">📷</div>`;
-        };
-
-        if (tbody) {
-          tbody.innerHTML = rows.map(r => {
-            const canSelect = String(r.id || "");
-            const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
-            return `
-            <tr>
-              <td class="bulk-check-cell">${canSelect ? `<input type="checkbox" class="bulk-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : `<span class="small muted">-</span>`}</td>
-              <td>${safe(r.tanggal)}</td>
-              <td>${safe(r.tahap || hrSubLabel(currentHrSub))}<br>${hrFinalBadge(r)}</td>
-              <td><strong>${safe(r.pegawai)}</strong></td>
-              <td>${fotoCell(r.foto_url || r.foto, r.bal_id)}</td>
-              <td><strong>${safe(r.po_id)}</strong><br>${balLink(r.bal_id)}</td>
-              <td>${safe(r.jenis || "-")}</td>
-              <td><span class="small">${safe(r.warna || "-")} / ${safe(r.size || "-")}</span></td>
-              <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
-              <td><span class="small">${safe(hrRowCatatan(r))}</span></td>
-              <td>
-                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:90px; min-height:32px; padding:4px 6px">
-              </td>
-              <td><strong>${rupiah(r.total)}</strong></td>
-              <td>${boronganPaidCell(r)}</td>
-              <td>${isPendingBorongan(r) ? '<span class="small muted">-</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">×</button>`}</td>
-            </tr>
-          `}).join("");
-        }
-
-        if (mobile) {
-          mobile.innerHTML = rows.map(r => {
-            const canSelect = String(r.id || "");
-            const checked = hrSelectedBoronganIds.has(String(r.id)) ? "checked" : "";
-            return `
-            <div class="bal-card">
-              ${canSelect ? `<input type="checkbox" class="bulk-check bulk-card-check" ${checked} onchange="toggleHrBoronganSelection('${safe(r.id)}', this.checked)">` : ""}
-              ${fotoCell(r.foto_url || r.foto, r.bal_id)}
-              <div class="bal-card-body">
-                <div class="small mono">${balLink(r.bal_id)} · ${safe(r.tanggal)}</div>
-                <div class="bal-title">${safe(r.tahap || hrSubLabel(currentHrSub))} · ${safe(r.pegawai)} ${hrFinalBadge(r)}</div>
-                <div class="small">${safe(r.po_id)} · ${safe(r.jenis)} · ${safe(r.warna)}/${safe(r.size)}</div>
-                <div class="small">Qty: <strong>${safe(r.qty)} ${safe(r.satuan)}</strong></div>
-                <div class="small">${safe(hrRowCatatan(r))}</div>
-                <div style="margin-top:6px">
-                  <label class="small">Tarif/${safe(r.satuan)}</label>
-                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:120px; min-height:32px; padding:4px 6px">
-                </div>
-                <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
-                <div style="margin-top:6px">${boronganPaidCell(r)}</div>
-                <div class="actions">${isPendingBorongan(r) ? '<span class="small muted">Belum QC — bisa dibayar awal, tapi tidak bisa dihapus sebelum tersimpan.</span>' : `<button class="btn-danger btn-sm" onclick="deleteBoronganRow('${safe(r.id)}')">Hapus</button>`}</div>
-              </div>
-            </div>
-          `}).join("");
-        }
-      } catch (e) {
-        toast("Gagal load HR Borongan: " + e.message, "error");
-      }
-    }
-
-
-    async function updateBoronganTarif(inputEl) {
-      const id = inputEl.getAttribute("data-bor-id");
-      const tahap = inputEl.getAttribute("data-bor-tahap") || "";
-      const jenis = inputEl.getAttribute("data-bor-jenis") || "";
-      const newTarif = Number(inputEl.value || 0);
-      try {
-        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif, tahap, jenis));
-        if (res?.live_tarif_only) toast("Tarif disimpan ke master tarif. Row belum final akan ikut setelah refresh.", "success");
-        else if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain.`, "success");
-        else toast("Tarif disimpan.", "success");
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function deleteBoronganRow(id) {
-      if (!confirm("Hapus record borongan ini?")) return;
-      try {
-        await withLoading("Hapus record...", async () => await apiDeleteBoronganRow(id));
-        toast("Record borongan dihapus.", "success");
-        renderBorongan();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function exportBoronganCSV() {
-      try {
-        const rows = await getFilteredBorongan();
-        if (!rows.length) { toast("Tidak ada data untuk di-export.", "warn"); return; }
-        const header = ["Tanggal","Tahap","Status Final","Pegawai","ID Bal","PO","Jenis","Warna","Size","Qty","Satuan","Catatan","Tarif","Total","Status Bayar","Tanggal Bayar","Dibayar Oleh"];
-        const escapeCsv = v => {
-          const s = String(v ?? "");
-          if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-          return s;
-        };
-        const lines = [header.join(",")];
-        for (const r of rows) {
-          lines.push([
-            r.tanggal, r.tahap, isPendingBorongan(r) ? "Belum Final" : "Final", r.pegawai, r.bal_id, r.po_id, r.jenis,
-            r.warna, r.size, r.qty, r.satuan, hrRowCatatan(r), r.tarif, r.total,
-            boronganPaidStatus(r), r.paid_at || "", r.paid_by || ""
-          ].map(escapeCsv).join(","));
-        }
-        const csv = "\uFEFF" + lines.join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `borongan_${currentHrSub}_${new Date().toISOString().slice(0,10)}.csv`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        toast("CSV berhasil di-download.", "success");
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-
-
-
-    let lastOwnerHealthReport = null;
-
-    /* ============================================================
-       OWNER MAINTENANCE — CLOUD VERSION
-       - Tidak ada lagi repair localStorage (karena data di server).
-       - Health check sekarang: list rekap data + cek konsistensi via API.
-       - User management: tambah/edit/reset PIN/aktivasi user.
-       ============================================================ */
-
-    async function renderOwnerHealthPanel() {
-      if (currentUser?.role !== "Owner") return;
-      const panel = document.getElementById("ownerHealthPanel");
-      if (!panel) return;
-      panel.innerHTML = `<div class="empty">Klik "🔎 Cek Data" untuk lihat ringkasan, atau buka tab di bawah.</div>`;
-    }
-
-    async function ownerRunHealthCheck() {
-      if (currentUser?.role !== "Owner") return;
-      try {
-        await withLoading("Mengecek data dari server...", async () => {
-          const [bals, history, borongan, users] = await Promise.all([
-            apiListBals(),
-            apiGetHistory(),
-            apiListBorongan(),
-            apiListUsers()
-          ]);
-          const balsActive = (bals || []).filter(b => !b.deleted);
-          const balsByStatus = {};
-          balsActive.forEach(b => { balsByStatus[b.status] = (balsByStatus[b.status] || 0) + 1; });
-          const usersActive = (users || []).filter(u => u.active);
-
-          const panel = document.getElementById("ownerHealthPanel");
-          if (!panel) return;
-          panel.innerHTML = `
-            <div class="card">
-              <div class="section-title">📊 Rekap Data Cloud</div>
-              <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:10px">
-                <div class="stat-card"><div class="stat-value">${balsActive.length}</div><div class="stat-label">Bal Aktif</div></div>
-                <div class="stat-card"><div class="stat-value">${(history || []).length}</div><div class="stat-label">History</div></div>
-                <div class="stat-card"><div class="stat-value">${(borongan || []).length}</div><div class="stat-label">Borongan</div></div>
-                <div class="stat-card"><div class="stat-value">${usersActive.length}</div><div class="stat-label">User Aktif</div></div>
-              </div>
-              <div class="section-title">Distribusi Status Bal</div>
-              <div class="grid-3">
-                ${Object.entries(balsByStatus).map(([st, n]) => `<div class="alert alert-info"><strong>${statusText(st)}</strong>: ${n}</div>`).join("") || `<div class="empty">Belum ada bal.</div>`}
-              </div>
-            </div>
-          `;
-        });
-      } catch (e) {
-        toast("Gagal cek data: " + e.message, "error");
-      }
-    }
-
-    /* ----- Export Backup ----- */
-    async function ownerExportBackupJSON() {
-      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
-      try {
-        await withLoading("Mengambil semua data dari server...", async () => {
-          const [bals, history, borongan, tarif, users] = await Promise.all([
-            api("listBals", { includeDeleted: true }),
-            apiGetHistory(),
-            apiListBorongan(),
-            api("listTarif"),
-            apiListUsers()
-          ]);
-          const backup = {
-            schema_version: "3.0.0-cloud",
-            exported_at: new Date().toISOString(),
-            exported_by: currentUser.nama,
-            bals, history, borongan, tarif, users
-          };
-          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `backup_cloud_bal_tracking_${new Date().toISOString().slice(0,10)}.json`;
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        });
-        toast("Backup JSON berhasil di-download.", "success");
-      } catch (e) {
-        toast("Export gagal: " + e.message, "error");
-      }
-    }
-
-    /* ----- Import Backup: di cloud mode, restore = bahaya, jadi cuma kasih warning ----- */
-    function ownerImportBackupJSON(event) {
-      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
-      const file = event.target.files && event.target.files[0];
-      event.target.value = "";
-      if (!file) return;
-      toast("Restore otomatis ke cloud belum di-implementasi (terlalu beresiko overwrite). Backup file tersimpan, hubungi developer untuk restore manual via Apps Script.", "warn", 7000);
-    }
-
-    /* ============================================================
-       USER MANAGEMENT UI (Owner only)
-       ============================================================ */
-
-    async function openUserManagement() {
-      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
-      try {
-        await withLoading("Memuat daftar user...", async () => {
-          const users = await apiListUsers();
-          renderUserManagementPanel(users);
-        });
-      } catch (e) {
-        toast("Gagal load user: " + e.message, "error");
-      }
-    }
-
-    function renderUserManagementPanel(users) {
-      const panel = document.getElementById("ownerHealthPanel");
-      if (!panel) return;
-      const rows = (users || []).map(u => `
-        <tr>
-          <td><strong>${safe(u.username)}</strong></td>
-          <td>${safe(u.nama)}</td>
-          <td>${safe(u.role)}</td>
-          <td>${u.active ? '<span class="badge tag" style="background:#dcfce7; color:#166534">AKTIF</span>' : '<span class="badge tag" style="background:#fee2e2; color:#991b1b">NONAKTIF</span>'}</td>
-          <td>
-            <button class="btn-outline btn-sm" onclick="openEditUserForm('${safe(u.username)}')">Edit</button>
-            <button class="btn-outline btn-sm" onclick="openResetPinForm('${safe(u.username)}')">Reset PIN</button>
-            ${u.role !== "Owner" ? `<button class="btn-outline btn-sm" onclick="toggleUserActive('${safe(u.username)}', ${!u.active})">${u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>` : ""}
-          </td>
-        </tr>
-      `).join("");
-
-      panel.innerHTML = `
-        <div class="card">
-          <div class="section-title">👥 Kelola User</div>
-          <p class="sub-note">Khusus Owner. Tambah user baru, edit nama/role, reset PIN, atau aktif/nonaktifkan user.</p>
-          <button class="btn-primary" onclick="openCreateUserForm()">+ Tambah User Baru</button>
-          <div class="table-wrap" style="margin-top:12px">
-            <table>
-              <thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead>
-              <tbody>${rows || '<tr><td colspan="5"><div class="empty">Belum ada user.</div></td></tr>'}</tbody>
-            </table>
-          </div>
-        </div>
-      `;
-    }
-
-    function openCreateUserForm() {
-      const html = `
-        <div class="alert alert-info">Buat user baru. PIN akan di-hash di server, tidak tersimpan plain.</div>
-        <div class="form-group"><label>Username <span class="required">*</span></label><input id="nu_username" placeholder="huruf kecil, angka, underscore"></div>
-        <div class="form-group"><label>Nama Tampilan <span class="required">*</span></label><input id="nu_nama"></div>
-        <div class="form-group"><label>Role <span class="required">*</span></label>
-          <select id="nu_role">
-            <option value="">-- Pilih Role --</option>
-            <option value="Admin Produksi">Admin Produksi</option>
-            <option value="Operator Mesin">Operator Mesin</option>
-            <option value="Checker / QC">Checker / QC</option>
-            <option value="Obras">Obras</option>
-            <option value="Setting / Steam">Setting / Steam</option>
-            <option value="Packing">Packing</option>
-          </select>
-        </div>
-        <div class="form-group"><label>PIN <span class="required">*</span> (min 4 karakter)</label><input id="nu_pin" type="text"></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, confirmCreateUser, 'Membuat...')">💾 Buat User</button>
-      `;
-      openSimpleModal("Tambah User Baru", html);
-    }
-
-    async function confirmCreateUser() {
-      const username = document.getElementById("nu_username").value.trim().toLowerCase();
-      const nama = document.getElementById("nu_nama").value.trim();
-      const role = document.getElementById("nu_role").value;
-      const pin = document.getElementById("nu_pin").value;
-      if (!username || !nama || !role || !pin) return toast("Semua field wajib.", "warn");
-      try {
-        await withLoading("Membuat user...", async () => {
-          await apiCreateUser({ username, nama, role, pin });
-        });
-        toast(`User '${username}' (${nama}) berhasil dibuat. PIN: ${pin}`, "success", 6000);
-        closeSimpleModal();
-        openUserManagement();
-      } catch (e) {
-        toast(e.message, "error", 5000);
-      }
-    }
-
-    async function openEditUserForm(username) {
-      try {
-        const users = await apiListUsers();
-        const u = users.find(x => x.username === username);
-        if (!u) return toast("User tidak ditemukan.", "error");
-        const html = `
-          <div class="alert alert-info">Edit user <strong>${safe(username)}</strong>. PIN dan status aktif tidak di-edit di sini.</div>
-          <div class="form-group"><label>Nama Tampilan</label><input id="eu_nama" value="${safe(u.nama)}"></div>
-          <div class="form-group"><label>Role</label>
-            <select id="eu_role" ${u.role === "Owner" ? "disabled" : ""}>
-              ${u.role === "Owner" ? '<option>Owner</option>' : `
-                <option value="Admin Produksi" ${u.role === "Admin Produksi" ? "selected" : ""}>Admin Produksi</option>
-                <option value="Operator Mesin" ${u.role === "Operator Mesin" ? "selected" : ""}>Operator Mesin</option>
-                <option value="Checker / QC" ${u.role === "Checker / QC" ? "selected" : ""}>Checker / QC</option>
-                <option value="Obras" ${u.role === "Obras" ? "selected" : ""}>Obras</option>
-                <option value="Setting / Steam" ${u.role === "Setting / Steam" ? "selected" : ""}>Setting / Steam</option>
-                <option value="Packing" ${u.role === "Packing" ? "selected" : ""}>Packing</option>
-              `}
-            </select>
-            ${u.role === "Owner" ? '<div class="small" style="color:var(--muted); margin-top:4px">Role Owner tidak bisa diubah.</div>' : ""}
-          </div>
-          <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmEditUser('${safe(username)}'), 'Menyimpan...')">💾 Simpan</button>
-        `;
-        openSimpleModal("Edit User", html);
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function confirmEditUser(username) {
-      const nama = document.getElementById("eu_nama").value.trim();
-      const roleEl = document.getElementById("eu_role");
-      const role = roleEl.disabled ? null : roleEl.value;
-      const updates = { nama };
-      if (role) updates.role = role;
-      try {
-        await withLoading("Menyimpan...", async () => {
-          await apiUpdateUser({ username, updates });
-        });
-        toast(`User '${username}' berhasil di-update.`, "success");
-        closeSimpleModal();
-        openUserManagement();
-      } catch (e) { toast(e.message, "error", 5000); }
-    }
-
-    function openResetPinForm(username) {
-      const html = `
-        <div class="alert alert-warn">Reset PIN untuk user <strong>${safe(username)}</strong>. User wajib login dengan PIN baru setelah ini.</div>
-        <div class="form-group"><label>PIN Baru <span class="required">*</span> (min 4 karakter)</label><input id="rp_pin" type="text"></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmResetPin('${safe(username)}'), 'Reset...')">🔑 Reset PIN</button>
-      `;
-      openSimpleModal("Reset PIN", html);
-    }
-
-    async function confirmResetPin(username) {
-      const newPin = document.getElementById("rp_pin").value;
-      if (!newPin || newPin.length < 4) return toast("PIN minimal 4 karakter.", "warn");
-      try {
-        await withLoading("Reset PIN...", async () => {
-          await apiResetUserPin(username, newPin);
-        });
-        toast(`PIN '${username}' direset ke: ${newPin} (kasih tahu user via WhatsApp)`, "success", 7000);
-        closeSimpleModal();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    async function toggleUserActive(username, newActive) {
-      if (!confirm(`Yakin ${newActive ? 'aktifkan' : 'nonaktifkan'} user '${username}'?`)) return;
-      try {
-        await withLoading("Update status user...", async () => {
-          await apiSetUserActive(username, newActive);
-        });
-        toast(`User '${username}' di-${newActive ? 'aktifkan' : 'nonaktifkan'}.`, "success");
-        openUserManagement();
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    /* Modal helper (re-pakai actionModal kosongan) */
-    function openSimpleModal(title, html) {
-      document.getElementById("actionTitle").textContent = title;
-      document.getElementById("actionContent").innerHTML = html;
-      document.getElementById("actionModal").classList.add("show");
-    }
-    function closeSimpleModal() {
-      closeModal("actionModal");
-    }
-
-    /* ============================================================
-       VERIFIER QC MANAGEMENT (Owner / Admin Produksi) — FIX v17
-       Daftar nama checker QC yang dipakai sebagai dropdown saat
-       Verifikasi Qty. Bisa tambah, edit nama, atau nonaktifkan.
-       Soft delete: nonaktif disembunyikan dari dropdown tapi tidak
-       dihapus supaya HR historis tetap link ke nama lama.
-       ============================================================ */
-    async function openVerifierManagement() {
-      if (!["Owner", "Admin Produksi"].includes(currentUser?.role)) {
-        return toast("Hanya Owner / Admin Produksi.", "warn");
-      }
-      try {
-        await withLoading("Memuat daftar verifier...", async () => {
-          const verifiers = await apiListVerifiers();
-          renderVerifierPanel(verifiers);
-        });
-      } catch (e) {
-        toast("Gagal load verifier: " + e.message, "error");
-      }
-    }
-
-    function renderVerifierPanel(verifiers) {
-      const panel = document.getElementById("ownerHealthPanel");
-      if (!panel) return;
-      const activeCount = (verifiers || []).filter(v => v.active).length;
-      const rows = (verifiers || []).map(v => `
-        <tr>
-          <td><strong>${safe(v.nama)}</strong></td>
-          <td>${v.active
-              ? '<span class="badge tag" style="background:#dcfce7; color:#166534">AKTIF</span>'
-              : '<span class="badge tag" style="background:#fee2e2; color:#991b1b">NONAKTIF</span>'}</td>
-          <td>
-            <button class="btn-outline btn-sm" onclick="openEditVerifierForm('${safe(v.id)}', ${JSON.stringify(safe(v.nama))}, ${v.active})">Edit</button>
-            ${v.active
-              ? `<button class="btn-outline btn-sm" onclick="toggleVerifierActive('${safe(v.id)}', '${safe(v.nama)}', false)">Nonaktifkan</button>`
-              : `<button class="btn-outline btn-sm" onclick="toggleVerifierActive('${safe(v.id)}', '${safe(v.nama)}', true)">Aktifkan kembali</button>`}
-          </td>
-        </tr>
-      `).join("");
-      panel.innerHTML = `
-        <div class="card">
-          <div class="section-title">🔎 Kelola Verifier QC (${activeCount} aktif)</div>
-          <p class="sub-note">Daftar nama checker yang muncul sebagai dropdown saat <strong>Verifikasi Qty</strong>. Pilih <em>"Lainnya (ketik manual)"</em> di modal verifikasi kalau perlu nama pengganti tanpa menambah ke daftar.</p>
-          <div class="alert alert-info">
-            <strong>Nonaktifkan ≠ hapus.</strong> Nama yang dinonaktifkan disembunyikan dari dropdown tapi tetap dipakai di record HR borongan historis.
-          </div>
-          <button class="btn-primary" style="margin-bottom:10px" onclick="openCreateVerifierForm()">➕ Tambah Verifier</button>
-          ${(verifiers || []).length === 0
-            ? `<div class="alert alert-warn">Belum ada verifier. Tambahkan nama checker (mis. Dika, Rizwan).</div>`
-            : `<div style="overflow-x:auto"><table class="data-table">
-                <thead><tr><th>Nama</th><th>Status</th><th>Aksi</th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table></div>`}
-        </div>
-      `;
-    }
-
-    function openCreateVerifierForm() {
-      openSimpleModal("Tambah Verifier QC", `
-        <div class="form-group">
-          <label>Nama Verifier <span class="required">*</span></label>
-          <input id="verifNamaInput" type="text" placeholder="Mis. Dika, Rizwan" autocomplete="off">
-          <div class="small" style="margin-top:4px; color:var(--muted)">Minimal 2 karakter, harus nama orang (bukan nama role / generic).</div>
-        </div>
-        <button class="btn-primary btn-block" onclick="guardedClick(this, confirmCreateVerifier, 'Menyimpan...')">💾 Simpan</button>
-      `);
-      setTimeout(() => document.getElementById("verifNamaInput")?.focus(), 100);
-    }
-
-    async function confirmCreateVerifier() {
-      const nama = titleCase((document.getElementById("verifNamaInput")?.value || "").trim());
-      if (!nama) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Nama wajib diisi."); }
-      if (nama.length < 2) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Nama minimal 2 karakter."); }
-      if (isGenericWorkerName(nama)) { document.getElementById("verifNamaInput")?.classList.add("field-error"); return alert("Isi nama orang asli, bukan '" + nama + "'."); }
-      try {
-        await apiSaveVerifier({ nama, active: true });
-        toast(`Verifier '${nama}' ditambahkan.`, "success");
-        closeSimpleModal();
-        openVerifierManagement();
-        // refresh autocomplete dataset
-        try { refreshWorkerNamesDatalist(true); } catch (_) {}
-      } catch (e) { alert(e.message); }
-    }
-
-    function openEditVerifierForm(id, currentNama, active) {
-      const nm = String(currentNama || "").replace(/^"|"$/g, "");
-      openSimpleModal("Edit Verifier QC", `
-        <div class="form-group">
-          <label>Nama Verifier <span class="required">*</span></label>
-          <input id="verifNamaEditInput" type="text" value="${safe(nm)}" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label><input id="verifActiveCheck" type="checkbox" ${active ? "checked" : ""}> Aktif (tampil di dropdown verifikasi)</label>
-        </div>
-        <button class="btn-primary btn-block" onclick="guardedClick(this, () => confirmEditVerifier('${id}'), 'Menyimpan...')">💾 Simpan Perubahan</button>
-      `);
-    }
-
-    async function confirmEditVerifier(id) {
-      const nama = titleCase((document.getElementById("verifNamaEditInput")?.value || "").trim());
-      const active = !!document.getElementById("verifActiveCheck")?.checked;
-      if (!nama) return alert("Nama wajib diisi.");
-      if (nama.length < 2) return alert("Nama minimal 2 karakter.");
-      if (isGenericWorkerName(nama)) return alert("Isi nama orang asli, bukan '" + nama + "'.");
-      try {
-        await apiSaveVerifier({ id, nama, active });
-        toast(`Verifier '${nama}' diperbarui.`, "success");
-        closeSimpleModal();
-        openVerifierManagement();
-        try { refreshWorkerNamesDatalist(true); } catch (_) {}
-      } catch (e) { alert(e.message); }
-    }
-
-    async function toggleVerifierActive(id, nama, newActive) {
-      const verb = newActive ? "aktifkan kembali" : "nonaktifkan";
-      if (!confirm(`Yakin ${verb} verifier '${nama}'?`)) return;
-      try {
-        await apiSaveVerifier({ id, nama, active: newActive });
-        toast(`Verifier '${nama}' ${newActive ? "diaktifkan" : "dinonaktifkan"}.`, "success");
-        openVerifierManagement();
-        try { refreshWorkerNamesDatalist(true); } catch (_) {}
-      } catch (e) { toast(e.message, "error"); }
-    }
-
-    /* ============================================================
-       INIT
-       ============================================================ */
-
-    window.addEventListener("DOMContentLoaded", () => {
-      const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) {
-        try { currentUser = JSON.parse(saved); showApp(); } catch (_) { logout(); }
-      }
-      setupStatusFilter();
-    });
   </script>
 </body>
 </html>
