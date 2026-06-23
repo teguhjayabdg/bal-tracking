@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v42.16 Buku: recap PO dikurangi terkirim + sortir status/jenis)</title>
+  <title>Bal Tracking 3.0 - Cloud (v42.17 + Stok Plastik: bahan plastik satuan/pak per kg)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -839,6 +839,21 @@
       .detail-grid { grid-template-columns: 1fr; }
       button { min-height: 42px; }
     }
+
+    /* ===== v42.17 PLASTIK ===== */
+    .plastik-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+    .plastik-card-top { display: flex; gap: 12px; }
+    .plastik-thumb { width: 64px; height: 64px; flex: none; border-radius: 10px; object-fit: cover; background: #f1f5f9; border: 1px solid var(--line); cursor: pointer; }
+    .plastik-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 24px; color: #94a3b8; cursor: default; }
+    .plastik-card-info { flex: 1; min-width: 0; }
+    .plastik-card-namerow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .plastik-card-name { font-weight: 800; font-size: 15px; }
+    .plastik-card-meta { font-size: 13px; color: #475569; margin-top: 2px; }
+    .plastik-stok { margin-top: 10px; }
+    .plastik-stok-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .plastik-bar { height: 6px; border-radius: 999px; background: #e5e7eb; margin-top: 5px; overflow: hidden; }
+    .plastik-bar-fill { height: 100%; }
+    .plastik-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -884,6 +899,7 @@
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
           <button data-tab="maklon" class="tab-btn" onclick="switchTab('maklon')">🏭 Maklon Vendor</button>
           <button data-tab="pengiriman" class="tab-btn" onclick="switchTab('pengiriman')">🚚 Pengiriman</button>
+          <button data-tab="plastik" class="tab-btn" onclick="switchTab('plastik')">📦 Plastik</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
         </div>
@@ -1213,6 +1229,22 @@
         </div>
       </div>
 
+      <!-- PLASTIK (v42.17) -->
+      <div id="tab-plastik" class="tab-content">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+            <div class="section-title" style="margin:0">📦 Stok Plastik</div>
+            <button class="btn-primary btn-sm" onclick="openPlastikForm('')">➕ Tambah Plastik</button>
+          </div>
+          <p class="sub-note">Katalog plastik (satuan &amp; pak) + stok dalam kg. Tambah stok saat beli, kurangi saat diambil. Tiap perubahan tercatat di Riwayat.</p>
+          <div class="filter-bar" style="grid-template-columns:1fr auto">
+            <input id="plastikSearch" placeholder="🔍 Cari nama / ukuran / supplier..." oninput="renderPlastik()">
+            <button class="btn-secondary btn-sm" onclick="manualRefresh(renderPlastik)">🔄 Refresh</button>
+          </div>
+          <div id="plastikList" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <!-- HR BORONGAN - OWNER ONLY -->
       <div id="tab-hr" class="tab-content">
         <div class="card">
@@ -1338,6 +1370,7 @@
   <div class="modal" id="outputModal"><div class="modal-content"><div class="modal-head"><strong>Label Plastik Baru / Output Setting</strong><button class="close-btn" onclick="closeModal('outputModal')">×</button></div><div id="outputContent"></div></div></div>
   <div class="modal" id="splitModal"><div class="modal-content"><div class="modal-head"><strong>Pecah Bal Fisik</strong><button class="close-btn" onclick="closeModal('splitModal')">×</button></div><div id="splitContent"></div></div></div>
   <div class="modal" id="ownerOverrideModal"><div class="modal-content"><div class="modal-head"><strong>🔧 Owner Override</strong><button class="close-btn" onclick="closeModal('ownerOverrideModal')">×</button></div><div id="ownerOverrideContent"></div></div></div>
+  <div class="modal" id="plastikModal"><div class="modal-content modal-sm"><div class="modal-head"><strong id="plastikModalTitle">Plastik</strong><button class="close-btn" onclick="closeModal('plastikModal')">×</button></div><div id="plastikModalContent"></div></div></div>
 
   <script>
     /* ============================================================
@@ -1368,7 +1401,8 @@
       "startMaklonEksternal", "finishMaklonEksternal",
       "startMaklonAntislip", "finishMaklonAntislip",
       "finishSetting",
-      "saveVerifier", "deleteVerifier"
+      "saveVerifier", "deleteVerifier",
+      "createPlastik", "updatePlastik", "deletePlastik", "plastikStockIn", "plastikStockOut", "deletePlastikMutasi"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -2285,6 +2319,7 @@
       if (tab === "buku") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "pengiriman") return ["Owner", "Admin Produksi"].includes(r);
+      if (tab === "plastik") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
       return false;
@@ -3030,6 +3065,11 @@
 
   if (currentTab === "pengiriman") {
     await renderPengiriman();
+    return;
+  }
+
+  if (currentTab === "plastik") {
+    await renderPlastik();
     return;
   }
 
@@ -7380,6 +7420,408 @@ Alasan: ${cleanReason}`)) return;
 
     async function apiDeletePengiriman(id) { return await api("deletePengiriman", { id }, { cache: false }); }
     async function apiUpdatePengiriman(payload) { return await api("updatePengiriman", payload, { cache: false }); }
+
+    /* ============================================================
+       PLASTIK (v42.17) — stok bahan plastik (satuan & pak) + buku mutasi kg.
+       Akses: Owner + Admin Produksi. Stok dilacak dalam kg; tiap Tambah Stok
+       (MASUK) / Ambil (KELUAR) tercatat sebagai jejak audit. Modul berdiri
+       sendiri (TIDAK auto-potong dari packing bal).
+       ============================================================ */
+    let _plastikCache = [];
+    let _plastikPhotoBase64 = "";
+    let _plastikEditId = "";
+    let _plastikExistingFotoUrl = "";
+
+    // Thin API wrappers (tidak di-cache — selalu ambil fresh).
+    async function apiListPlastik(payload = {}) { return await api("listPlastik", payload, { cache: false }); }
+    async function apiCreatePlastik(payload) { return await api("createPlastik", payload, { cache: false }); }
+    async function apiUpdatePlastik(payload) { return await api("updatePlastik", payload, { cache: false }); }
+    async function apiDeletePlastik(payload) { return await api("deletePlastik", payload, { cache: false }); }
+    async function apiPlastikStockIn(payload) { return await api("plastikStockIn", payload, { cache: false }); }
+    async function apiPlastikStockOut(payload) { return await api("plastikStockOut", payload, { cache: false }); }
+    async function apiListPlastikMutasi(payload) { return await api("listPlastikMutasi", payload, { cache: false }); }
+    async function apiDeletePlastikMutasi(payload) { return await api("deletePlastikMutasi", payload, { cache: false }); }
+
+    function plastikFmtKg(n) {
+      const v = Number(n || 0);
+      return (Math.round(v * 100) / 100).toString();
+    }
+
+    function plastikStokTone_(kg) {
+      const v = Number(kg || 0);
+      if (v <= 0) return { color: "var(--danger)", label: "habis" };
+      if (v < 20) return { color: "var(--warning)", label: "menipis" };
+      return { color: "var(--success)", label: "" };
+    }
+
+    function setPlastikModal(title, html) {
+      const t = document.getElementById("plastikModalTitle");
+      const c = document.getElementById("plastikModalContent");
+      if (t) t.textContent = title;
+      if (c) c.innerHTML = html;
+    }
+    function showPlastikModal() {
+      document.getElementById("plastikModal").classList.add("show");
+    }
+
+    async function renderPlastik() {
+      const wrap = document.getElementById("plastikList");
+      if (!wrap) return;
+      wrap.innerHTML = `<div class="muted" style="padding:14px">Memuat data plastik...</div>`;
+      let rows = [];
+      try {
+        rows = await apiListPlastik();
+      } catch (e) {
+        wrap.innerHTML = `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`;
+        return;
+      }
+      _plastikCache = rows || [];
+
+      const term = (document.getElementById("plastikSearch")?.value || "").trim().toLowerCase();
+      let list = _plastikCache;
+      if (term) {
+        list = list.filter(p =>
+          [p.nama, p.ukuran, p.ukuran_alt, p.supplier, p.tipe]
+            .map(x => String(x || "").toLowerCase()).join(" ").includes(term));
+      }
+
+      if (!list.length) {
+        wrap.innerHTML = `<div class="muted" style="padding:18px; text-align:center">${
+          _plastikCache.length
+            ? "Tidak ada plastik yang cocok dengan pencarian."
+            : "Belum ada data plastik. Klik <strong>➕ Tambah Plastik</strong> untuk mulai."
+        }</div>`;
+        return;
+      }
+      wrap.innerHTML = list.map(plastikCardHtml).join("");
+    }
+
+    function plastikCardHtml(p) {
+      const kg = Number(p.stok_kg || 0);
+      const tone = plastikStokTone_(kg);
+      const tipeBadge = p.tipe === "Pak"
+        ? `<span class="badge" style="background:#e5e7eb;color:#374151">Pak</span>`
+        : `<span class="badge" style="background:#dbeafe;color:#1e3a8a">Satuan</span>`;
+      const ukuran = safe(p.ukuran || "-") + (p.ukuran_alt ? ` <span class="muted">/ alt ${safe(p.ukuran_alt)}</span>` : "");
+      const foto = p.foto_url
+        ? `<img src="${safe(p.foto_url)}" alt="foto" class="plastik-thumb" onclick="openPlastikPhoto('${safe(p.foto_url)}')" referrerpolicy="no-referrer">`
+        : `<div class="plastik-thumb plastik-thumb-empty">📷</div>`;
+      const stokTxt = kg <= 0
+        ? "0 kg · habis"
+        : (tone.label ? `${plastikFmtKg(kg)} kg · ${tone.label}` : `${plastikFmtKg(kg)} kg`);
+      const barW = Math.max(0, Math.min(100, kg));
+      const ambilDisabled = kg <= 0 ? "disabled" : "";
+      return `
+      <div class="plastik-card">
+        <div class="plastik-card-top">
+          ${foto}
+          <div class="plastik-card-info">
+            <div class="plastik-card-namerow">
+              <span class="plastik-card-name">${safe(p.nama || "-")}</span>
+              ${tipeBadge}
+            </div>
+            <div class="plastik-card-meta">Ukuran ${ukuran}</div>
+            <div class="plastik-card-meta">Supplier: ${safe(p.supplier || "-")}</div>
+            ${p.catatan ? `<div class="plastik-card-meta muted">${safe(p.catatan)}</div>` : ""}
+          </div>
+        </div>
+        <div class="plastik-stok">
+          <div class="plastik-stok-row">
+            <span class="muted" style="font-size:12px">Sisa stok</span>
+            <span style="font-weight:900; color:${tone.color}">${stokTxt}</span>
+          </div>
+          <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${barW}%; background:${tone.color}"></div></div>
+        </div>
+        <div class="plastik-actions">
+          <button class="btn-warning btn-sm" onclick="openPlastikAmbil('${p.id}')" ${ambilDisabled}>➖ Ambil</button>
+          <button class="btn-success btn-sm" onclick="openPlastikTambahStok('${p.id}')">➕ Tambah stok</button>
+          <button class="btn-outline btn-sm" onclick="openPlastikRiwayat('${p.id}')">🕒 Riwayat</button>
+          <button class="btn-outline btn-sm" onclick="openPlastikForm('${p.id}')">✏️ Edit</button>
+          <button class="btn-danger btn-sm" onclick="openPlastikDelete('${p.id}')">🗑</button>
+        </div>
+      </div>`;
+    }
+
+    function openPlastikPhoto(url) {
+      if (!url) return;
+      setPlastikModal("Foto plastik", `<img src="${safe(url)}" alt="foto" style="width:100%; border-radius:12px" referrerpolicy="no-referrer">`);
+      showPlastikModal();
+    }
+
+    function openPlastikForm(id) {
+      _plastikEditId = id ? String(id) : "";
+      _plastikPhotoBase64 = "";
+      const p = _plastikEditId ? (_plastikCache.find(x => String(x.id) === _plastikEditId) || {}) : {};
+      _plastikExistingFotoUrl = p.foto_url || "";
+      const isEdit = !!_plastikEditId;
+      setPlastikModal(isEdit ? "✏️ Edit Plastik" : "➕ Tambah Plastik", `
+        <div class="form-group">
+          <label>Nama / jenis kaos kaki <span class="required">*</span></label>
+          <input id="pf_nama" value="${safe(p.nama || "")}" placeholder="Mis. Kaos kaki jempol">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Tipe plastik <span class="required">*</span></label>
+            <select id="pf_tipe">
+              <option value="Satuan" ${(p.tipe === "Satuan" || !p.tipe) ? "selected" : ""}>Satuan (per pcs)</option>
+              <option value="Pak" ${p.tipe === "Pak" ? "selected" : ""}>Pak (lusin)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Supplier</label>
+            <input id="pf_supplier" value="${safe(p.supplier || "")}" placeholder="Nama supplier">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Ukuran utama <span class="required">*</span></label>
+            <input id="pf_ukuran" value="${safe(p.ukuran || "")}" placeholder="Mis. 11x24">
+          </div>
+          <div class="form-group">
+            <label>Ukuran alternatif (opsional)</label>
+            <input id="pf_ukuran_alt" value="${safe(p.ukuran_alt || "")}" placeholder="Mis. 11x26">
+          </div>
+        </div>
+        ${isEdit ? "" : `
+        <div class="form-group">
+          <label>Stok awal (kg, opsional)</label>
+          <input id="pf_stok_awal" type="number" step="any" inputmode="decimal" placeholder="Mis. 100">
+          <span class="small muted">Kalau diisi, otomatis dicatat sebagai stok masuk pertama.</span>
+        </div>`}
+        <div class="form-group">
+          <label>Catatan (opsional)</label>
+          <textarea id="pf_catatan" placeholder="Catatan bebas">${safe(p.catatan || "")}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Foto kaos kaki (opsional)</label>
+          <input type="file" id="pf_foto" accept="image/*" class="hidden" onchange="handlePlastikPhotoSelect(event)">
+          <label for="pf_foto" class="photo-picker">
+            <div id="pfPhotoPlaceholder" ${p.foto_url ? 'style="display:none"' : ""}>
+              <div style="font-size:30px">📷</div>
+              <strong>Klik untuk pilih / ambil foto</strong><br>
+              <span class="small">foto besar, max 10MB</span>
+            </div>
+            <img id="pfPhotoPreview" class="photo-preview" alt="Preview" ${p.foto_url ? `src="${safe(p.foto_url)}" style="display:block"` : ""}>
+          </label>
+          ${isEdit && p.foto_url ? `<span class="small muted">Biarkan kosong untuk tetap pakai foto lama; pilih foto baru untuk mengganti.</span>` : ""}
+        </div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, submitPlastikForm, 'Menyimpan...')">💾 Simpan</button>
+      `);
+      showPlastikModal();
+    }
+
+    function handlePlastikPhotoSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) { alert("File harus gambar."); event.target.value = ""; return; }
+      if (file.size > 10 * 1024 * 1024) { alert("Foto terlalu besar. Maksimal 10MB."); event.target.value = ""; return; }
+      const reader = new FileReader();
+      reader.onerror = () => alert("Gagal membaca foto. Coba ambil ulang.");
+      reader.onload = e => {
+        const img = new Image();
+        img.onerror = () => alert("File rusak atau bukan gambar valid.");
+        img.onload = () => {
+          try {
+            const MAX = 1000; // plastik pakai foto lebih besar dari foto bal (600) biar motif jelas
+            let w = img.width, h = img.height;
+            if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+            else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+            const canvas = document.createElement("canvas");
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            _plastikPhotoBase64 = canvas.toDataURL("image/jpeg", 0.72);
+            const ph = document.getElementById("pfPhotoPlaceholder");
+            const pv = document.getElementById("pfPhotoPreview");
+            if (ph) ph.style.display = "none";
+            if (pv) { pv.src = _plastikPhotoBase64; pv.style.display = "block"; }
+          } catch (err) { alert("Gagal proses foto: " + err.message); }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function submitPlastikForm() {
+      const nama = (document.getElementById("pf_nama")?.value || "").trim();
+      const tipe = document.getElementById("pf_tipe")?.value || "";
+      const ukuran = (document.getElementById("pf_ukuran")?.value || "").trim();
+      const ukuran_alt = (document.getElementById("pf_ukuran_alt")?.value || "").trim();
+      const supplier = (document.getElementById("pf_supplier")?.value || "").trim();
+      const catatan = (document.getElementById("pf_catatan")?.value || "").trim();
+      if (!nama) return alert("Nama / jenis wajib diisi.");
+      if (!ukuran) return alert("Ukuran utama wajib diisi.");
+
+      let foto_url = _plastikExistingFotoUrl || "";
+      try {
+        if (_plastikPhotoBase64) {
+          const up = await apiUploadFoto(_plastikPhotoBase64);
+          foto_url = up.foto_url || foto_url;
+        }
+      } catch (e) {
+        return alert("Gagal upload foto: " + e.message);
+      }
+
+      try {
+        if (_plastikEditId) {
+          await apiUpdatePlastik({ id: _plastikEditId, updates: { nama, tipe, ukuran, ukuran_alt, supplier, catatan, foto_url } });
+          toast("Plastik diperbarui.", "success");
+        } else {
+          const stok_awal = Number(document.getElementById("pf_stok_awal")?.value || 0) || 0;
+          await apiCreatePlastik({ data: { nama, tipe, ukuran, ukuran_alt, supplier, catatan, foto_url, stok_awal } });
+          toast("Plastik ditambahkan.", "success");
+        }
+        closeModal("plastikModal");
+        _plastikPhotoBase64 = ""; _plastikExistingFotoUrl = ""; _plastikEditId = "";
+        await renderPlastik();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function plastikPreviewSisa(qtyId, outId, current, isMinus) {
+      const q = Number(document.getElementById(qtyId)?.value || 0) || 0;
+      let sisa = isMinus ? current - q : current + q;
+      sisa = Math.round(sisa * 100) / 100;
+      const out = document.getElementById(outId);
+      if (out) {
+        out.textContent = plastikFmtKg(sisa) + " kg";
+        out.style.color = (isMinus && sisa < 0) ? "var(--danger)" : "";
+      }
+    }
+
+    function openPlastikAmbil(id) {
+      const p = _plastikCache.find(x => String(x.id) === String(id));
+      if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
+      const kg = Number(p.stok_kg || 0);
+      if (kg <= 0) return alert("Stok plastik ini sudah habis (0 kg).");
+      setPlastikModal(`➖ Ambil — ${p.nama} (${p.tipe})`, `
+        <div class="alert alert-info">Sisa stok sekarang: <strong>${plastikFmtKg(kg)} kg</strong>. Masukkan jumlah yang diambil.</div>
+        <div class="form-group">
+          <label>Jumlah diambil (kg) <span class="required">*</span></label>
+          <input id="pa_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 5" oninput="plastikPreviewSisa('pa_qty','pa_sisa', ${kg}, true)">
+        </div>
+        <div class="form-group">
+          <label>Keterangan (opsional — mis. untuk PO)</label>
+          <input id="pa_ket" placeholder="Mis. untuk PO-1234">
+        </div>
+        <div class="muted" style="font-size:13px; margin-bottom:10px">Sisa setelah ambil: <strong id="pa_sisa">${plastikFmtKg(kg)} kg</strong></div>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, () => confirmPlastikAmbil('${p.id}'), 'Menyimpan...')">✓ Catat Pengambilan</button>
+      `);
+      showPlastikModal();
+    }
+
+    async function confirmPlastikAmbil(id) {
+      const qty = Number(document.getElementById("pa_qty")?.value || 0);
+      const ket = (document.getElementById("pa_ket")?.value || "").trim();
+      if (!(qty > 0)) return alert("Jumlah diambil wajib > 0.");
+      try {
+        await apiPlastikStockOut({ id, qty_kg: qty, keterangan: ket });
+        closeModal("plastikModal");
+        await renderPlastik();
+        toast(`Tercatat: ambil ${plastikFmtKg(qty)} kg.`, "success");
+      } catch (e) { alert(e.message); }
+    }
+
+    function openPlastikTambahStok(id) {
+      const p = _plastikCache.find(x => String(x.id) === String(id));
+      if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
+      const kg = Number(p.stok_kg || 0);
+      setPlastikModal(`➕ Tambah stok — ${p.nama} (${p.tipe})`, `
+        <div class="alert alert-info">Sisa stok sekarang: <strong>${plastikFmtKg(kg)} kg</strong>.</div>
+        <div class="form-group">
+          <label>Jumlah masuk (kg) <span class="required">*</span></label>
+          <input id="pt_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 100" oninput="plastikPreviewSisa('pt_qty','pt_sisa', ${kg}, false)">
+        </div>
+        <div class="form-group">
+          <label>Keterangan (opsional — mis. nota / tanggal beli)</label>
+          <input id="pt_ket" placeholder="Mis. nota 0012 / beli 22 Jun">
+        </div>
+        <div class="muted" style="font-size:13px; margin-bottom:10px">Sisa setelah tambah: <strong id="pt_sisa">${plastikFmtKg(kg)} kg</strong></div>
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmPlastikTambahStok('${p.id}'), 'Menyimpan...')">✓ Simpan Stok Masuk</button>
+      `);
+      showPlastikModal();
+    }
+
+    async function confirmPlastikTambahStok(id) {
+      const qty = Number(document.getElementById("pt_qty")?.value || 0);
+      const ket = (document.getElementById("pt_ket")?.value || "").trim();
+      if (!(qty > 0)) return alert("Jumlah masuk wajib > 0.");
+      try {
+        await apiPlastikStockIn({ id, qty_kg: qty, keterangan: ket });
+        closeModal("plastikModal");
+        await renderPlastik();
+        toast(`Tercatat: stok masuk ${plastikFmtKg(qty)} kg.`, "success");
+      } catch (e) { alert(e.message); }
+    }
+
+    async function openPlastikRiwayat(id) {
+      const p = _plastikCache.find(x => String(x.id) === String(id));
+      setPlastikModal(`🕒 Riwayat stok — ${p ? p.nama : id}`, `<div class="muted" style="padding:10px">Memuat...</div>`);
+      showPlastikModal();
+      let rows = [];
+      try {
+        rows = await apiListPlastikMutasi({ plastik_id: id });
+      } catch (e) {
+        setPlastikModal(`🕒 Riwayat stok`, `<div class="alert alert-danger">Gagal memuat: ${safe(e.message)}</div>`);
+        return;
+      }
+      const isOwner = currentUser?.role === "Owner";
+      const body = rows.length ? rows.map(m => {
+        const masuk = String(m.tipe_mutasi).toUpperCase() === "MASUK";
+        const sign = masuk ? "+" : "−";
+        const color = masuk ? "var(--success)" : "var(--danger)";
+        const delBtn = isOwner
+          ? `<button class="btn-danger btn-sm" style="margin-top:6px" onclick="guardedClick(this, () => confirmDeletePlastikMutasi('${safe(m.id)}','${safe(id)}'), 'Menghapus...')">🗑 Hapus baris</button>`
+          : "";
+        return `<div class="history-item" style="border-left-color:${color}">
+          <div><strong style="color:${color}">${sign}${plastikFmtKg(m.qty_kg)} kg</strong> · ${masuk ? "Stok masuk" : "Diambil"} · sisa ${plastikFmtKg(m.saldo_sesudah)} kg</div>
+          <div class="muted">${fmtDate(m.tanggal)} · ${safe(m.oleh || "-")}${m.keterangan ? " · " + safe(m.keterangan) : ""}</div>
+          ${delBtn}
+        </div>`;
+      }).join("") : `<div class="muted" style="padding:10px">Belum ada riwayat.</div>`;
+      setPlastikModal(`🕒 Riwayat stok — ${p ? p.nama : id}`, `
+        <div class="alert alert-info">Tiap penambahan &amp; pengambilan stok tercatat di sini.${isOwner ? " Owner bisa menghapus baris yang salah (stok dikoreksi otomatis)." : ""}</div>
+        ${body}
+      `);
+    }
+
+    async function confirmDeletePlastikMutasi(mutasiId, plastikId) {
+      if (!confirm("Hapus baris riwayat ini? Stok akan dikoreksi otomatis.")) return;
+      try {
+        await apiDeletePlastikMutasi({ id: mutasiId });
+        await renderPlastik();
+        await openPlastikRiwayat(plastikId);
+        toast("Baris riwayat dihapus, stok dikoreksi.", "success");
+      } catch (e) { alert(e.message); }
+    }
+
+    function openPlastikDelete(id) {
+      const p = _plastikCache.find(x => String(x.id) === String(id));
+      if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
+      setPlastikModal(`🗑 Hapus plastik`, `
+        <div class="alert alert-warn">Hapus <strong>${safe(p.nama)} (${safe(p.tipe)})</strong>? Item disembunyikan dari daftar. Riwayat stok tetap tersimpan.</div>
+        <div class="form-group">
+          <label>Alasan hapus <span class="required">*</span></label>
+          <input id="pd_reason" placeholder="Mis. salah input / tidak dipakai lagi">
+        </div>
+        <button class="btn-danger btn-block" onclick="guardedClick(this, () => confirmPlastikDelete('${p.id}'), 'Menghapus...')">🗑 Hapus</button>
+      `);
+      showPlastikModal();
+    }
+
+    async function confirmPlastikDelete(id) {
+      const reason = (document.getElementById("pd_reason")?.value || "").trim();
+      if (reason.length < 4) return alert("Alasan hapus wajib (min 4 karakter).");
+      try {
+        await apiDeletePlastik({ id, reason });
+        closeModal("plastikModal");
+        await renderPlastik();
+        toast("Plastik dihapus.", "success");
+      } catch (e) { alert(e.message); }
+    }
+
 
     async function renderPengiriman() {
       const summaryEl = document.getElementById("pengSummary");
