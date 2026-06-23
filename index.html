@@ -854,6 +854,9 @@
     .plastik-bar { height: 6px; border-radius: 999px; background: #e5e7eb; margin-top: 5px; overflow: hidden; }
     .plastik-bar-fill { height: 100%; }
     .plastik-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .plastik-type { background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 9px 10px; margin-top: 8px; }
+    .plastik-type-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .plastik-form-sec { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -7481,7 +7484,7 @@ Alasan: ${cleanReason}`)) return;
       let list = _plastikCache;
       if (term) {
         list = list.filter(p =>
-          [p.nama, p.ukuran, p.ukuran_alt, p.supplier, p.tipe]
+          [p.nama, p.supplier, p.ukuran_satuan, p.ukuran_satuan_alt, p.ukuran_lusin, p.ukuran_lusin_alt]
             .map(x => String(x || "").toLowerCase()).join(" ").includes(term));
       }
 
@@ -7496,21 +7499,41 @@ Alasan: ${cleanReason}`)) return;
       wrap.innerHTML = list.map(plastikCardHtml).join("");
     }
 
-    function plastikCardHtml(p) {
-      const kg = Number(p.stok_kg || 0);
+    function plastikTypeBlockHtml(p, tipe) {
+      const isSat = tipe === "Satuan";
+      const kg = Number(isSat ? p.stok_satuan_kg : p.stok_lusin_kg) || 0;
+      const uk = isSat ? p.ukuran_satuan : p.ukuran_lusin;
+      const ukAlt = isSat ? p.ukuran_satuan_alt : p.ukuran_lusin_alt;
       const tone = plastikStokTone_(kg);
-      const tipeBadge = p.tipe === "Pak"
-        ? `<span class="badge" style="background:#e5e7eb;color:#374151">Pak</span>`
-        : `<span class="badge" style="background:#dbeafe;color:#1e3a8a">Satuan</span>`;
-      const ukuran = safe(p.ukuran || "-") + (p.ukuran_alt ? ` <span class="muted">/ alt ${safe(p.ukuran_alt)}</span>` : "");
+      const ukuranTxt = uk
+        ? safe(uk) + (ukAlt ? ` <span class="muted">/ alt ${safe(ukAlt)}</span>` : "")
+        : `<span class="muted">ukuran belum diisi</span>`;
+      const stokTxt = kg <= 0 ? "0 kg · habis" : (tone.label ? `${plastikFmtKg(kg)} kg · ${tone.label}` : `${plastikFmtKg(kg)} kg`);
+      const barW = Math.max(0, Math.min(100, kg));
+      const badgeStyle = isSat ? "background:#dbeafe;color:#1e3a8a" : "background:#fef3c7;color:#92400e";
+      const ambilDisabled = kg <= 0 ? "disabled" : "";
+      return `
+        <div class="plastik-type">
+          <div class="plastik-type-head">
+            <span class="badge" style="${badgeStyle}">${tipe}</span>
+            <span class="plastik-card-meta" style="margin:0">Ukuran ${ukuranTxt}</span>
+          </div>
+          <div class="plastik-stok-row" style="margin-top:6px">
+            <span class="muted" style="font-size:12px">Sisa stok</span>
+            <span style="font-weight:900; color:${tone.color}">${stokTxt}</span>
+          </div>
+          <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${barW}%; background:${tone.color}"></div></div>
+          <div class="plastik-actions" style="margin-top:8px">
+            <button class="btn-warning btn-sm" onclick="openPlastikAmbil('${p.id}','${tipe}')" ${ambilDisabled}>➖ Ambil</button>
+            <button class="btn-success btn-sm" onclick="openPlastikTambahStok('${p.id}','${tipe}')">➕ Tambah stok</button>
+          </div>
+        </div>`;
+    }
+
+    function plastikCardHtml(p) {
       const foto = p.foto_url
         ? `<img src="${safe(p.foto_url)}" alt="foto" class="plastik-thumb" onclick="openPlastikPhoto('${safe(p.foto_url)}')" referrerpolicy="no-referrer">`
         : `<div class="plastik-thumb plastik-thumb-empty">📷</div>`;
-      const stokTxt = kg <= 0
-        ? "0 kg · habis"
-        : (tone.label ? `${plastikFmtKg(kg)} kg · ${tone.label}` : `${plastikFmtKg(kg)} kg`);
-      const barW = Math.max(0, Math.min(100, kg));
-      const ambilDisabled = kg <= 0 ? "disabled" : "";
       return `
       <div class="plastik-card">
         <div class="plastik-card-top">
@@ -7518,26 +7541,17 @@ Alasan: ${cleanReason}`)) return;
           <div class="plastik-card-info">
             <div class="plastik-card-namerow">
               <span class="plastik-card-name">${safe(p.nama || "-")}</span>
-              ${tipeBadge}
             </div>
-            <div class="plastik-card-meta">Ukuran ${ukuran}</div>
             <div class="plastik-card-meta">Supplier: ${safe(p.supplier || "-")}</div>
             ${p.catatan ? `<div class="plastik-card-meta muted">${safe(p.catatan)}</div>` : ""}
           </div>
         </div>
-        <div class="plastik-stok">
-          <div class="plastik-stok-row">
-            <span class="muted" style="font-size:12px">Sisa stok</span>
-            <span style="font-weight:900; color:${tone.color}">${stokTxt}</span>
-          </div>
-          <div class="plastik-bar"><div class="plastik-bar-fill" style="width:${barW}%; background:${tone.color}"></div></div>
-        </div>
-        <div class="plastik-actions">
-          <button class="btn-warning btn-sm" onclick="openPlastikAmbil('${p.id}')" ${ambilDisabled}>➖ Ambil</button>
-          <button class="btn-success btn-sm" onclick="openPlastikTambahStok('${p.id}')">➕ Tambah stok</button>
+        ${plastikTypeBlockHtml(p, "Satuan")}
+        ${plastikTypeBlockHtml(p, "Lusin")}
+        <div class="plastik-actions" style="margin-top:10px; border-top:1px solid var(--line); padding-top:10px">
           <button class="btn-outline btn-sm" onclick="openPlastikRiwayat('${p.id}')">🕒 Riwayat</button>
           <button class="btn-outline btn-sm" onclick="openPlastikForm('${p.id}')">✏️ Edit</button>
-          <button class="btn-danger btn-sm" onclick="openPlastikDelete('${p.id}')">🗑</button>
+          <button class="btn-danger btn-sm" onclick="openPlastikDelete('${p.id}')">🗑 Hapus</button>
         </div>
       </div>`;
     }
@@ -7557,37 +7571,51 @@ Alasan: ${cleanReason}`)) return;
       setPlastikModal(isEdit ? "✏️ Edit Plastik" : "➕ Tambah Plastik", `
         <div class="form-group">
           <label>Nama / jenis kaos kaki <span class="required">*</span></label>
-          <input id="pf_nama" value="${safe(p.nama || "")}" placeholder="Mis. Kaos kaki jempol">
+          <input id="pf_nama" value="${safe(p.nama || "")}" placeholder="Mis. Jempol Zasirah">
         </div>
-        <div class="grid-2">
-          <div class="form-group">
-            <label>Tipe plastik <span class="required">*</span></label>
-            <select id="pf_tipe">
-              <option value="Satuan" ${(p.tipe === "Satuan" || !p.tipe) ? "selected" : ""}>Satuan (per pcs)</option>
-              <option value="Pak" ${p.tipe === "Pak" ? "selected" : ""}>Pak (lusin)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Supplier</label>
-            <input id="pf_supplier" value="${safe(p.supplier || "")}" placeholder="Nama supplier">
-          </div>
-        </div>
-        <div class="grid-2">
-          <div class="form-group">
-            <label>Ukuran utama <span class="required">*</span></label>
-            <input id="pf_ukuran" value="${safe(p.ukuran || "")}" placeholder="Mis. 11x24">
-          </div>
-          <div class="form-group">
-            <label>Ukuran alternatif (opsional)</label>
-            <input id="pf_ukuran_alt" value="${safe(p.ukuran_alt || "")}" placeholder="Mis. 11x26">
-          </div>
-        </div>
-        ${isEdit ? "" : `
         <div class="form-group">
-          <label>Stok awal (kg, opsional)</label>
-          <input id="pf_stok_awal" type="number" step="any" inputmode="decimal" placeholder="Mis. 100">
-          <span class="small muted">Kalau diisi, otomatis dicatat sebagai stok masuk pertama.</span>
-        </div>`}
+          <label>Supplier</label>
+          <input id="pf_supplier" value="${safe(p.supplier || "")}" placeholder="Nama supplier">
+        </div>
+
+        <div class="plastik-form-sec">
+          <span class="badge" style="background:#dbeafe;color:#1e3a8a">Plastik Satuan</span>
+          <div class="grid-2" style="margin-top:8px">
+            <div class="form-group">
+              <label>Ukuran</label>
+              <input id="pf_uk_sat" value="${safe(p.ukuran_satuan || "")}" placeholder="Mis. 11x24">
+            </div>
+            <div class="form-group">
+              <label>Ukuran alternatif</label>
+              <input id="pf_uk_sat_alt" value="${safe(p.ukuran_satuan_alt || "")}" placeholder="Mis. 11x26">
+            </div>
+          </div>
+          ${isEdit ? "" : `
+          <div class="form-group" style="margin-bottom:0">
+            <label>Stok awal Satuan (kg, opsional)</label>
+            <input id="pf_stok_sat" type="number" step="any" inputmode="decimal" placeholder="Mis. 100">
+          </div>`}
+        </div>
+
+        <div class="plastik-form-sec">
+          <span class="badge" style="background:#fef3c7;color:#92400e">Plastik Lusin</span>
+          <div class="grid-2" style="margin-top:8px">
+            <div class="form-group">
+              <label>Ukuran</label>
+              <input id="pf_uk_lus" value="${safe(p.ukuran_lusin || "")}" placeholder="Mis. 32x40">
+            </div>
+            <div class="form-group">
+              <label>Ukuran alternatif</label>
+              <input id="pf_uk_lus_alt" value="${safe(p.ukuran_lusin_alt || "")}" placeholder="opsional">
+            </div>
+          </div>
+          ${isEdit ? "" : `
+          <div class="form-group" style="margin-bottom:0">
+            <label>Stok awal Lusin (kg, opsional)</label>
+            <input id="pf_stok_lus" type="number" step="any" inputmode="decimal" placeholder="Mis. 50">
+          </div>`}
+        </div>
+
         <div class="form-group">
           <label>Catatan (opsional)</label>
           <textarea id="pf_catatan" placeholder="Catatan bebas">${safe(p.catatan || "")}</textarea>
@@ -7599,7 +7627,7 @@ Alasan: ${cleanReason}`)) return;
             <div id="pfPhotoPlaceholder" ${p.foto_url ? 'style="display:none"' : ""}>
               <div style="font-size:30px">📷</div>
               <strong>Klik untuk pilih / ambil foto</strong><br>
-              <span class="small">foto besar, max 10MB</span>
+              <span class="small">boleh nanti — foto besar, max 10MB</span>
             </div>
             <img id="pfPhotoPreview" class="photo-preview" alt="Preview" ${p.foto_url ? `src="${safe(p.foto_url)}" style="display:block"` : ""}>
           </label>
@@ -7645,13 +7673,13 @@ Alasan: ${cleanReason}`)) return;
 
     async function submitPlastikForm() {
       const nama = (document.getElementById("pf_nama")?.value || "").trim();
-      const tipe = document.getElementById("pf_tipe")?.value || "";
-      const ukuran = (document.getElementById("pf_ukuran")?.value || "").trim();
-      const ukuran_alt = (document.getElementById("pf_ukuran_alt")?.value || "").trim();
       const supplier = (document.getElementById("pf_supplier")?.value || "").trim();
+      const ukuran_satuan = (document.getElementById("pf_uk_sat")?.value || "").trim();
+      const ukuran_satuan_alt = (document.getElementById("pf_uk_sat_alt")?.value || "").trim();
+      const ukuran_lusin = (document.getElementById("pf_uk_lus")?.value || "").trim();
+      const ukuran_lusin_alt = (document.getElementById("pf_uk_lus_alt")?.value || "").trim();
       const catatan = (document.getElementById("pf_catatan")?.value || "").trim();
       if (!nama) return alert("Nama / jenis wajib diisi.");
-      if (!ukuran) return alert("Ukuran utama wajib diisi.");
 
       let foto_url = _plastikExistingFotoUrl || "";
       try {
@@ -7665,11 +7693,19 @@ Alasan: ${cleanReason}`)) return;
 
       try {
         if (_plastikEditId) {
-          await apiUpdatePlastik({ id: _plastikEditId, updates: { nama, tipe, ukuran, ukuran_alt, supplier, catatan, foto_url } });
+          await apiUpdatePlastik({ id: _plastikEditId, updates: {
+            nama, supplier, catatan, foto_url,
+            ukuran_satuan, ukuran_satuan_alt, ukuran_lusin, ukuran_lusin_alt
+          } });
           toast("Plastik diperbarui.", "success");
         } else {
-          const stok_awal = Number(document.getElementById("pf_stok_awal")?.value || 0) || 0;
-          await apiCreatePlastik({ data: { nama, tipe, ukuran, ukuran_alt, supplier, catatan, foto_url, stok_awal } });
+          const stok_awal_satuan = Number(document.getElementById("pf_stok_sat")?.value || 0) || 0;
+          const stok_awal_lusin = Number(document.getElementById("pf_stok_lus")?.value || 0) || 0;
+          await apiCreatePlastik({ data: {
+            nama, supplier, catatan, foto_url,
+            ukuran_satuan, ukuran_satuan_alt, ukuran_lusin, ukuran_lusin_alt,
+            stok_awal_satuan, stok_awal_lusin
+          } });
           toast("Plastik ditambahkan.", "success");
         }
         closeModal("plastikModal");
@@ -7691,13 +7727,14 @@ Alasan: ${cleanReason}`)) return;
       }
     }
 
-    function openPlastikAmbil(id) {
+    function openPlastikAmbil(id, tipe) {
       const p = _plastikCache.find(x => String(x.id) === String(id));
       if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
-      const kg = Number(p.stok_kg || 0);
-      if (kg <= 0) return alert("Stok plastik ini sudah habis (0 kg).");
-      setPlastikModal(`➖ Ambil — ${p.nama} (${p.tipe})`, `
-        <div class="alert alert-info">Sisa stok sekarang: <strong>${plastikFmtKg(kg)} kg</strong>. Masukkan jumlah yang diambil.</div>
+      const isSat = tipe === "Satuan";
+      const kg = Number(isSat ? p.stok_satuan_kg : p.stok_lusin_kg) || 0;
+      if (kg <= 0) return alert(`Stok plastik ${tipe} ini sudah habis (0 kg).`);
+      setPlastikModal(`➖ Ambil ${tipe} — ${p.nama}`, `
+        <div class="alert alert-info">Sisa stok ${tipe} sekarang: <strong>${plastikFmtKg(kg)} kg</strong>. Masukkan jumlah yang diambil.</div>
         <div class="form-group">
           <label>Jumlah diambil (kg) <span class="required">*</span></label>
           <input id="pa_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 5" oninput="plastikPreviewSisa('pa_qty','pa_sisa', ${kg}, true)">
@@ -7707,29 +7744,30 @@ Alasan: ${cleanReason}`)) return;
           <input id="pa_ket" placeholder="Mis. untuk PO-1234">
         </div>
         <div class="muted" style="font-size:13px; margin-bottom:10px">Sisa setelah ambil: <strong id="pa_sisa">${plastikFmtKg(kg)} kg</strong></div>
-        <button class="btn-warning btn-block" onclick="guardedClick(this, () => confirmPlastikAmbil('${p.id}'), 'Menyimpan...')">✓ Catat Pengambilan</button>
+        <button class="btn-warning btn-block" onclick="guardedClick(this, () => confirmPlastikAmbil('${p.id}','${tipe}'), 'Menyimpan...')">✓ Catat Pengambilan</button>
       `);
       showPlastikModal();
     }
 
-    async function confirmPlastikAmbil(id) {
+    async function confirmPlastikAmbil(id, tipe) {
       const qty = Number(document.getElementById("pa_qty")?.value || 0);
       const ket = (document.getElementById("pa_ket")?.value || "").trim();
       if (!(qty > 0)) return alert("Jumlah diambil wajib > 0.");
       try {
-        await apiPlastikStockOut({ id, qty_kg: qty, keterangan: ket });
+        await apiPlastikStockOut({ id, tipe, qty_kg: qty, keterangan: ket });
         closeModal("plastikModal");
         await renderPlastik();
-        toast(`Tercatat: ambil ${plastikFmtKg(qty)} kg.`, "success");
+        toast(`Tercatat: ambil ${plastikFmtKg(qty)} kg (${tipe}).`, "success");
       } catch (e) { alert(e.message); }
     }
 
-    function openPlastikTambahStok(id) {
+    function openPlastikTambahStok(id, tipe) {
       const p = _plastikCache.find(x => String(x.id) === String(id));
       if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
-      const kg = Number(p.stok_kg || 0);
-      setPlastikModal(`➕ Tambah stok — ${p.nama} (${p.tipe})`, `
-        <div class="alert alert-info">Sisa stok sekarang: <strong>${plastikFmtKg(kg)} kg</strong>.</div>
+      const isSat = tipe === "Satuan";
+      const kg = Number(isSat ? p.stok_satuan_kg : p.stok_lusin_kg) || 0;
+      setPlastikModal(`➕ Tambah stok ${tipe} — ${p.nama}`, `
+        <div class="alert alert-info">Sisa stok ${tipe} sekarang: <strong>${plastikFmtKg(kg)} kg</strong>.</div>
         <div class="form-group">
           <label>Jumlah masuk (kg) <span class="required">*</span></label>
           <input id="pt_qty" type="number" step="any" inputmode="decimal" placeholder="Mis. 100" oninput="plastikPreviewSisa('pt_qty','pt_sisa', ${kg}, false)">
@@ -7739,20 +7777,20 @@ Alasan: ${cleanReason}`)) return;
           <input id="pt_ket" placeholder="Mis. nota 0012 / beli 22 Jun">
         </div>
         <div class="muted" style="font-size:13px; margin-bottom:10px">Sisa setelah tambah: <strong id="pt_sisa">${plastikFmtKg(kg)} kg</strong></div>
-        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmPlastikTambahStok('${p.id}'), 'Menyimpan...')">✓ Simpan Stok Masuk</button>
+        <button class="btn-success btn-block" onclick="guardedClick(this, () => confirmPlastikTambahStok('${p.id}','${tipe}'), 'Menyimpan...')">✓ Simpan Stok Masuk</button>
       `);
       showPlastikModal();
     }
 
-    async function confirmPlastikTambahStok(id) {
+    async function confirmPlastikTambahStok(id, tipe) {
       const qty = Number(document.getElementById("pt_qty")?.value || 0);
       const ket = (document.getElementById("pt_ket")?.value || "").trim();
       if (!(qty > 0)) return alert("Jumlah masuk wajib > 0.");
       try {
-        await apiPlastikStockIn({ id, qty_kg: qty, keterangan: ket });
+        await apiPlastikStockIn({ id, tipe, qty_kg: qty, keterangan: ket });
         closeModal("plastikModal");
         await renderPlastik();
-        toast(`Tercatat: stok masuk ${plastikFmtKg(qty)} kg.`, "success");
+        toast(`Tercatat: stok masuk ${plastikFmtKg(qty)} kg (${tipe}).`, "success");
       } catch (e) { alert(e.message); }
     }
 
@@ -7772,17 +7810,18 @@ Alasan: ${cleanReason}`)) return;
         const masuk = String(m.tipe_mutasi).toUpperCase() === "MASUK";
         const sign = masuk ? "+" : "−";
         const color = masuk ? "var(--success)" : "var(--danger)";
+        const tipe = safe(m.tipe || "-");
         const delBtn = isOwner
           ? `<button class="btn-danger btn-sm" style="margin-top:6px" onclick="guardedClick(this, () => confirmDeletePlastikMutasi('${safe(m.id)}','${safe(id)}'), 'Menghapus...')">🗑 Hapus baris</button>`
           : "";
         return `<div class="history-item" style="border-left-color:${color}">
-          <div><strong style="color:${color}">${sign}${plastikFmtKg(m.qty_kg)} kg</strong> · ${masuk ? "Stok masuk" : "Diambil"} · sisa ${plastikFmtKg(m.saldo_sesudah)} kg</div>
+          <div><span class="badge" style="background:#eef2f7;color:#475569">${tipe}</span> <strong style="color:${color}">${sign}${plastikFmtKg(m.qty_kg)} kg</strong> · ${masuk ? "Stok masuk" : "Diambil"} · sisa ${plastikFmtKg(m.saldo_sesudah)} kg</div>
           <div class="muted">${fmtDate(m.tanggal)} · ${safe(m.oleh || "-")}${m.keterangan ? " · " + safe(m.keterangan) : ""}</div>
           ${delBtn}
         </div>`;
       }).join("") : `<div class="muted" style="padding:10px">Belum ada riwayat.</div>`;
       setPlastikModal(`🕒 Riwayat stok — ${p ? p.nama : id}`, `
-        <div class="alert alert-info">Tiap penambahan &amp; pengambilan stok tercatat di sini.${isOwner ? " Owner bisa menghapus baris yang salah (stok dikoreksi otomatis)." : ""}</div>
+        <div class="alert alert-info">Riwayat stok Satuan &amp; Lusin (MASUK/KELUAR).${isOwner ? " Owner bisa menghapus baris yang salah (stok dikoreksi otomatis)." : ""}</div>
         ${body}
       `);
     }
@@ -7801,7 +7840,7 @@ Alasan: ${cleanReason}`)) return;
       const p = _plastikCache.find(x => String(x.id) === String(id));
       if (!p) return alert("Plastik tidak ditemukan, refresh dulu.");
       setPlastikModal(`🗑 Hapus plastik`, `
-        <div class="alert alert-warn">Hapus <strong>${safe(p.nama)} (${safe(p.tipe)})</strong>? Item disembunyikan dari daftar. Riwayat stok tetap tersimpan.</div>
+        <div class="alert alert-warn">Hapus <strong>${safe(p.nama)}</strong>? Item (Satuan &amp; Lusin) disembunyikan dari daftar. Riwayat stok tetap tersimpan.</div>
         <div class="form-group">
           <label>Alasan hapus <span class="required">*</span></label>
           <input id="pd_reason" placeholder="Mis. salah input / tidak dipakai lagi">
