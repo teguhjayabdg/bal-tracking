@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44.6 + Detail Cepat)</title>
+  <title>Bal Tracking 3.0 - Cloud (v44.7 + Detail Cepat)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1701,7 +1701,7 @@
     }
     function _balStoreGetFresh(id) {
       // v39.1: hanya pakai store untuk Detail kalau store masih fresh (dalam TTL).
-      // v44.6: tetap dipertahankan untuk pemakai lama, tapi openDetail sekarang
+      // v44.7: tetap dipertahankan untuk pemakai lama, tapi openDetail sekarang
       // memakai _balStoreGet(id) dulu agar modal detail langsung muncul dari data lokal.
       if (!_balStoreFresh()) return null;
       return _balStoreGet(id);
@@ -4465,7 +4465,7 @@ Alasan: ${cleanReason}`)) return;
           // riwayat tetap lazy lewat tombol "Muat Riwayat" (konsisten dgn v38).
           let local = null;
           if (options.includeHistory !== true) {
-            // v44.6 DETAIL CEPAT:
+            // v44.7 DETAIL CEPAT:
             // Sebelumnya detail hanya memakai store kalau masih fresh (<60 dtk).
             // Setelah lewat TTL, klik Detail harus menunggu Apps Script/getBalBundle,
             // terasa lama walau data bal sebenarnya sudah ada di Daftar Bal.
@@ -4545,7 +4545,7 @@ Alasan: ${cleanReason}`)) return;
         document.getElementById("detailModal").classList.add("show");
         // v38: history tidak otomatis dimuat; klik tombol Muat Riwayat bila diperlukan.
 
-        // v44.6: jika detail dibuka dari store yang sudah lewat TTL, jangan blok UI.
+        // v44.7: jika detail dibuka dari store yang sudah lewat TTL, jangan blok UI.
         // Refresh data bal di background agar cache/store tetap akurat untuk klik berikutnya.
         if (usedStaleLocalDetail && b && b.bal_id) {
           const beforeKey = _balSnapshotKey(b);
