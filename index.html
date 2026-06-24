@@ -1958,6 +1958,26 @@
       return await api("login", { username, pin });
     }
 
+    // v44.8: ambil daftar bal dalam format COMPACT (headers + rows) lalu rekonstruksi jadi
+    // array objek. Memangkas payload Daftar Bal drastis (nama ~110 kolom tidak diulang tiap
+    // baris). Tetap kompatibel kalau backend mengembalikan array objek lama (fallback).
+    async function _fetchBalListCompact_(includeDeleted) {
+      const payload = { compact: true };
+      if (includeDeleted) payload.includeDeleted = true;
+      const res = await api("listBals", payload, { cache: false });
+      if (res && Array.isArray(res.rows) && Array.isArray(res.headers)) {
+        const h = res.headers, n = h.length;
+        const out = new Array(res.rows.length);
+        for (let r = 0; r < res.rows.length; r++) {
+          const row = res.rows[r], o = {};
+          for (let i = 0; i < n; i++) o[h[i]] = row[i];
+          out[r] = o;
+        }
+        return out;
+      }
+      return Array.isArray(res) ? res : []; // fallback: backend belum mendukung compact
+    }
+
     async function apiListBals(options = {}) {
       // v39: store sisi-klien adalah cache-nya. Kalau masih fresh & tidak dipaksa,
       // kembalikan dari store (0 network).
@@ -1966,7 +1986,7 @@
       }
       // v39.1 force: selalu fetch fresh, jangan nebeng fetch yang sedang jalan.
       if (options.force) {
-        const list = await api("listBals", {}, { cache: false });
+        const list = await _fetchBalListCompact_(false);
         _balStoreSetAll(list || []);
         return _balStoreList();
       }
@@ -1978,7 +1998,7 @@
       }
       _balStoreFetchPromise = (async () => {
         try {
-          const list = await api("listBals", {}, { cache: false });
+          const list = await _fetchBalListCompact_(false);
           _balStoreSetAll(list || []);
         } finally {
           _balStoreFetchPromise = null;
@@ -2012,7 +2032,7 @@
       if (_balStoreBackgroundRefreshPromise) return _balStoreBackgroundRefreshPromise;
       _balStoreBackgroundRefreshPromise = (async () => {
         try {
-          const list = await api("listBals", {}, { cache: false });
+          const list = await _fetchBalListCompact_(false);
           _balStoreSetAll(list || []);
           if (currentTab === "list") {
             setTimeout(() => {
