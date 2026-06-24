@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44 + Stok Plastik: bahan plastik satuan/pak per kg)</title>
+  <title>Bal Tracking 3.0 - Cloud (v44 + Stok Plastik: ID Bal unik timestamp)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1625,6 +1625,11 @@
     const _balStore = { byId: new Map(), order: [], fetchedAt: 0 };
     const BAL_STORE_TTL_MS = 60000;
     let _balStoreFetchPromise = null; // v39.1: single-flight guard untuk listBals
+    // v44.2: pencarian Daftar Bal harus tetap instan walau cache list sudah lewat TTL.
+    // Kalau store lama masih ada, filter memakai data lokal dulu lalu refresh server jalan di background.
+    let _balStoreBackgroundRefreshPromise = null;
+    let _listRenderSeq = 0;
+    let _listFilterRenderRaf = 0;
 
     function _balStoreFresh() {
       return _balStore.fetchedAt > 0 && (Date.now() - _balStore.fetchedAt) < BAL_STORE_TTL_MS;
@@ -1933,6 +1938,41 @@
       })();
       await _balStoreFetchPromise;
       return _balStoreList();
+    }
+
+
+    // v44.2: versi cepat untuk UI Daftar Bal.
+    // Masalah sebelumnya: setelah cache 60 dtk kedaluwarsa, ketik search bisa menunggu Apps Script.
+    // Sekarang search/render memakai store lokal dulu (0 network), lalu server disegarkan background.
+    async function apiListBalsFast(options = {}) {
+      const hasLocal = _balStore.order && _balStore.order.length > 0;
+      if (hasLocal) {
+        if (!_balStoreFresh() && options.backgroundRefresh !== false) {
+          refreshBalStoreInBackground();
+        }
+        return _balStoreList();
+      }
+      return await apiListBals(options);
+    }
+
+    function refreshBalStoreInBackground() {
+      if (_balStoreBackgroundRefreshPromise) return _balStoreBackgroundRefreshPromise;
+      _balStoreBackgroundRefreshPromise = (async () => {
+        try {
+          const list = await api("listBals", {}, { cache: false });
+          _balStoreSetAll(list || []);
+          if (currentTab === "list") {
+            setTimeout(() => {
+              renderList({ backgroundRefresh: false }).catch(e => console.warn("renderList after background refresh:", e));
+            }, 0);
+          }
+        } catch (e) {
+          console.warn("refreshBalStoreInBackground:", e && e.message ? e.message : e);
+        } finally {
+          _balStoreBackgroundRefreshPromise = null;
+        }
+      })();
+      return _balStoreBackgroundRefreshPromise;
     }
 
     async function apiGetBal(bal_id) {
@@ -2373,13 +2413,12 @@
        UTIL
        ============================================================ */
 
-    // v42.11: kode bal = BAL-{YYMMDD}-{buku}-{halaman}-{urut 2 digit}.
-    // - buku & halaman diambil dari field bal (angka saja; "A" dll dibuang).
-    // - urut = nomor terakhir yang sudah dipakai untuk buku+halaman+tanggal yang SAMA + 1,
-    //   discan dari bal_id yang sudah ada. Dipad 2 digit (01..99); kalau >99 otomatis 3 digit.
-    // - Kalau buku/halaman kosong (data lama / tak wajar) → fallback ke timestamp lama supaya tetap unik.
-    // - Ada pengaman: kalau kandidat ternyata sudah ada, urut dinaikkan sampai bebas.
-    // Catatan: server (apiCreateBal) juga menolak bal_id duplikat sebagai lapis pengaman terakhir.
+    // v44.2: kode bal tetap menyimpan Buku-Halaman, tapi suffix dibuat ANGKA pendek.
+    // Format baru: BAL-{YYMMDD}-{buku}-{halaman}-{KODE4}
+    // Contoh: BAL-260624-29-72-4827
+    // - 29-72 tetap terlihat jelas untuk Buku A 29 / Halaman 72.
+    // - KODE4 = 4 digit angka random 1000-9999, pendek untuk ditulis pegawai.
+    // - Kalau terjadi tabrakan sangat langka, generate ulang; server tetap menolak bal_id duplikat sebagai pengaman terakhir.
     function generateBalId(existingBals, bukuNomor, halamanBuku) {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(-2);
@@ -2390,36 +2429,33 @@
       const book = String(bukuNomor || "").replace(/\D/g, "");
       const page = String(halamanBuku || "").replace(/\D/g, "");
 
-      // Fallback timestamp (dipakai juga kalau dipanggil tanpa argumen, mis. kode lama).
-      const stamp = () => {
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mi = String(now.getMinutes()).padStart(2, "0");
-        const ss = String(now.getSeconds()).padStart(2, "0");
-        const ms = String(now.getMilliseconds()).padStart(3, "0");
-        return `BAL-${datePart}-${hh}${mi}${ss}${ms}`;
-      };
-      if (!book || !page) return stamp();
-
-      const prefix = `BAL-${datePart}-${book}-${page}-`;
-      const re = new RegExp(`^BAL-${datePart}-${book}-${page}-(\\d+)$`);
-      const ids = (existingBals || []).map(b => String(b.bal_id || ""));
-      let maxSeq = 0;
-      ids.forEach(id => {
-        const m = re.exec(id);
-        if (m) {
-          const n = parseInt(m[1], 10);
-          if (Number.isFinite(n) && n > maxSeq) maxSeq = n;
+      const randomInt = (min, max) => {
+        const span = max - min + 1;
+        if (window.crypto && window.crypto.getRandomValues) {
+          const arr = new Uint32Array(1);
+          window.crypto.getRandomValues(arr);
+          return min + (arr[0] % span);
         }
-      });
+        return min + Math.floor(Math.random() * span);
+      };
+      const makeCode = (digits = 4) => {
+        const min = Math.pow(10, digits - 1);
+        const max = Math.pow(10, digits) - 1;
+        return String(randomInt(min, max));
+      };
 
-      const existingIds = new Set(ids);
-      let seq = maxSeq + 1;
-      let candidate = prefix + String(seq).padStart(2, "0");
-      while (existingIds.has(candidate)) {
-        seq += 1;
-        candidate = prefix + String(seq).padStart(2, "0");
+      const prefix = (!book || !page)
+        ? `BAL-${datePart}`
+        : `BAL-${datePart}-${book}-${page}`;
+
+      const existingIds = new Set((existingBals || []).map(b => String(b.bal_id || "").toUpperCase()));
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const candidate = `${prefix}-${makeCode(4)}`;
+        if (!existingIds.has(candidate.toUpperCase())) return candidate;
       }
-      return candidate;
+
+      // Fallback sangat jarang: 5 digit, hanya kalau 4 digit sudah berkali-kali tabrakan.
+      return `${prefix}-${makeCode(5)}`;
     }
 
     function fmtDate(iso) {
@@ -3343,15 +3379,24 @@
         document.getElementById("photoWarning").style.display = "block";
         return alert("Foto bal wajib diisi.");
       }
-      // Cek dup di server side (case sensitive check)
+      // v44: Cegah salah input nomor bal berulang.
+      // Masalah lama: ID bisa terlihat mirip karena PO + No Bal yang sama diinput lagi di hari berbeda.
+      // Sekarang PO + Nomor Bal dibuat unik. Kalau KING Bal #1 sudah ada, input KING Bal #1 berikutnya ditolak.
       let existing = [];
       try { existing = await apiListBals(); } catch (e) { toast("Tidak bisa cek duplikat: " + e.message, "warn"); }
-      const today = new Date().toISOString().slice(0, 10);
-      const dup = (existing || []).find(b => b.po_id === po_id && String(b.nomor_bal) === nomor_bal && String(b.no_mesin) === no_mesin && String(b.tanggal_buat || "").slice(0, 10) === today);
-      if (dup && !confirm(`Peringatan: PO + No Bal + Mesin sudah ada hari ini (${dup.bal_id}). Tetap simpan?`)) return;
+      const normKey = v => String(v || "").trim().toUpperCase();
+      const dupPoNo = (existing || []).find(b =>
+        normKey(b.po_id) === normKey(po_id) &&
+        String(b.nomor_bal || "").trim() === String(nomor_bal || "").trim()
+      );
+      if (dupPoNo) {
+        return alert(`Input ditolak: PO ${po_id} Bal #${nomor_bal} sudah pernah dibuat (${dupPoNo.bal_id}).
 
-      // v42.11: kode bal dihitung SEKALI (format buku-halaman-urut) lalu dipakai untuk nama file foto + data bal,
-      // supaya foto dan bal punya ID yang sama persis.
+Untuk menghindari kekeliruan, ganti Nomor Bal berikutnya. Contoh: Bal #2, #3, dst.`);
+      }
+
+      // v44.2: kode bal dihitung SEKALI dengan suffix 4 digit angka unik,
+      // supaya tetap pendek untuk ditulis tetapi tidak berulang seperti -01.
       let newBalId = generateBalId(existing, buku_nomor, halaman_buku);
 
       try {
@@ -3419,8 +3464,9 @@
        LIST
        ============================================================ */
 
-    async function filteredBals() {
-      let bals = focusBalsForRole(await apiListBals());
+    async function filteredBals(listSource) {
+      const source = Array.isArray(listSource) ? listSource : await apiListBalsFast({ backgroundRefresh: true });
+      let bals = focusBalsForRole(source);
       const q = document.getElementById("filterSearch")?.value.toLowerCase().trim() || "";
       const d = document.getElementById("filterDate")?.value || "";
       const l = document.getElementById("filterLine")?.value.toLowerCase().trim() || "";
@@ -3455,9 +3501,12 @@
       return bals;
     }
 
-    async function renderList() {
-      const bals = await filteredBals();
-      const all = await apiListBals();
+    async function renderList(options = {}) {
+      const renderSeq = ++_listRenderSeq;
+      const all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
+      if (renderSeq !== _listRenderSeq) return;
+      const bals = await filteredBals(all);
+      if (renderSeq !== _listRenderSeq) return;
       // v39.2: isi opsi dropdown Jenis & Warna dari daftar bal sesuai role (sebelum filter).
       const focusAll = focusBalsForRole(all);
       refreshListFacetFilters(focusAll);
@@ -3565,7 +3614,14 @@
       // ada bal lama yang tersembunyi tetapi masih ikut terpilih.
       if (typeof bulkSelectedBalIds !== "undefined") bulkSelectedBalIds.clear();
       listRenderLimit = LIST_PAGE_SIZE;
-      renderList();
+
+      // v44.2: render filter/search di frame berikutnya saja.
+      // Ini mencegah banyak render tumpuk saat user mengetik cepat, tapi tetap terasa instan.
+      if (_listFilterRenderRaf) cancelAnimationFrame(_listFilterRenderRaf);
+      _listFilterRenderRaf = requestAnimationFrame(() => {
+        _listFilterRenderRaf = 0;
+        renderList().catch(e => console.warn("onListFilterChange renderList:", e));
+      });
     }
 
     /* ============================================================
