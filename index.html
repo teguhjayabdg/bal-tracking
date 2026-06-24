@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44 + Stok Plastik: ID Bal unik timestamp)</title>
+  <title>Bal Tracking 3.0 - Cloud (v44.4 + ID Bal angka unik saja)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -2413,7 +2413,7 @@
        UTIL
        ============================================================ */
 
-    // v44.2: kode bal tetap menyimpan Buku-Halaman, tapi suffix dibuat ANGKA pendek.
+    // v44.4: kode bal tetap menyimpan Buku-Halaman, tapi suffix dibuat ANGKA pendek dan unik.
     // Format baru: BAL-{YYMMDD}-{buku}-{halaman}-{KODE4}
     // Contoh: BAL-260624-29-72-4827
     // - 29-72 tetap terlihat jelas untuk Buku A 29 / Halaman 72.
@@ -3379,23 +3379,19 @@
         document.getElementById("photoWarning").style.display = "block";
         return alert("Foto bal wajib diisi.");
       }
-      // v44: Cegah salah input nomor bal berulang.
-      // Masalah lama: ID bisa terlihat mirip karena PO + No Bal yang sama diinput lagi di hari berbeda.
-      // Sekarang PO + Nomor Bal dibuat unik. Kalau KING Bal #1 sudah ada, input KING Bal #1 berikutnya ditolak.
+      // v44.4: JANGAN cek duplikat PO / Nomor Bal / MC.
+      // Alur pabrik memperbolehkan PO yang sama jalan lagi di mesin yang sama,
+      // dan nomor bal bisa mulai dari #1 lagi. Pengaman cukup di ID Bal teknis.
+      // Format ID tetap: BAL-{tanggal}-{buku}-{halaman}-{4 digit angka unik}.
       let existing = [];
-      try { existing = await apiListBals(); } catch (e) { toast("Tidak bisa cek duplikat: " + e.message, "warn"); }
-      const normKey = v => String(v || "").trim().toUpperCase();
-      const dupPoNo = (existing || []).find(b =>
-        normKey(b.po_id) === normKey(po_id) &&
-        String(b.nomor_bal || "").trim() === String(nomor_bal || "").trim()
-      );
-      if (dupPoNo) {
-        return alert(`Input ditolak: PO ${po_id} Bal #${nomor_bal} sudah pernah dibuat (${dupPoNo.bal_id}).
-
-Untuk menghindari kekeliruan, ganti Nomor Bal berikutnya. Contoh: Bal #2, #3, dst.`);
+      try {
+        existing = await apiListBalsFast({ backgroundRefresh: false });
+      } catch (e) {
+        // Kalau daftar lokal/server tidak terbaca, tetap lanjut; server tetap menjaga bal_id duplikat.
+        console.warn("Tidak bisa preload ID bal:", e && e.message ? e.message : e);
       }
 
-      // v44.2: kode bal dihitung SEKALI dengan suffix 4 digit angka unik,
+      // v44.4: kode bal dihitung SEKALI dengan suffix 4 digit angka unik,
       // supaya tetap pendek untuk ditulis tetapi tidak berulang seperti -01.
       let newBalId = generateBalId(existing, buku_nomor, halaman_buku);
 
