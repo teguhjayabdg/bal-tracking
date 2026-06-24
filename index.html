@@ -1709,6 +1709,11 @@
       ].map(v => String(v ?? "")).join("|");
     }
     function _balStorePatch(bal) {
+      // v44.8 FIX: patch hanya bermakna untuk MEMPERBARUI store yang SUDAH dimuat penuh.
+      // Kalau store kosong (fetchedAt = 0, mis. habis login / di-invalidate), jangan isi
+      // dengan 1 bal saja — biarkan kosong supaya Daftar Bal melakukan fetch lengkap.
+      // Ini mencegah bug "setelah scan QR, Daftar Bal cuma menampilkan 1 bal".
+      if (!_balStore.fetchedAt) return false;
       const b = _hydrateBal(bal);
       if (!b || !b.bal_id) return false;
       const id = String(b.bal_id);
@@ -1988,7 +1993,12 @@
     // Masalah sebelumnya: setelah cache 60 dtk kedaluwarsa, ketik search bisa menunggu Apps Script.
     // Sekarang search/render memakai store lokal dulu (0 network), lalu server disegarkan background.
     async function apiListBalsFast(options = {}) {
-      const hasLocal = _balStore.order && _balStore.order.length > 0;
+      // v44.8 FIX: anggap "punya data lokal lengkap" HANYA jika store pernah dimuat penuh
+      // (fetchedAt > 0). Tanpa ini, store yang cuma berisi 1 bal hasil _balStorePatch
+      // (mis. setelah scan QR ketika store kosong / habis di-invalidate) dianggap lengkap →
+      // Daftar Bal cuma menampilkan 1 bal sampai harus logout/login. Sekarang kalau store
+      // belum pernah dimuat penuh, langsung ambil daftar lengkap dari server.
+      const hasLocal = _balStore.fetchedAt > 0 && _balStore.order && _balStore.order.length > 0;
       if (hasLocal) {
         if (!_balStoreFresh() && options.backgroundRefresh !== false) {
           refreshBalStoreInBackground();
@@ -4230,8 +4240,7 @@
       if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Kirim Maklon Eksternal massal")) return;
       if (!assertBulkNoSplit(bals)) return;
 
-      let vendors = [];
-      try { vendors = await apiListMaklonVendors(); } catch (_) { vendors = MAKLON_VENDORS.slice(); }
+      const vendors = MAKLON_VENDORS; // v44.8: identik dengan server; tanpa round-trip
       const vendorOptions = (vendors || []).map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
       const tipeOptions = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${safe(k)}">${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
 
@@ -6815,17 +6824,18 @@ Alasan: ${cleanReason}`)) return;
       if (!["Admin Produksi", "Owner"].includes(currentUser.role)) {
         return alert("Hanya Admin Produksi / Owner yang boleh kirim ke maklon eksternal.");
       }
-      const bal = await apiGetBal(bal_id);
+      // v44.8: buka modal tanpa menunggu server. Pakai bal dari store lokal dulu (instan);
+      // fallback ke apiGetBal hanya kalau belum ada di store. Status tetap divalidasi ulang
+      // di server saat submit (apiStartMaklonEksternal), jadi aman walau datanya sedikit basi.
+      let bal = _balStoreGet(bal_id);
+      if (!bal) bal = await apiGetBal(bal_id);
       const allowedTipes = allowedMaklonTypesForStatus(bal.status);
       if (!allowedTipes.length) {
         return alert("Status ini belum bisa dikirim ke maklon eksternal. Sekarang: " + bal.status);
       }
-      // Ambil vendor list dari server (fallback ke constant lokal kalau gagal)
-      let vendors = MAKLON_VENDORS;
-      try {
-        const serverVendors = await apiListMaklonVendors();
-        if (Array.isArray(serverVendors) && serverVendors.length) vendors = serverVendors;
-      } catch (_) { /* fallback ke MAKLON_VENDORS constant */ }
+      // v44.8: vendor list sama persis dengan server (MAKLON_VENDORS hardcoded di kedua sisi),
+      // jadi pakai constant lokal langsung — hemat 1 round-trip Apps Script saat buka modal.
+      const vendors = MAKLON_VENDORS;
 
       const vendorOpts = vendors.map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
       const qtyOff = officialQty(bal);
