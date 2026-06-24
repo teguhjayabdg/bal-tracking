@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44.4 + ID Bal angka unik saja)</title>
+  <title>Bal Tracking 3.0 - Cloud (v44.6 + Detail Cepat)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -922,6 +922,7 @@
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
           <button data-tab="maklon" class="tab-btn" onclick="switchTab('maklon')">🏭 Maklon Vendor</button>
           <button data-tab="pengiriman" class="tab-btn" onclick="switchTab('pengiriman')">🚚 Pengiriman</button>
+          <button data-tab="archive" class="tab-btn" onclick="switchTab('archive')">🗄 Arsip</button>
           <button data-tab="plastik" class="tab-btn" onclick="switchTab('plastik')">📦 Plastik</button>
           <button data-tab="hr" class="tab-btn" onclick="switchTab('hr')">💰 HR Borongan</button>
           <button data-tab="system" class="tab-btn" onclick="switchTab('system')">🛠 Sistem</button>
@@ -1252,6 +1253,44 @@
         </div>
       </div>
 
+      <!-- ARCHIVE (v44.5) -->
+      <div id="tab-archive" class="tab-content">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+            <div>
+              <div class="section-title" style="margin:0">🗄 Arsip Bal Terkirim</div>
+              <p class="sub-note" style="margin-top:6px">Bal status <b>TERKIRIM</b> yang sudah lewat <b>7 hari</b> dipindah ke arsip agar Daftar Bal aktif lebih ringan.</p>
+            </div>
+            <div class="actions" style="margin-top:0">
+              <button class="btn-warning btn-sm" onclick="guardedClick(this, runArchiveNow, 'Mengarsipkan...')">🗄 Arsipkan >7 hari</button>
+              <button class="btn-outline btn-sm" onclick="manualRefresh(renderArchive)">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="archiveSummary" class="small" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Daftar Arsip</div>
+          <div class="filter-bar">
+            <input id="archiveSearch" placeholder="🔍 Cari ID / PO / customer / jenis / warna..." oninput="renderArchiveTable()">
+            <input id="archiveFilterStart" type="text" placeholder="📅 Terkirim dari..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderArchiveTable()">
+            <input id="archiveFilterEnd" type="text" placeholder="📅 Terkirim sampai..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="renderArchiveTable()">
+          </div>
+          <div class="small" id="archiveCount" style="margin-top:8px"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Foto</th><th>ID Bal</th><th>PO / No Bal</th><th>Terkirim</th><th>Diarsipkan</th><th>Customer</th><th>Jenis/Warna/Size</th><th>Qty</th><th>Hal/Buku</th><th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="archiveRows"></tbody>
+            </table>
+          </div>
+          <div id="archiveMobile" class="mobile-cards"></div>
+        </div>
+      </div>
+
       <!-- PLASTIK (v42.17) -->
       <div id="tab-plastik" class="tab-content">
         <div class="card">
@@ -1440,7 +1479,8 @@
       "startMaklonAntislip", "finishMaklonAntislip",
       "finishSetting",
       "saveVerifier", "deleteVerifier",
-      "createPlastikMaster", "updatePlastikMaster", "deletePlastikMaster", "plastikStockIn", "plastikStockOut", "deletePlastikMutasi"
+      "createPlastikMaster", "updatePlastikMaster", "deletePlastikMaster", "plastikStockIn", "plastikStockOut", "deletePlastikMutasi",
+      "runArchiveTerkirim", "restoreArchivedBal", "permanentDeleteArchivedBal"
     ]);
     function getMaxRetries(action) {
       return WRITE_ACTIONS.has(action) ? API_RETRY_WRITE : API_RETRY_READ;
@@ -1474,6 +1514,7 @@
     const hrSelectedBoronganIds = new Set();
     let scanner = null;
     let pendingPhotoBase64 = "";
+    let archivedBalsCache = [];
     let currentDetailBalId = "";
     let currentPrintMode = "label"; // label = bal utama, ticket = ticket packing. Keduanya 100x78mm.
     // Ukuran kertas fisik saat ini masih 100x150.
@@ -1660,10 +1701,19 @@
     }
     function _balStoreGetFresh(id) {
       // v39.1: hanya pakai store untuk Detail kalau store masih fresh (dalam TTL).
-      // Kalau sudah lewat TTL, JANGAN tampilkan data store yang bisa basah —
-      // biar openDetail() fallback ke fetch server (perilaku sama spt v38).
+      // v44.6: tetap dipertahankan untuk pemakai lama, tapi openDetail sekarang
+      // memakai _balStoreGet(id) dulu agar modal detail langsung muncul dari data lokal.
       if (!_balStoreFresh()) return null;
       return _balStoreGet(id);
+    }
+
+    function _balSnapshotKey(b) {
+      // Dipakai untuk membandingkan data lokal vs hasil refresh background.
+      if (!b) return "";
+      return [
+        b.bal_id, b.status, b.last_update_at, b.qty_verifikasi, b.shipped_qty,
+        b.shipped_at, b.output_labels_json, b.packing_workers_json, b.stok_sisa_qty
+      ].map(v => String(v ?? "")).join("|");
     }
     function _balStorePatch(bal) {
       const b = _hydrateBal(bal);
@@ -2150,6 +2200,25 @@
       return await api("deleteBal", payload);
     }
 
+    async function apiListArchivedBals() {
+      return await api("listArchivedBals", {}, { cache: false });
+    }
+
+    async function apiRunArchiveTerkirim(days = 7) {
+      clearApiCache("listBals");
+      return await api("runArchiveTerkirim", { days }, { cache: false });
+    }
+
+    async function apiRestoreArchivedBal(bal_id) {
+      clearApiCache("listBals");
+      return await api("restoreArchivedBal", { bal_id }, { cache: false });
+    }
+
+    async function apiPermanentDeleteArchivedBal(bal_id) {
+      clearApiCache("listBals");
+      return await api("permanentDeleteArchivedBal", { bal_id }, { cache: false });
+    }
+
     async function apiGetHistory(bal_id = "") {
       const payload = bal_id ? { bal_id } : {};
       const all = await api("listHistory", payload, {
@@ -2397,6 +2466,7 @@
       if (tab === "buku") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "pengiriman") return ["Owner", "Admin Produksi"].includes(r);
+      if (tab === "archive") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "plastik") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "hr") return r === "Owner";
       if (tab === "system") return r === "Owner";
@@ -3142,6 +3212,11 @@
     return;
   }
 
+  if (currentTab === "archive") {
+    await renderArchive();
+    return;
+  }
+
   if (currentTab === "plastik") {
     await renderPlastik();
     return;
@@ -3618,6 +3693,141 @@
         _listFilterRenderRaf = 0;
         renderList().catch(e => console.warn("onListFilterChange renderList:", e));
       });
+    }
+
+    /* ============================================================
+       ARCHIVE v44.5
+       ============================================================ */
+
+    async function renderArchive() {
+      archivedBalsCache = (await apiListArchivedBals()).map(_hydrateBal);
+      const sum = document.getElementById("archiveSummary");
+      if (sum) sum.textContent = `Total arsip: ${archivedBalsCache.length} bal. Aturan otomatis: TERKIRIM lewat 7 hari.`;
+      renderArchiveTable();
+    }
+
+    function archiveFilteredRows() {
+      const q = document.getElementById("archiveSearch")?.value.toLowerCase().trim() || "";
+      const start = document.getElementById("archiveFilterStart")?.value || "";
+      const end = document.getElementById("archiveFilterEnd")?.value || "";
+      let rows = (archivedBalsCache || []).slice();
+      if (q) {
+        rows = rows.filter(b => [
+          b.bal_id, b.po_id, b.nomor_bal, b.no_mesin, b.operator_mesin,
+          b.jenis_barang, b.warna, b.size, b.shipped_to, b.surat_jalan_no,
+          b.archive_reason
+        ].some(v => String(v || "").toLowerCase().includes(q)));
+      }
+      if (start) rows = rows.filter(b => String(b.shipped_at || b.last_update_at || "").slice(0,10) >= start);
+      if (end) rows = rows.filter(b => String(b.shipped_at || b.last_update_at || "").slice(0,10) <= end);
+      rows.sort((a,b) => new Date(b.archived_at || b.shipped_at || 0) - new Date(a.archived_at || a.shipped_at || 0));
+      return rows;
+    }
+
+    function renderArchiveTable() {
+      const rows = archiveFilteredRows();
+      const tbody = document.getElementById("archiveRows");
+      const cards = document.getElementById("archiveMobile");
+      const count = document.getElementById("archiveCount");
+      if (count) count.textContent = `${rows.length} dari ${(archivedBalsCache || []).length} bal arsip ditampilkan`;
+      if (!tbody || !cards) return;
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="10"><div class="empty">Belum ada bal arsip</div></td></tr>`;
+        cards.innerHTML = `<div class="empty">Belum ada bal arsip</div>`;
+        return;
+      }
+      tbody.innerHTML = rows.map(b => `
+        <tr>
+          <td>${photoThumb(b)}</td>
+          <td><span class="mono">${safe(b.bal_id)}</span></td>
+          <td><strong>${safe(b.po_id)}</strong><br><span class="small">Bal #${safe(b.nomor_bal)} · MC ${safe(b.no_mesin || "-")}</span></td>
+          <td>${fmtDateShort(b.shipped_at || b.last_update_at)}</td>
+          <td>${fmtDateShort(b.archived_at)}</td>
+          <td>${safe(b.shipped_to || "-")}<br><span class="small">SJ: ${safe(b.surat_jalan_no || "-")}</span></td>
+          <td>${safe(b.jenis_barang || "-")}<br><span class="small">${safe(b.warna || "-")} / ${safe(b.size || "-")}</span></td>
+          <td><strong>${safe(b.shipped_qty || b.last_shipped_qty || officialQty(b))}</strong> ${safe(b.satuan)}</td>
+          <td><strong>${safe(labelBukuText(b))}</strong></td>
+          <td>${archiveActionButtons(b)}</td>
+        </tr>
+      `).join("");
+      cards.innerHTML = rows.map(b => `
+        <div class="bal-card">
+          ${photoImg(b)}
+          <div class="bal-card-body">
+            <div class="small mono">${safe(b.bal_id)}</div>
+            <div class="bal-title">${safe(b.po_id)} · Bal #${safe(b.nomor_bal)}</div>
+            <div class="small">MC ${safe(b.no_mesin || "-")} · ${safe(b.jenis_barang || "-")} / ${safe(b.warna || "-")} / ${safe(b.size || "-")}</div>
+            <div class="small">Terkirim: ${fmtDateShort(b.shipped_at || b.last_update_at)} · Arsip: ${fmtDateShort(b.archived_at)}</div>
+            <div class="small">Customer: ${safe(b.shipped_to || "-")} · <strong>${safe(b.shipped_qty || b.last_shipped_qty || officialQty(b))} ${safe(b.satuan)}</strong></div>
+            <div class="actions">${archiveActionButtons(b)}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function archiveActionButtons(b) {
+      let html = `<button class="btn-outline btn-sm" onclick="openArchiveDetail('${safe(b.bal_id)}')">Detail</button>`;
+      if (["Owner", "Admin Produksi"].includes(currentUser.role)) html += `<button class="btn-success btn-sm" onclick="restoreArchivedBal('${safe(b.bal_id)}')">Pulihkan</button>`;
+      if (currentUser.role === "Owner") html += `<button class="btn-danger btn-sm" onclick="permanentDeleteArchivedBal('${safe(b.bal_id)}')">Hapus Permanen</button>`;
+      return html;
+    }
+
+    function openArchiveDetail(balId) {
+      const b = (archivedBalsCache || []).find(x => String(x.bal_id) === String(balId));
+      if (!b) return alert("Bal arsip tidak ditemukan.");
+      const html = `
+        ${photoSrc(b) ? `<img src="${safe(photoSrc(b))}" class="detail-photo" onerror="handlePhotoError(this)">` : ""}
+        <div class="detail-grid">
+          <div class="kv"><label>ID Bal</label><strong class="mono">${safe(b.bal_id)}</strong></div>
+          <div class="kv"><label>PO / Bal</label><strong>${safe(b.po_id)} · Bal #${safe(b.nomor_bal)}</strong></div>
+          <div class="kv"><label>Buku / Halaman</label><strong>${safe(labelBukuText(b))}</strong></div>
+          <div class="kv"><label>MC / Line</label><strong>MC ${safe(b.no_mesin || "-")} · Line ${safe(b.line || "-")}</strong></div>
+          <div class="kv"><label>Jenis</label><strong>${safe(b.jenis_barang || "-")}</strong></div>
+          <div class="kv"><label>Warna / Size</label><strong>${safe(b.warna || "-")} / ${safe(b.size || "-")}</strong></div>
+          <div class="kv"><label>Qty Kirim</label><strong>${safe(b.shipped_qty || b.last_shipped_qty || officialQty(b))} ${safe(b.satuan)}</strong></div>
+          <div class="kv"><label>Customer</label><strong>${safe(b.shipped_to || "-")}</strong></div>
+          <div class="kv"><label>Terkirim</label><strong>${fmtDate(b.shipped_at || b.last_update_at)}</strong></div>
+          <div class="kv"><label>Diarsipkan</label><strong>${fmtDate(b.archived_at)}</strong></div>
+          <div class="kv"><label>Alasan Arsip</label><strong>${safe(b.archive_reason || "-")}</strong></div>
+          <div class="kv"><label>Surat Jalan</label><strong>${safe(b.surat_jalan_no || "-")}</strong></div>
+        </div>
+        <div class="actions" style="margin-top:12px">${archiveActionButtons(b)}</div>
+      `;
+      document.getElementById("detailContent").innerHTML = html;
+      document.getElementById("detailModal").classList.add("show");
+    }
+
+    async function runArchiveNow() {
+      const ok = confirm("Jalankan arsip sekarang? Bal TERKIRIM yang sudah lewat 7 hari akan dipindah ke Arsip.");
+      if (!ok) return;
+      const res = await apiRunArchiveTerkirim(7);
+      _balStoreInvalidate();
+      clearApiCache();
+      await renderArchive();
+      toast(`Archive selesai. ${res.archived_count || 0} bal dipindahkan.`, "success");
+    }
+
+    async function restoreArchivedBal(balId) {
+      if (!confirm(`Pulihkan ${balId} ke Daftar Bal aktif?`)) return;
+      try {
+        await apiRestoreArchivedBal(balId);
+        _balStoreInvalidate();
+        archivedBalsCache = archivedBalsCache.filter(b => String(b.bal_id) !== String(balId));
+        renderArchiveTable();
+        toast("Bal dipulihkan ke Daftar Bal aktif.", "success");
+      } catch (e) { alert(e.message || String(e)); }
+    }
+
+    async function permanentDeleteArchivedBal(balId) {
+      const typed = prompt(`HAPUS PERMANEN ${balId}?\n\nIni akan menghapus bal dari arsip beserta history/borongan/ticket/pengiriman terkait.\nKetik HAPUS untuk lanjut.`);
+      if (typed !== "HAPUS") return;
+      try {
+        const res = await apiPermanentDeleteArchivedBal(balId);
+        archivedBalsCache = archivedBalsCache.filter(b => String(b.bal_id) !== String(balId));
+        renderArchiveTable();
+        const counts = res.deleted_counts || {};
+        toast(`Hapus permanen selesai. Arsip:${counts.bals_archive || 0}, history:${counts.history || 0}, borongan:${counts.borongan || 0}, pengiriman:${counts.pengiriman || 0}.`, "success", 7000);
+      } catch (e) { alert(e.message || String(e)); }
     }
 
     /* ============================================================
@@ -4245,6 +4455,7 @@ Alasan: ${cleanReason}`)) return;
       try {
         let b = null;
         let bundledHistory = null;
+        let usedStaleLocalDetail = false;
 
         if (balOrId && typeof balOrId === "object") {
           b = _hydrateBal(balOrId);
@@ -4254,7 +4465,13 @@ Alasan: ${cleanReason}`)) return;
           // riwayat tetap lazy lewat tombol "Muat Riwayat" (konsisten dgn v38).
           let local = null;
           if (options.includeHistory !== true) {
-            local = _balStoreGetFresh(balOrId);
+            // v44.6 DETAIL CEPAT:
+            // Sebelumnya detail hanya memakai store kalau masih fresh (<60 dtk).
+            // Setelah lewat TTL, klik Detail harus menunggu Apps Script/getBalBundle,
+            // terasa lama walau data bal sebenarnya sudah ada di Daftar Bal.
+            // Sekarang tampilkan data lokal dulu (instan), lalu refresh server di background.
+            local = _balStoreGet(balOrId);
+            if (local && !_balStoreFresh()) usedStaleLocalDetail = true;
             if (!local) {
               const cb = getApiCacheValue("getBalBundle", { bal_id: balOrId, include_history: false });
               if (cb && cb.bal) local = cb.bal;
@@ -4327,6 +4544,25 @@ Alasan: ${cleanReason}`)) return;
         `;
         document.getElementById("detailModal").classList.add("show");
         // v38: history tidak otomatis dimuat; klik tombol Muat Riwayat bila diperlukan.
+
+        // v44.6: jika detail dibuka dari store yang sudah lewat TTL, jangan blok UI.
+        // Refresh data bal di background agar cache/store tetap akurat untuk klik berikutnya.
+        if (usedStaleLocalDetail && b && b.bal_id) {
+          const beforeKey = _balSnapshotKey(b);
+          api("getBalBundle", { bal_id: b.bal_id, include_history: false }, { cache: false })
+            .then(fresh => {
+              if (!fresh || !fresh.bal) return;
+              const freshBal = _hydrateBal(fresh.bal);
+              _balStorePatch(freshBal);
+              setApiCacheValue("getBal", { bal_id: freshBal.bal_id }, freshBal, API_DETAIL_CACHE_TTL_MS);
+              setApiCacheValue("getBalBundle", { bal_id: freshBal.bal_id, include_history: false }, { bal: freshBal, timing_ms: fresh.timing_ms }, API_DETAIL_CACHE_TTL_MS);
+              // Kalau status/qty berubah dari device lain saat modal masih terbuka, refresh isi modal.
+              if (currentDetailBalId === freshBal.bal_id && _balSnapshotKey(freshBal) !== beforeKey) {
+                openDetail(freshBal, { lazyHistory: true });
+              }
+            })
+            .catch(e => console.warn("background detail refresh gagal:", e && e.message ? e.message : e));
+        }
       } catch (e) { alert(e.message); }
     }
 
