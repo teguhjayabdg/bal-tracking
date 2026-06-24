@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44.7 + Detail Cepat)</title>
+  <title>Bal Tracking 3.0 - Cloud (v44.8 - Scan Arsip + Filter Hal/Buku)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -998,7 +998,8 @@
           <div class="filter-bar">
             <input id="filterSearch" placeholder="🔍 Cari ID/PO/operator/mesin..." oninput="onListFilterChange()">
             <input id="filterDate" type="text" placeholder="📅 Filter tanggal..." onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" onchange="onListFilterChange()">
-            <input id="filterLine" placeholder="Filter Line (A/B/1...)" oninput="onListFilterChange()">
+            <input id="filterHal" inputmode="numeric" placeholder="Hal (mis. 3)" oninput="onListFilterChange()" style="max-width:120px">
+            <input id="filterBuku" inputmode="numeric" placeholder="Buku (mis. 23)" oninput="onListFilterChange()" style="max-width:120px">
             <select id="filterJenis" onchange="onListFilterChange()"><option value="">Semua Jenis</option></select>
             <select id="filterWarna" onchange="onListFilterChange()"><option value="">Semua Warna</option></select>
             <select id="filterStatus" onchange="onListFilterChange()"><option value="">Semua Status</option></select>
@@ -1419,6 +1420,7 @@
           <p class="sub-note">Khusus Owner. Data tersimpan di Google Sheets via Apps Script. Tab ini untuk cek rekap data, kelola user, dan backup.</p>
           <div class="actions" style="flex-wrap:wrap; gap:8px">
             <button class="btn-primary" onclick="ownerRunHealthCheck()">🔎 Cek Data</button>
+            <button class="btn-warning" onclick="ownerRepairWorkDates()">🗓️ Perbaiki Tanggal Kerja HR</button>
             <button class="btn-primary" onclick="openUserManagement()">👥 Kelola User</button>
             <button class="btn-primary" onclick="openVerifierManagement()">🔎 Kelola Verifier QC</button>
             <button class="btn-outline" onclick="ownerExportBackupJSON()">📥 Export Backup JSON</button>
@@ -3540,7 +3542,8 @@
       let bals = focusBalsForRole(source);
       const q = document.getElementById("filterSearch")?.value.toLowerCase().trim() || "";
       const d = document.getElementById("filterDate")?.value || "";
-      const l = document.getElementById("filterLine")?.value.toLowerCase().trim() || "";
+      const fhal = document.getElementById("filterHal")?.value.toLowerCase().trim() || "";
+      const fbuku = document.getElementById("filterBuku")?.value.toLowerCase().trim() || "";
       const fj = document.getElementById("filterJenis")?.value.toLowerCase().trim() || "";
       const fw = document.getElementById("filterWarna")?.value.toLowerCase().trim() || "";
       const st = document.getElementById("filterStatus")?.value || "";
@@ -3560,7 +3563,8 @@
         });
       }
       if (d) bals = bals.filter(b => String(b.tanggal_buat || "").slice(0,10) === d);
-      if (l) bals = bals.filter(b => String(b.line || "").toLowerCase().includes(l));
+      if (fhal) bals = bals.filter(b => String(b.halaman_buku || "").toLowerCase().trim() === fhal);
+      if (fbuku) bals = bals.filter(b => String(b.buku_nomor || "").toLowerCase().trim() === fbuku);
       if (fj) bals = bals.filter(b => String(b.jenis_barang || "").toLowerCase().trim() === fj);
       if (fw) bals = bals.filter(b => String(b.warna || "").toLowerCase().trim() === fw);
       if (st) bals = bals.filter(b => b.status === st);
@@ -9255,6 +9259,41 @@ Alasan: ${cleanReason}`)) return;
       const panel = document.getElementById("ownerHealthPanel");
       if (!panel) return;
       panel.innerHTML = `<div class="empty">Klik "🔎 Cek Data" untuk lihat ringkasan, atau buka tab di bawah.</div>`;
+    }
+
+    async function ownerRepairWorkDates() {
+      if (currentUser?.role !== "Owner") return toast("Hanya Owner.", "warn");
+      try {
+        // 1) Dry run dulu: lihat berapa baris yang AKAN berubah, tanpa menulis data.
+        const preview = await withLoading("Mengecek tanggal kerja (dry run)...", () =>
+          api("repairWorkDatesV447", { dry_run: true }, { cache: false }));
+        const willChange = Number(preview?.borongan_updated_tanggal || 0);
+        const filledCreated = Number(preview?.output_labels_filled_created_at || 0);
+        if (willChange === 0 && filledCreated === 0) {
+          toast("Semua tanggal kerja sudah benar. Tidak ada yang perlu diperbaiki.", "success", 5000);
+          return;
+        }
+        const ok = confirm(
+          "Perbaiki tanggal kerja HR / Rekap Produksi?\n\n" +
+          "Aturan tanggal:\n" +
+          "• Obras = obras_selesai_at\n" +
+          "• Setting = tanggal output label (created_at)\n" +
+          "• Packing = packing_finished_at\n\n" +
+          willChange + " baris borongan akan diset ke tanggal kerja asli.\n" +
+          filledCreated + " output label akan dilengkapi created_at dari history.\n\n" +
+          "Lanjut menulis ke Google Sheets?");
+        if (!ok) return;
+        const res = await withLoading("Menulis perbaikan ke server...", () =>
+          api("repairWorkDatesV447", { dry_run: false }, { cache: false }));
+        clearApiCache();
+        if (typeof _balStoreInvalidate === "function") _balStoreInvalidate();
+        toast(
+          "Selesai. " + (res.borongan_updated_tanggal || 0) + " baris borongan diperbaiki, " +
+          (res.output_labels_filled_created_at || 0) + " created_at dilengkapi.",
+          "success", 6000);
+      } catch (e) {
+        toast("Gagal perbaiki tanggal: " + (e && e.message ? e.message : e), "error", 6000);
+      }
     }
 
     async function ownerRunHealthCheck() {
