@@ -2430,6 +2430,7 @@
       sessionStorage.removeItem(SESSION_KEY);
       clearApiCache(); // bersihkan cache supaya user berikutnya tidak lihat data cached
       _balStoreInvalidate(); // v39: kosongkan store bal juga (device dipakai bergantian antar user)
+      if (typeof bulkSelectedBalIds !== "undefined") bulkSelectedBalIds.clear(); // v44.8: jangan bawa pilihan ke user berikutnya
       document.getElementById("loginPage").classList.remove("hidden");
       document.getElementById("appPage").classList.add("hidden");
       document.getElementById("loginPassword").value = "";
@@ -3696,9 +3697,11 @@
     // Reset limit ke 50 lalu re-render. Dipanggil dari filter handlers supaya user
     // tidak bingung kalau filter aktif tapi sudah scroll Load More banyak kali.
     function onListFilterChange() {
-      // Saat filter/search/sort berubah, kosongkan pilihan massal supaya tidak
-      // ada bal lama yang tersembunyi tetapi masih ikut terpilih.
-      if (typeof bulkSelectedBalIds !== "undefined") bulkSelectedBalIds.clear();
+      // v44.8: JANGAN kosongkan pilihan massal saat search/filter berubah.
+      // Supaya bisa memilih lewat beberapa kali pencarian (cari 554 → centang,
+      // cari 669 → centang) dan KEDUANYA tetap terpilih, dst. Bal terpilih yang tidak
+      // cocok filter saat ini tetap tersimpan; jumlahnya tampil di toolbar (+ info
+      // "tidak tampil di pencarian ini"). Pakai tombol "Bersihkan" untuk reset pilihan.
       listRenderLimit = LIST_PAGE_SIZE;
 
       // v44.2: render filter/search di frame berikutnya saja.
@@ -3874,7 +3877,23 @@
     function updateBulkToolbar() {
       const n = bulkSelectedBalIds.size;
       const info = document.getElementById("bulkSelectedInfo");
-      if (info) info.textContent = n ? `${n} bal dipilih.` : "Belum ada bal dipilih.";
+      if (info) {
+        if (!n) {
+          info.textContent = "Belum ada bal dipilih.";
+        } else {
+          // v44.8: hitung berapa bal terpilih yang TIDAK tampil di pencarian/filter saat ini,
+          // supaya jelas pilihan dari pencarian sebelumnya masih aktif.
+          const visibleIds = new Set(
+            Array.from(document.querySelectorAll("#balTableBody .bulk-check, #mobileCards .bulk-check"))
+              .map(el => String(el.dataset.balId))
+          );
+          let hidden = 0;
+          bulkSelectedBalIds.forEach(id => { if (!visibleIds.has(String(id))) hidden++; });
+          info.textContent = hidden > 0
+            ? `${n} bal dipilih (${hidden} tidak tampil di pencarian ini).`
+            : `${n} bal dipilih.`;
+        }
+      }
       ["bulkBtnVerify", "bulkBtnObras", "bulkBtnMaklon", "bulkBtnAntislip", "bulkBtnShip"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.disabled = n === 0;
@@ -4525,8 +4544,12 @@ Alasan: ${cleanReason}`)) return;
           splitInfo = `<div class="alert alert-warn"><strong>Bal ini sudah dipecah.</strong><br>${childIds.map(id => `<button class="btn-outline btn-sm" onclick="openDetail('${id}')">${id}</button>`).join(" ") || "Belum ada anak terdata"}</div>`;
         }
         if (b.is_child_bal && b.parent_bal_id) splitInfo += `<div class="alert alert-info">Bal anak dari <button class="btn-outline btn-sm" onclick="openDetail('${b.parent_bal_id}')">${b.parent_bal_id}</button></div>`;
+        // v44.8: bal arsip = hanya-baca. Tampilkan peringatan & sembunyikan tombol aksi.
+        const archiveBanner = b._archived
+          ? `<div class="alert alert-warn">📦 Bal ini sudah <strong>diarsip</strong> (TERKIRIM lewat 7 hari) — tampilan <strong>hanya-baca</strong>. Untuk mengubah, pulihkan dulu dari menu <strong>Arsip</strong>.</div>`
+          : "";
         document.getElementById("detailContent").innerHTML = `
-          ${splitInfo}
+          ${archiveBanner}${splitInfo}
           ${photoSrc(b) ? `<img src="${safe(photoSrc(b))}" class="detail-photo" loading="lazy" decoding="async" onerror="handlePhotoError(this)">` : ""}
           <div class="detail-grid">
             ${kv("ID Bal", `<span class="mono">${safe(b.bal_id)}</span>${b.edit_count ? '<span class="edit-badge">EDIT 1</span>' : ''}`)}
@@ -4551,7 +4574,7 @@ Alasan: ${cleanReason}`)) return;
           ${b.maklon_eks_tipe ? `<div class="alert alert-warn"><strong>🏭 Maklon Eksternal</strong><br>Vendor: <strong>${safe(b.maklon_eks_vendor || "-")}</strong> · Tipe: <strong>${safe(MAKLON_EKS_TIPE_LABEL[b.maklon_eks_tipe] || b.maklon_eks_tipe)}</strong><br>Keluar: ${fmtDate(b.maklon_eks_keluar_at)} oleh ${safe(b.maklon_eks_keluar_by || "-")}${b.maklon_eks_kembali_at ? `<br>Kembali: ${fmtDate(b.maklon_eks_kembali_at)} oleh ${safe(b.maklon_eks_kembali_by || "-")} · qty: ${safe(b.maklon_eks_qty_kembali || "-")} ${safe(b.satuan)}` : ""}${b.maklon_eks_note ? `<br>Catatan: ${safe(b.maklon_eks_note)}` : ""}</div>` : ""}
           ${b.antislip_vendor ? `<div class="alert alert-info"><strong>🧦 Maklon Sablon Antislip</strong><br>Vendor/Pekerja: <strong>${safe(b.antislip_vendor || "-")}</strong><br>Qty kirim: <strong>${safe(b.antislip_qty_kirim || "-")} ${safe(b.satuan)}</strong> · Keluar: ${fmtDate(b.antislip_keluar_at)} oleh ${safe(b.antislip_keluar_by || "-")}${b.antislip_kembali_at ? `<br>Kembali: ${fmtDate(b.antislip_kembali_at)} oleh ${safe(b.antislip_kembali_by || "-")} · qty kembali: <strong>${safe(b.antislip_qty_kembali || "-")} ${safe(b.satuan)}</strong>` : ""}${b.antislip_note ? `<br>Catatan: ${safe(b.antislip_note)}` : ""}</div>` : ""}
           ${outputLabelsHtml(b)}
-          <div id="detailActions" style="margin-top:12px">${detailActions(b)}</div>
+          <div id="detailActions" style="margin-top:12px">${b._archived ? "" : detailActions(b)}</div>
           <div class="card" style="margin-top:12px">
             <div class="section-title">Riwayat Bal</div>
             ${historyContent}
