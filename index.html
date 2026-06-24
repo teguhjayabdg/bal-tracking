@@ -918,7 +918,6 @@
           <button data-tab="list" class="tab-btn" onclick="switchTab('list')">📋 Daftar Bal</button>
           <button data-tab="buku" class="tab-btn" onclick="switchTab('buku')">📚 Buku</button>
           <button data-tab="scan" class="tab-btn" onclick="switchTab('scan')">📷 Scan QR</button>
-          <button data-tab="history" class="tab-btn" onclick="switchTab('history')">🕒 History</button>
           <button data-tab="workrecap" class="tab-btn" onclick="switchTab('workrecap')">📊 Rekap Produksi</button>
           <button data-tab="maklon" class="tab-btn" onclick="switchTab('maklon')">🏭 Maklon Vendor</button>
           <button data-tab="pengiriman" class="tab-btn" onclick="switchTab('pengiriman')">🚚 Pengiriman</button>
@@ -1109,14 +1108,6 @@
             <button class="btn-primary" onclick="openManualBal()">Buka Detail</button>
           </div>
           <div id="scanMessage"></div>
-        </div>
-      </div>
-
-      <!-- HISTORY -->
-      <div id="tab-history" class="tab-content">
-        <div class="card">
-          <div class="section-title">History Aktivitas</div>
-          <div id="globalHistory"></div>
         </div>
       </div>
 
@@ -2070,12 +2061,38 @@
       return res || {};
     }
 
+    // v44.8 FAST SCAN: penyegaran 1 bal dari server di latar belakang (tidak memblok UI).
+    // Dipakai setelah tampilan instan dari store, supaya status tetap akurat.
+    async function refreshOneBalFromServer(id, prevStatus) {
+      try {
+        const res = await api("findQr", { qr_id: id, include_history: false });
+        if (res && res.bal) {
+          res.bal = _hydrateBal(res.bal);
+          _balStorePatch(res.bal);
+          const changed = String(res.bal.status || "") !== String(prevStatus || "");
+          if (changed && typeof currentDetailBalId !== "undefined" && currentDetailBalId === id) {
+            openDetail(res.bal, { lazyHistory: true });
+          }
+        }
+      } catch (_) { /* diam: ini hanya penyegaran latar belakang */ }
+    }
+
     async function apiFindQr(qr_id) {
-      const label = `findQr:${qr_id}`;
+      const id = normalizeQrText(qr_id);
+      // v44.8 FAST SCAN: kalau QR = bal_id yang sudah ada di store lokal, tampilkan INSTAN
+      // (0 network), lalu segarkan bal itu di latar belakang supaya status tetap akurat.
+      // Tiket & bal arsip tidak ada di store → otomatis lewat jalur server di bawah.
+      const localBal = _balStoreGet(id);
+      if (localBal && localBal.deleted !== true) {
+        refreshOneBalFromServer(id, localBal.status);
+        return { type: "bal", qr_id: id, bal: _hydrateBal(localBal), _fromStore: true };
+      }
+
+      const label = `findQr:${id}`;
       if (DEBUG_TIMING) { try { console.time(label); } catch (_) {} }
       const started = performance.now ? performance.now() : Date.now();
       // v38: scan QR juga dibuat ringan; history tidak dibawa saat scan.
-      const res = await api("findQr", { qr_id, include_history: false });
+      const res = await api("findQr", { qr_id: id, include_history: false });
       const ended = performance.now ? performance.now() : Date.now();
       if (DEBUG_TIMING) {
         try {
@@ -2463,7 +2480,6 @@
       if (tab === "input") return ["Admin Produksi", "Operator Mesin"].includes(r);
       if (tab === "list") return ["Admin Produksi", "Operator Mesin", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "scan") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
-      if (tab === "history") return ["Admin Produksi"].includes(r);
       if (tab === "workrecap") return ["Admin Produksi", "Checker / QC", "Obras", "Setting / Steam", "Packing"].includes(r);
       if (tab === "buku") return ["Owner", "Admin Produksi"].includes(r);
       if (tab === "maklon") return ["Owner", "Admin Produksi"].includes(r);
@@ -3186,11 +3202,6 @@
 
   if (currentTab === "list") {
     await renderList();
-    return;
-  }
-
-  if (currentTab === "history") {
-    await renderGlobalHistory();
     return;
   }
 
@@ -8431,10 +8442,6 @@ Alasan: ${cleanReason}`)) return;
        HISTORY
        ============================================================ */
 
-    async function renderGlobalHistory() {
-      const h = (await apiGetHistory()).slice().reverse().slice(0, 100);
-      document.getElementById("globalHistory").innerHTML = h.length ? h.map(historyHtml).join("") : `<div class="empty">Belum ada history</div>`;
-    }
     function historyHtml(h) {
       return `<div class="history-item"><strong>${safe(h.action)}</strong> · <span class="mono">${safe(h.bal_id)}</span><br>${h.status_lama ? `${statusText(h.status_lama)} → ` : ""}<strong>${statusText(h.status_baru)}</strong><br><span class="small">${safe(h.user_name)} (${safe(h.user_role)}) · ${fmtDate(h.timestamp)}</span>${h.catatan ? `<br><span class="small">📝 ${safe(h.catatan)}</span>` : ""}</div>`;
     }
