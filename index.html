@@ -2035,6 +2035,16 @@
       const cachedBundle = getApiCacheValue("getBalBundle", { bal_id, include_history: false });
       if (cachedBundle && cachedBundle.bal) return _hydrateBal(cachedBundle.bal);
 
+      // v44.8: kalau store lokal MASIH FRESH (<60 dtk) & sudah dimuat penuh, pakai bal dari
+      // store — supaya SEMUA modal aksi (start/finish/qc/edit/split/kirim/maklon/...) terbuka
+      // INSTAN tanpa round-trip Apps Script. Data tulis tetap divalidasi ulang di server saat
+      // submit, jadi aman walaupun data tampilan sedikit basi. Kalau store sudah lewat TTL
+      // atau belum dimuat, fallback ke server (data fresh).
+      if (_balStoreFresh()) {
+        const local = _balStoreGet(bal_id);
+        if (local) return _hydrateBal(local);
+      }
+
       const b = await api("getBal", payload, { cache: true, cacheTtlMs: API_DETAIL_CACHE_TTL_MS });
       return _hydrateBal(b);
     }
@@ -2365,7 +2375,9 @@
     }
     // FIX v17 — Verifier QC names (dropdown + settings page)
     async function apiListVerifiers() {
-      return await api("listVerifiers", {}, { cache: true });
+      // v44.8: verifier jarang berubah & cache otomatis di-clear saat saveVerifier/deleteVerifier.
+      // Cache lebih lama (10 menit) supaya modal verifikasi qty buka instan tanpa round-trip berulang.
+      return await api("listVerifiers", {}, { cache: true, cacheTtlMs: 600000 });
     }
     async function apiSaveVerifier(payload) {
       clearApiCache("listVerifiers");
@@ -3727,11 +3739,28 @@
        ARCHIVE v44.5
        ============================================================ */
 
+    let _archiveInflight = false;
     async function renderArchive() {
-      archivedBalsCache = (await apiListArchivedBals()).map(_hydrateBal);
       const sum = document.getElementById("archiveSummary");
-      if (sum) sum.textContent = `Total arsip: ${archivedBalsCache.length} bal. Aturan otomatis: TERKIRIM lewat 7 hari.`;
-      renderArchiveTable();
+      const paint = () => {
+        if (sum) sum.textContent = `Total arsip: ${archivedBalsCache.length} bal. Aturan otomatis: TERKIRIM lewat 7 hari.`;
+        renderArchiveTable();
+      };
+
+      // v44.8: cat instan dari cache terakhir (kalau ada) → tab Arsip buka tanpa lag.
+      if (Array.isArray(archivedBalsCache) && archivedBalsCache.length) paint();
+
+      // Single-flight + selalu refresh fresh di latar.
+      if (_archiveInflight) return;
+      _archiveInflight = true;
+      try {
+        archivedBalsCache = (await apiListArchivedBals()).map(_hydrateBal);
+        paint();
+      } catch (e) {
+        if (!archivedBalsCache.length) toast("Gagal load arsip: " + (e.message || e), "error");
+      } finally {
+        _archiveInflight = false;
+      }
     }
 
     function archiveFilteredRows() {
@@ -8172,26 +8201,38 @@ Alasan: ${cleanReason}`)) return;
     }
 
 
+    let _pengInflight = false;
     async function renderPengiriman() {
       const summaryEl = document.getElementById("pengSummary");
+
+      const paint = () => {
+        if (summaryEl) summaryEl.innerHTML = `Total ${_pengRows.length} kiriman · ${safe(pengSumText(_pengRows))} keluar`;
+        renderPengirimanRecap("pengRecapCustomer", "customer", "Tanpa customer");
+        renderPengirimanRecap("pengRecapPo", "po_id", "Tanpa PO");
+        renderPengirimanTable();
+      };
+
+      // v44.8: cat instan dari data terakhir (kalau ada) → tab Pengiriman buka tanpa lag.
+      if (Array.isArray(_pengRows) && _pengRows.length) paint();
+
+      // Single-flight + selalu refresh fresh di latar (mutasi pengiriman langsung tercermin).
+      if (_pengInflight) return;
+      _pengInflight = true;
       try {
         const res = await apiListPengiriman();
         _pengRows = Array.isArray(res) ? res : [];
+        // Ambil bal (cache) untuk foto — petakan bal_id → bal. Gagal pun tidak masalah (placeholder).
+        try {
+          const bals = await apiListBals();
+          _pengBalMap = {};
+          (Array.isArray(bals) ? bals : []).forEach(b => { _pengBalMap[b.bal_id] = b; });
+        } catch (e) { _pengBalMap = {}; }
+        paint();
       } catch (e) {
-        if (summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
-        return;
+        if (!_pengRows.length && summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
+      } finally {
+        _pengInflight = false;
       }
-      // Ambil bal (cache) untuk foto — petakan bal_id → bal. Gagal pun tidak masalah (foto jadi placeholder).
-      try {
-        const bals = await apiListBals();
-        _pengBalMap = {};
-        (Array.isArray(bals) ? bals : []).forEach(b => { _pengBalMap[b.bal_id] = b; });
-      } catch (e) { _pengBalMap = {}; }
-
-      if (summaryEl) summaryEl.innerHTML = `Total ${_pengRows.length} kiriman · ${safe(pengSumText(_pengRows))} keluar`;
-      renderPengirimanRecap("pengRecapCustomer", "customer", "Tanpa customer");
-      renderPengirimanRecap("pengRecapPo", "po_id", "Tanpa PO");
-      renderPengirimanTable();
     }
 
     function pengPhoto(r) {
@@ -8843,25 +8884,60 @@ Alasan: ${cleanReason}`)) return;
         : `<div class="empty">Belum ada data.</div>`;
     }
 
+    // v44.8: cache hasil Rekap Produksi per-payload (stale-while-revalidate) supaya buka tab /
+    // ganti filter pegawai/jenis INSTAN tanpa menunggu server. Data tetap di-refresh di latar
+    // (selalu fetch fresh dari server), jadi tidak pernah basi-nyangkut. Filter pegawai & jenis
+    // diterapkan client-side (tidak masuk payload), jadi tidak perlu fetch ulang saat diubah.
+    const _workRekapCache = {};       // cacheKey -> { res, at }
+    const _workRekapInflight = {};    // cacheKey -> true (single-flight)
+
     async function renderWorkRekap() {
       try {
         ensureWorkFilterDefaults();
         syncWorkRecapUI();
-        const full = isFullWorkRecapRole();
-        const targetSub = full ? currentWorkSub : workSubForRole();
-        const start = document.getElementById("workFilterStart")?.value || "";
-        const end = document.getElementById("workFilterEnd")?.value || "";
-        const jenis = document.getElementById("workFilterJenis")?.value || "";
-        const res = await apiListWorkRekap({ scope: full ? "all" : "role_stage", tahap: targetSub, start_date: start, end_date: end });
-        let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
-        fillWorkerOptions("workFilterWorker", rows);
-        const worker = document.getElementById("workFilterWorker")?.value || "";
-        if (worker) rows = rows.filter(r => r.pegawai === worker);
-        const info = document.getElementById("workPeriodInfo");
-        if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
-        renderWorkSummary("workSummary", rows, true);
-        renderWorkEmployeeRecap(rows);
-        renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
+        const payloadOf = () => {
+          const full = isFullWorkRecapRole();
+          const targetSub = full ? currentWorkSub : workSubForRole();
+          const start = document.getElementById("workFilterStart")?.value || "";
+          const end = document.getElementById("workFilterEnd")?.value || "";
+          return { scope: full ? "all" : "role_stage", tahap: targetSub, start_date: start, end_date: end };
+        };
+        const payload = payloadOf();
+        const cacheKey = JSON.stringify(payload);
+
+        const paint = (res) => {
+          const jenis = document.getElementById("workFilterJenis")?.value || "";
+          let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
+          fillWorkerOptions("workFilterWorker", rows);
+          const worker = document.getElementById("workFilterWorker")?.value || "";
+          if (worker) rows = rows.filter(r => r.pegawai === worker);
+          const info = document.getElementById("workPeriodInfo");
+          if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
+          renderWorkSummary("workSummary", rows, true);
+          renderWorkEmployeeRecap(rows);
+          renderWorkRows("workRows", "workMobile", rows, { showPegawai: true });
+        };
+
+        // 1) Cat instan dari hasil terakhir (kalau ada) → tab/filter buka tanpa lag.
+        const cachedEntry = _workRekapCache[cacheKey];
+        if (cachedEntry) paint(cachedEntry.res);
+
+        // 2) Single-flight: kalau fetch untuk payload yang sama sedang berjalan, jangan
+        //    tembak lagi (huruf yang diketik di filter jenis ter-coalesce otomatis). Selain
+        //    itu SELALU fetch fresh di latar supaya data tidak pernah basi-nyangkut (mis.
+        //    setelah tandai borongan dibayar, tampilan langsung ikut diperbarui).
+        if (_workRekapInflight[cacheKey]) return;
+
+        // 3) Ambil fresh di latar; cat ulang hanya kalau filter server (tanggal/scope) belum
+        //    berubah selama menunggu (kalau berubah, render yang lebih baru yang menangani).
+        _workRekapInflight[cacheKey] = true;
+        try {
+          const res = await apiListWorkRekap(payload);
+          _workRekapCache[cacheKey] = { res, at: Date.now() };
+          if (JSON.stringify(payloadOf()) === cacheKey) paint(res);
+        } finally {
+          delete _workRekapInflight[cacheKey];
+        }
       } catch (e) {
         toast("Gagal load Rekap Produksi: " + e.message, "error");
       }
