@@ -847,8 +847,8 @@
     .plastik-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
     .plastik-panel-title { font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
     .plastik-panel-sub { font-size: 12px; color: #64748b; margin-bottom: 10px; }
-    .plastik-thumb { width: 44px; height: 44px; flex: none; border-radius: 9px; object-fit: cover; background: #f1f5f9; border: 1px solid var(--line); cursor: pointer; }
-    .plastik-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 18px; color: #94a3b8; cursor: default; }
+    .plastik-thumb { width: 80px; height: 80px; flex: none; border-radius: 10px; object-fit: cover; background: #f1f5f9; border: 1px solid var(--line); cursor: pointer; }
+    .plastik-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 30px; color: #94a3b8; cursor: default; }
     /* Master card (kiri) — ringkas */
     .pm-card { display: flex; gap: 10px; align-items: flex-start; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 11px; padding: 9px 10px; margin-bottom: 8px; }
     .pm-info { flex: 1; min-width: 0; }
@@ -7924,7 +7924,7 @@ Alasan: ${cleanReason}`)) return;
         const sat = String(m.ukuran_satuan || "").trim();
         const lus = String(m.ukuran_lusin || "").trim();
         const thumb = m.foto_url
-          ? `<img class="plastik-thumb" src="${photoThumbSrc(m.foto_url)}" onclick="window.open('${photoSrc(m.foto_url)}','_blank')" alt="">`
+          ? `<img class="plastik-thumb" src="${driveThumbUrl(m.foto_url, 400)}" loading="lazy" decoding="async" onclick="window.open('${driveThumbUrl(m.foto_url, 1200)}','_blank')" onerror="handlePhotoError(this)" alt="">`
           : `<div class="plastik-thumb plastik-thumb-empty">📦</div>`;
         const note = m.catatan ? `<div class="pm-note">${safe(m.catatan)}</div>` : "";
         return `
@@ -8001,7 +8001,7 @@ Alasan: ${cleanReason}`)) return;
       if (m) _plastikExistingFotoUrl = m.foto_url || "";
       const v = (x) => safe(m ? (m[x] || "") : "");
       const fotoPreview = (m && m.foto_url)
-        ? `<img id="pmFotoPreview" src="${photoThumbSrc(m.foto_url)}" style="width:70px;height:70px;border-radius:10px;object-fit:cover;border:1px solid var(--line)">`
+        ? `<img id="pmFotoPreview" src="${driveThumbUrl(m.foto_url, 400)}" onerror="handlePhotoError(this)" style="width:70px;height:70px;border-radius:10px;object-fit:cover;border:1px solid var(--line)">`
         : `<img id="pmFotoPreview" style="display:none;width:70px;height:70px;border-radius:10px;object-fit:cover;border:1px solid var(--line)">`;
       showPlastikModal(id ? "Edit Master Plastik" : "Tambah Master Plastik", `
         <div class="form-row">
