@@ -7889,11 +7889,25 @@ Alasan: ${cleanReason}`)) return;
     function plastikStokByKey(key) { return _plastikStok.find(s => s.key === key) || null; }
 
     // ---- RENDER (dipanggil refreshAll & Refresh) ----
+    let _plastikInflight = false;
     async function renderPlastik() {
       const mEl = document.getElementById("plastikMasterList");
       const sEl = document.getElementById("plastikStokList");
-      if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
-      if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+
+      const havePrev = (Array.isArray(_plastikMasters) && _plastikMasters.length) ||
+                       (Array.isArray(_plastikStok) && _plastikStok.length);
+      // v44.8: cat instan dari data terakhir (kalau ada) → tab Plastik buka tanpa lag.
+      if (havePrev) {
+        renderPlastikMasterList();
+        renderPlastikStokList();
+      } else {
+        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+        if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+      }
+
+      // Single-flight + selalu refresh fresh di latar.
+      if (_plastikInflight) return;
+      _plastikInflight = true;
       try {
         const [masters, stok] = await Promise.all([apiListPlastikMaster(), apiListPlastikStok()]);
         _plastikMasters = Array.isArray(masters) ? masters : [];
@@ -7901,8 +7915,12 @@ Alasan: ${cleanReason}`)) return;
         renderPlastikMasterList();
         renderPlastikStokList();
       } catch (e) {
-        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
-        if (sEl) sEl.innerHTML = "";
+        if (!havePrev) {
+          if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
+          if (sEl) sEl.innerHTML = "";
+        }
+      } finally {
+        _plastikInflight = false;
       }
     }
 
