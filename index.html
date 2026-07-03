@@ -3364,7 +3364,15 @@
     }
 
     async function renderDashboard() {
-      const allBals = await apiListBals();
+      let allBals;
+      try {
+        allBals = await apiListBals();
+      } catch (e) {
+        // v44.8: dashboard = tab default operator. Jangan menggantung saat jaringan lambat.
+        const host = document.querySelector("#tab-dashboard .dashboard-grid") || document.querySelector("#tab-dashboard");
+        if (host) host.innerHTML = `<div class="empty">Gagal memuat data — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderDashboard)">🔄 Coba Lagi</button></div>`;
+        return;
+      }
       const bals = focusBalsForRole(allBals);
       const count = st => bals.filter(b => b.status === st).length;
       const role = currentUser?.role || "";
@@ -3631,7 +3639,21 @@
 
     async function renderList(options = {}) {
       const renderSeq = ++_listRenderSeq;
-      const all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
+      let all;
+      try {
+        all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
+      } catch (e) {
+        // v44.8: jangan biarkan daftar KOSONG/menggantung saat jaringan lambat/putus (gejala
+        // "tidak terbuka"). Tampilkan pesan + tombol Coba Lagi supaya operator bisa memuat ulang.
+        if (renderSeq !== _listRenderSeq) return;
+        const tb = document.getElementById("balTableBody");
+        const cd = document.getElementById("mobileCards");
+        const msg = `Gagal memuat daftar bal — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderList)">🔄 Coba Lagi</button>`;
+        if (tb) tb.innerHTML = `<tr><td colspan="12"><div class="empty">${msg}</div></td></tr>`;
+        if (cd) cd.innerHTML = `<div class="empty">${msg}</div>`;
+        setLoadMoreVisibility(false);
+        return;
+      }
       if (renderSeq !== _listRenderSeq) return;
       const bals = await filteredBals(all);
       if (renderSeq !== _listRenderSeq) return;
