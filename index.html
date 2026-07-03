@@ -3364,15 +3364,7 @@
     }
 
     async function renderDashboard() {
-      let allBals;
-      try {
-        allBals = await apiListBals();
-      } catch (e) {
-        // v44.8: dashboard = tab default operator. Jangan menggantung saat jaringan lambat.
-        const host = document.querySelector("#tab-dashboard .dashboard-grid") || document.querySelector("#tab-dashboard");
-        if (host) host.innerHTML = `<div class="empty">Gagal memuat data — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderDashboard)">🔄 Coba Lagi</button></div>`;
-        return;
-      }
+      const allBals = await apiListBals();
       const bals = focusBalsForRole(allBals);
       const count = st => bals.filter(b => b.status === st).length;
       const role = currentUser?.role || "";
@@ -3639,21 +3631,7 @@
 
     async function renderList(options = {}) {
       const renderSeq = ++_listRenderSeq;
-      let all;
-      try {
-        all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
-      } catch (e) {
-        // v44.8: jangan biarkan daftar KOSONG/menggantung saat jaringan lambat/putus (gejala
-        // "tidak terbuka"). Tampilkan pesan + tombol Coba Lagi supaya operator bisa memuat ulang.
-        if (renderSeq !== _listRenderSeq) return;
-        const tb = document.getElementById("balTableBody");
-        const cd = document.getElementById("mobileCards");
-        const msg = `Gagal memuat daftar bal — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderList)">🔄 Coba Lagi</button>`;
-        if (tb) tb.innerHTML = `<tr><td colspan="12"><div class="empty">${msg}</div></td></tr>`;
-        if (cd) cd.innerHTML = `<div class="empty">${msg}</div>`;
-        setLoadMoreVisibility(false);
-        return;
-      }
+      const all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
       if (renderSeq !== _listRenderSeq) return;
       const bals = await filteredBals(all);
       if (renderSeq !== _listRenderSeq) return;
@@ -7911,25 +7889,11 @@ Alasan: ${cleanReason}`)) return;
     function plastikStokByKey(key) { return _plastikStok.find(s => s.key === key) || null; }
 
     // ---- RENDER (dipanggil refreshAll & Refresh) ----
-    let _plastikInflight = false;
     async function renderPlastik() {
       const mEl = document.getElementById("plastikMasterList");
       const sEl = document.getElementById("plastikStokList");
-
-      const havePrev = (Array.isArray(_plastikMasters) && _plastikMasters.length) ||
-                       (Array.isArray(_plastikStok) && _plastikStok.length);
-      // v44.8: cat instan dari data terakhir (kalau ada) → tab Plastik buka tanpa lag.
-      if (havePrev) {
-        renderPlastikMasterList();
-        renderPlastikStokList();
-      } else {
-        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
-        if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
-      }
-
-      // Single-flight + selalu refresh fresh di latar.
-      if (_plastikInflight) return;
-      _plastikInflight = true;
+      if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+      if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
       try {
         const [masters, stok] = await Promise.all([apiListPlastikMaster(), apiListPlastikStok()]);
         _plastikMasters = Array.isArray(masters) ? masters : [];
@@ -7937,12 +7901,8 @@ Alasan: ${cleanReason}`)) return;
         renderPlastikMasterList();
         renderPlastikStokList();
       } catch (e) {
-        if (!havePrev) {
-          if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
-          if (sEl) sEl.innerHTML = "";
-        }
-      } finally {
-        _plastikInflight = false;
+        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
+        if (sEl) sEl.innerHTML = "";
       }
     }
 
