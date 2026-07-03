@@ -1776,16 +1776,36 @@
           lastErr = err;
           // Network / abort error → retry (jika maxRetries > 0).
           // Business error (json.ok=false) di-throw tanpa retry path.
+          // v44.8: jeda antar-percobaan DIPERBESAR (dulu 500ms/1000ms, total ~1.5 dtk).
+          // Ternyata error transien Apps Script (mis. HTTP 404 "unable to open the file",
+          // server sedang sibuk) kadang butuh lebih dari 1.5 dtk untuk pulih — sebelumnya
+          // 3 percobaan cepat semuanya kena jendela sibuk yang sama lalu menyerah, padahal
+          // refresh manual beberapa detik kemudian sudah lewat jendela itu dan berhasil.
+          // Backoff baru: 1.5 dtk → 3 dtk → 5 dtk (menaik), jadi otomatis "menunggu lebih
+          // lama" seperti refresh manual, tanpa harus diminta user.
           if (err.name === "AbortError" || /HTTP \d|Failed to fetch|NetworkError/i.test(err.message)) {
             if (attempt < maxRetries) {
-              await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+              await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
               continue;
             }
           }
-          throw err;
+          throw _friendlyApiErr_(err, action);
         }
       }
-      throw lastErr;
+      throw _friendlyApiErr_(lastErr, action);
+    }
+
+    // v44.8: terjemahkan AbortError (timeout 30 dtk dari AbortController) jadi pesan yang
+    // bisa dimengerti. "signal is aborted without reason" = server tidak menjawab dalam
+    // API_TIMEOUT_MS — masalah di SERVER yang lambat, bukan koneksi internet / bug misterius.
+    function _friendlyApiErr_(err, action) {
+      const msg = String((err && err.message) || "");
+      if ((err && err.name === "AbortError") || /abort/i.test(msg)) {
+        return new Error("Server tidak merespons dalam " + Math.round(API_TIMEOUT_MS / 1000) +
+          " detik untuk '" + action + "' (timeout di sisi server, bukan koneksi internet). " +
+          "Coba lagi — kalau berulang, server sedang berat.");
+      }
+      return err;
     }
 
     function clearApiCache(prefix) {
@@ -3364,7 +3384,15 @@
     }
 
     async function renderDashboard() {
-      const allBals = await apiListBals();
+      let allBals;
+      try {
+        allBals = await apiListBals();
+      } catch (e) {
+        // v44.8: dashboard = tab default operator. Jangan menggantung saat jaringan lambat.
+        const host = document.querySelector("#tab-dashboard .dashboard-grid") || document.querySelector("#tab-dashboard");
+        if (host) host.innerHTML = `<div class="empty">Gagal memuat data — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderDashboard)">🔄 Coba Lagi</button></div>`;
+        return;
+      }
       const bals = focusBalsForRole(allBals);
       const count = st => bals.filter(b => b.status === st).length;
       const role = currentUser?.role || "";
@@ -3631,7 +3659,21 @@
 
     async function renderList(options = {}) {
       const renderSeq = ++_listRenderSeq;
-      const all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
+      let all;
+      try {
+        all = await apiListBalsFast({ backgroundRefresh: options.backgroundRefresh !== false });
+      } catch (e) {
+        // v44.8: jangan biarkan daftar KOSONG/menggantung saat jaringan lambat/putus (gejala
+        // "tidak terbuka"). Tampilkan pesan + tombol Coba Lagi supaya operator bisa memuat ulang.
+        if (renderSeq !== _listRenderSeq) return;
+        const tb = document.getElementById("balTableBody");
+        const cd = document.getElementById("mobileCards");
+        const msg = `Gagal memuat daftar bal — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderList)">🔄 Coba Lagi</button>`;
+        if (tb) tb.innerHTML = `<tr><td colspan="12"><div class="empty">${msg}</div></td></tr>`;
+        if (cd) cd.innerHTML = `<div class="empty">${msg}</div>`;
+        setLoadMoreVisibility(false);
+        return;
+      }
       if (renderSeq !== _listRenderSeq) return;
       const bals = await filteredBals(all);
       if (renderSeq !== _listRenderSeq) return;
@@ -7889,11 +7931,25 @@ Alasan: ${cleanReason}`)) return;
     function plastikStokByKey(key) { return _plastikStok.find(s => s.key === key) || null; }
 
     // ---- RENDER (dipanggil refreshAll & Refresh) ----
+    let _plastikInflight = false;
     async function renderPlastik() {
       const mEl = document.getElementById("plastikMasterList");
       const sEl = document.getElementById("plastikStokList");
-      if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
-      if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+
+      const havePrev = (Array.isArray(_plastikMasters) && _plastikMasters.length) ||
+                       (Array.isArray(_plastikStok) && _plastikStok.length);
+      // v44.8: cat instan dari data terakhir (kalau ada) → tab Plastik buka tanpa lag.
+      if (havePrev) {
+        renderPlastikMasterList();
+        renderPlastikStokList();
+      } else {
+        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+        if (sEl) sEl.innerHTML = `<div class="plastik-empty">Memuat...</div>`;
+      }
+
+      // Single-flight + selalu refresh fresh di latar.
+      if (_plastikInflight) return;
+      _plastikInflight = true;
       try {
         const [masters, stok] = await Promise.all([apiListPlastikMaster(), apiListPlastikStok()]);
         _plastikMasters = Array.isArray(masters) ? masters : [];
@@ -7901,8 +7957,12 @@ Alasan: ${cleanReason}`)) return;
         renderPlastikMasterList();
         renderPlastikStokList();
       } catch (e) {
-        if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
-        if (sEl) sEl.innerHTML = "";
+        if (!havePrev) {
+          if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
+          if (sEl) sEl.innerHTML = "";
+        }
+      } finally {
+        _plastikInflight = false;
       }
     }
 
