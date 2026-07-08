@@ -309,7 +309,7 @@
     .kv strong { font-size: 13px; }
     .history-item { border-left: 4px solid var(--primary); background: #f8fafc; border-radius: 0 10px 10px 0; padding: 9px 10px; margin-top: 7px; font-size: 12px; }
 
-    /* LABEL BAL FINAL: desain isi 100 x 78 mm, aman dicetak di kertas 100 x 150 mm */
+    /* LABEL BAL FINAL: desain isi 100 x 78 mm, aman dicetak di kertas 100 x 100 mm */
     .label-area {
       width: 96mm;
       height: 74mm;
@@ -615,14 +615,14 @@
 
 @media print {
   @page {
-    size: 100mm 150mm;
+    size: 100mm 100mm;
     margin: 0;
   }
 
   html,
   body {
     width: 100mm !important;
-    height: 150mm !important;
+    height: 100mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -639,7 +639,7 @@
     left: 0 !important;
     top: 0 !important;
     width: 100mm !important;
-    height: 150mm !important;
+    height: 100mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
@@ -653,7 +653,7 @@
     left: 0 !important;
     top: 0 !important;
     width: 100mm !important;
-    height: 150mm !important;
+    height: 100mm !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -671,13 +671,13 @@
   #labelContent {
     display: block !important;
     width: 100mm !important;
-    height: 150mm !important;
+    height: 100mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
   }
 
-  /* PRINT OVERRIDE — kertas 100 x 150, desain label 100 x 78 di bagian atas */
+  /* PRINT OVERRIDE — kertas 100 x 100, desain label 100 x 78 di bagian atas */
   .label-area {
     display: block !important;
     position: relative !important;
@@ -1509,10 +1509,10 @@
     let archivedBalsCache = [];
     let currentDetailBalId = "";
     let currentPrintMode = "label"; // label = bal utama, ticket = ticket packing. Keduanya 100x78mm.
-    // Ukuran kertas fisik saat ini masih 100x150.
+    // Ukuran kertas fisik saat ini 100x100.
     // Desain label tetap 100x78 dan ditempatkan di bagian atas kertas.
-    // Nanti kalau sudah pakai label 100x78, ubah THERMAL_PAPER_SIZE menjadi "100x78".
-    const THERMAL_PAPER_SIZE = "100x150";
+    // Untuk ganti ukuran kertas, cukup ubah THERMAL_PAPER_SIZE (mis. "100x150", "100x78").
+    const THERMAL_PAPER_SIZE = "100x100";
     const LABEL_BAL_PRINT_SIZE = "100x78";
 
     // Pagination Daftar Bal: default render 50 data dulu, lalu tombol Load More.
@@ -2691,10 +2691,14 @@
       }
 
       const isTicket = currentPrintMode === "ticket";
-      // Kertas fisik saat ini 100x150, desain label tetap 100x78 di bagian atas.
-      // Kalau nanti kertas sudah 100x78, cukup ubah THERMAL_PAPER_SIZE ke "100x78".
-      const pageSize = THERMAL_PAPER_SIZE === "100x78" ? "100mm 78mm" : "100mm 150mm";
-      const pageHeight = THERMAL_PAPER_SIZE === "100x78" ? "78mm" : "150mm";
+      // Kertas fisik saat ini 100x100, desain label tetap 100x78 di bagian atas.
+      // Ukuran @page diturunkan langsung dari THERMAL_PAPER_SIZE (sumber tunggal),
+      // jadi ganti kertas cukup ubah konstanta itu — tidak perlu utak-atik logika ini.
+      const _paper = String(THERMAL_PAPER_SIZE).split("x");
+      const _paperW = parseInt(_paper[0], 10) || 100;
+      const _paperH = parseInt(_paper[1], 10) || 100;
+      const pageSize = _paperW + "mm " + _paperH + "mm";
+      const pageHeight = _paperH + "mm";
 
       const ticketCss = `
   .label-area { display: none !important; }
