@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v44.8 - Scan Arsip + Filter Hal/Buku)</title>
+  <title>Bal Tracking 3.0 - Cloud (v51 - Isolasi Sesi Penuh)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1466,6 +1466,7 @@
       "updateBoronganTarif", "setBoronganPaid", "setBoronganPaidBulk", "deleteBoronganRow", "uploadFoto",
       "createUser", "updateUser", "resetUserPin", "setUserActive",
       "startPacking", "finishPacking", "qcPacking", "toggleStokKirim", "markShipped",
+      "updatePengiriman", "deletePengiriman",
       "maklonReturnBatch", "maklonCloseSelisih",
       "startMaklonEksternal", "finishMaklonEksternal",
       "startMaklonAntislip", "finishMaklonAntislip",
@@ -1657,27 +1658,64 @@
        ============================================================ */
     const _balStore = { byId: new Map(), order: [], fetchedAt: 0 };
     const BAL_STORE_TTL_MS = 60000;
-    let _balStoreFetchPromise = null; // v39.1: single-flight guard untuk listBals
+    // v49: single-flight DIIKAT ke generation + user-epoch. Dulu (v39.1) promise global
+    // polos — user baru bisa "menumpang" fetch milik user lama yang hasilnya lalu
+    // dibuang oleh generation guard → user baru menerima list KOSONG tanpa pernah
+    // memulai request-nya sendiri. Sekarang flight = { gen, epoch, promise }; hanya
+    // boleh nebeng kalau gen & epoch masih sama.
+    let _balStoreFetchFlight = null;
     // v44.2: pencarian Daftar Bal harus tetap instan walau cache list sudah lewat TTL.
     // Kalau store lama masih ada, filter memakai data lokal dulu lalu refresh server jalan di background.
-    let _balStoreBackgroundRefreshPromise = null;
+    let _balStoreBackgroundRefreshFlight = null;
     let _listRenderSeq = 0;
     let _listFilterRenderRaf = 0;
+
+    // v49: epoch sesi user. Naik SETIAP login dan SETIAP logout (bukan hanya ganti nama —
+    // relogin user yang sama pun bikin epoch baru, karena store dibangun ulang).
+    // Dipakai untuk membuang respons async yang selesai setelah sesi berganti.
+    let _userEpoch = 0;
+    // v49: context untuk operasi async yang bisa MENULIS bal (patch/cache) saat selesai.
+    // Tangkap SEBELUM await, validasi SETELAH await. Kalau tidak valid → buang hasil.
+    function _captureBalContext() {
+      return { gen: _balStoreGen, epoch: _userEpoch };
+    }
+    function _balContextValid(ctx) {
+      return !!currentUser && !!ctx && ctx.gen === _balStoreGen && ctx.epoch === _userEpoch;
+    }
+    // v50: error penanda sesi berganti — dilempar TERPUSAT dari api() supaya respons
+    // sesi lama tidak pernah sampai ke pemanggil mana pun. Pesannya singkat & jujur;
+    // kalau sampai tampil sebagai toast/error di layar user baru, isinya tidak menyesatkan.
+    function _sessionChangedErr_() {
+      const err = new Error("Sesi berganti — permintaan sesi sebelumnya dibatalkan.");
+      err.code = "SESSION_CHANGED";
+      return err;
+    }
+    // v51: dipakai blok catch supaya error "sesi berganti" TIDAK ditampilkan sebagai
+    // toast/pesan gagal di layar user baru. Itu bukan kegagalan — itu pembatalan sengaja.
+    function _isSessionChangedErr_(e) {
+      return !!e && e.code === "SESSION_CHANGED";
+    }
 
     function _balStoreFresh() {
       return _balStore.fetchedAt > 0 && (Date.now() - _balStore.fetchedAt) < BAL_STORE_TTL_MS;
     }
-    function _balStoreSetAll(rawList) {
+    function _balStoreSetAll(rawList, options = {}) {
       _balStore.byId = new Map();
       _balStore.order = [];
       (rawList || []).forEach(raw => {
-        const b = _hydrateBal(raw);
+        // v48: hydrate SALINAN, bukan objek raw langsung. _hydrateBal memutasi objeknya
+        // (menambah output_labels/packing_workers/edit_history hasil parse). Kalau raw
+        // ikut termutasi, persist menyimpan data ganda (string JSON + hasil parse) dan
+        // payload membengkak — bisa lewat kuota lalu gagal diam-diam.
+        const b = _hydrateBal(Object.assign({}, raw));
         if (!b || !b.bal_id) return;
         const id = String(b.bal_id);
         if (!_balStore.byId.has(id)) _balStore.order.push(id);
         _balStore.byId.set(id, b);
       });
-      _balStore.fetchedAt = Date.now();
+      _balStore.fetchedAt = Number(options.fetchedAt || Date.now());
+      // v48: restore memanggil dengan persist:false — jangan tulis ulang apa yang baru dibaca.
+      if (options.persist !== false) _persistBalStoreSave(rawList, _balStore.fetchedAt);
     }
     function _balStoreList() {
       const out = [];
@@ -1713,11 +1751,16 @@
       // dengan 1 bal saja — biarkan kosong supaya Daftar Bal melakukan fetch lengkap.
       // Ini mencegah bug "setelah scan QR, Daftar Bal cuma menampilkan 1 bal".
       if (!_balStore.fetchedAt) return false;
+      if (!currentUser) return false; // v49: tidak ada sesi aktif → jangan tulis apa pun
       const b = _hydrateBal(bal);
       if (!b || !b.bal_id) return false;
       const id = String(b.bal_id);
       if (!_balStore.byId.has(id)) _balStore.order.push(id);
       _balStore.byId.set(id, b);
+      // v48: sinkronkan sessionStorage. Tanpa ini, F5 tepat setelah mutasi
+      // merestore snapshot lama (status sebelum aksi) sampai bg refresh selesai.
+      // v49: di-coalesce (stringify penuh ~50-110ms utk store besar — jangan per patch).
+      _persistBalStoreSaveFromStoreSoon();
       return true;
     }
     function _balStoreInvalidate() {
@@ -1728,6 +1771,160 @@
       _balStore.byId = new Map();
       _balStore.order = [];
       _balStore.fetchedAt = 0;
+      _balStoreGen++; // v48: fetch yang masih jalan pada generation lama harus dibuang saat selesai
+      // v49: lepas reference flight lama — pemanggil berikutnya langsung mulai request
+      // sendiri, tidak menumpang flight yang hasilnya pasti dibuang. (finally di flight
+      // memakai identity check, jadi aman di-null dari sini.)
+      _balStoreFetchFlight = null;
+      _balStoreBackgroundRefreshFlight = null;
+      _persistBalStoreClear();
+    }
+
+    // ============================================================
+    // PERSIST _balStore ke sessionStorage (v48)
+    // ------------------------------------------------------------
+    // Tujuan: setelah update HTML / reload, daftar bal terakhir masih bisa
+    // tampil INSTAN (stale-while-revalidate), lalu disegarkan dari server di latar.
+    //
+    // Format simpan: COMPACT { headers, rows } — meniru wire server. Nama ~110
+    // kolom TIDAK diulang per baris, payload jauh lebih kecil, dan field hasil
+    // hydrate (output_labels/packing_workers/edit_history) TIDAK ikut tersimpan
+    // (di-strip; *_json string-nya yang disimpan, hydrate ulang saat restore).
+    //
+    // Keamanan multi-user (device dipakai bergantian): payload diikat ke
+    // username+role. Restore menolak cache milik user lain. Ditambah generation
+    // counter: hasil fetch yang selesai SETELAH invalidate/logout dibuang,
+    // tidak boleh menulis store/persist lagi.
+    //
+    // sessionStorage (bukan localStorage): bertahan saat reload di tab sama
+    // (kasus "update HTML"), bersih saat tab ditutup. PENTING: bump versi key
+    // kalau bentuk data bal berubah, supaya cache lama tak direstore ke skema baru.
+    const BAL_STORE_PERSIST_KEY = "bt_balstore_persist_v51";
+    // v50: bersihkan key versi lama SEKALI saat load. Snapshot v47/v48 dibuat oleh kode
+    // yang masih punya race lintas-user (bisa berisi data user lama beridentitas user
+    // baru) — jangan pernah direstore oleh versi ini.
+    try {
+      sessionStorage.removeItem("bt_balstore_persist_v47");
+      sessionStorage.removeItem("bt_balstore_persist_v48");
+      sessionStorage.removeItem("bt_balstore_persist_v50");
+    } catch (_) {}
+    const BAL_STORE_PERSIST_MAX_AGE_MS = 30 * 60 * 1000; // 30 mnt
+    const BAL_STORE_PERSIST_MAX_BYTES = 4 * 1024 * 1024; // ~4MB, di bawah kuota (±5MB)
+    // Field hasil _hydrateBal — jangan pernah ikut dipersist (duplikat dari *_json).
+    const BAL_HYDRATED_FIELDS = ["output_labels", "packing_workers", "edit_history"];
+
+    // v48: generation counter. Naik setiap invalidate (termasuk logout). Fetch yang
+    // dimulai pada generation lama tidak boleh menulis store/persist saat selesai.
+    let _balStoreGen = 0;
+
+    function _persistCompactFromList_(list) {
+      // Union semua key (jaga-jaga fallback backend lama yang barisnya heterogen),
+      // lalu strip field hasil hydrate.
+      const keySet = new Set();
+      for (const o of list) { if (o) for (const k of Object.keys(o)) keySet.add(k); }
+      BAL_HYDRATED_FIELDS.forEach(k => keySet.delete(k));
+      const headers = Array.from(keySet);
+      const rows = list.map(o => headers.map(h => {
+        const v = o ? o[h] : undefined;
+        return v === undefined ? null : v;
+      }));
+      return { headers, rows };
+    }
+
+    function _persistExpandCompact_(headers, rows) {
+      const n = headers.length, out = new Array(rows.length);
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r], o = {};
+        for (let i = 0; i < n; i++) { if (row[i] !== null) o[headers[i]] = row[i]; }
+        out[r] = o;
+      }
+      return out;
+    }
+
+    function _persistBalStoreSave(list, atOverride) {
+      try {
+        if (!Array.isArray(list)) return;
+        if (list.length === 0) { _persistBalStoreClear(); return; } // v48: list kosong VALID → hapus cache lama, jangan biarkan bangkit lagi setelah F5
+        const compact = _persistCompactFromList_(list);
+        const payload = JSON.stringify({
+          at: atOverride || Date.now(),
+          u: (currentUser && currentUser.username) || "",
+          r: (currentUser && currentUser.role) || "",
+          headers: compact.headers,
+          rows: compact.rows
+        });
+        // v49: ukur BYTE sungguhan (UTF-8), bukan panjang string (UTF-16 code units).
+        // Fallback ke length kalau Blob tak tersedia (length <= byte, jadi konservatifnya
+        // tetap dijaga oleh kuota browser + catch di bawah).
+        let bytes;
+        try { bytes = new Blob([payload]).size; } catch (_) { bytes = payload.length; }
+        if (bytes > BAL_STORE_PERSIST_MAX_BYTES) { _persistBalStoreClear(); return; } // terlalu besar → jangan sisakan cache lama yang menyesatkan
+        sessionStorage.setItem(BAL_STORE_PERSIST_KEY, payload);
+      } catch (e) {
+        // v49: setItem gagal (kuota penuh dsb) → HAPUS cache lama. Kalau dibiarkan,
+        // snapshot basi bisa direstore terus-menerus padahal data terbaru gagal tersimpan.
+        _persistBalStoreClear();
+      }
+    }
+
+    // v49: persist-per-patch DI-COALESCE. Compact+stringify seluruh list terukur
+    // ~50-110ms utk 500-2000 bal (sinkron, memblok main thread) — terlalu mahal
+    // kalau dijalankan per patch, apalagi patch bisa beruntun (bulk/scan). Jadwalkan
+    // sekali per burst via setTimeout(0); snapshot diambil saat flush (paling akhir).
+    let _persistSaveScheduled = false;
+    function _persistBalStoreSaveFromStoreSoon() {
+      if (_persistSaveScheduled) return;
+      _persistSaveScheduled = true;
+      setTimeout(() => {
+        _persistSaveScheduled = false;
+        if (!currentUser) return; // sudah logout sebelum flush → jangan tulis apa pun
+        _persistBalStoreSaveFromStore();
+      }, 0);
+    }
+
+    // v48: persist snapshot dari STORE (untuk _balStorePatch setelah mutasi sukses).
+    // Field hydrate di-strip oleh _persistCompactFromList_, jadi aman walau isi
+    // store sudah ter-hydrate. Timestamp memakai fetchedAt store (umur data asli).
+    function _persistBalStoreSaveFromStore() {
+      if (!_balStore.fetchedAt || !_balStore.order.length) return;
+      _persistBalStoreSave(_balStoreList(), _balStore.fetchedAt);
+    }
+
+    function _persistBalStoreClear() {
+      try { sessionStorage.removeItem(BAL_STORE_PERSIST_KEY); } catch (e) {}
+    }
+
+    function _persistBalStoreRestore() {
+      try {
+        const rawStr = sessionStorage.getItem(BAL_STORE_PERSIST_KEY);
+        if (!rawStr) return false;
+        const obj = JSON.parse(rawStr);
+        // v49: bentuk tidak valid → HAPUS, jangan dicoba ulang setiap reload.
+        if (!obj || !Array.isArray(obj.headers) || !Array.isArray(obj.rows) || !obj.rows.length || !obj.at) {
+          _persistBalStoreClear();
+          return false;
+        }
+        const age = Date.now() - Number(obj.at);
+        if (age < 0 || age > BAL_STORE_PERSIST_MAX_AGE_MS) { _persistBalStoreClear(); return false; }
+        // v48: cache diikat ke user. Milik user lain → buang (device bergantian antar operator).
+        const uname = (currentUser && currentUser.username) || "";
+        const urole = (currentUser && currentUser.role) || "";
+        if (String(obj.u || "") !== String(uname) || String(obj.r || "") !== String(urole)) {
+          _persistBalStoreClear();
+          return false;
+        }
+        const list = _persistExpandCompact_(obj.headers, obj.rows);
+        // v48: SATU jalur tulis — persist:false supaya tidak menulis ulang apa yang
+        // baru dibaca (v47 dobel stringify+write, berat di main thread saat buka app).
+        // fetchedAt memakai umur ASLI data → _balStoreFresh() akurat, background
+        // refresh tetap terpicu bila sudah >60 dtk.
+        _balStoreSetAll(list, { persist: false, fetchedAt: Number(obj.at) });
+        return true;
+      } catch (e) {
+        // v49: JSON corrupt / error lain → hapus supaya tidak diparse ulang tiap reload.
+        _persistBalStoreClear();
+        return false;
+      }
     }
 
     async function api(action, payload = {}, options = {}) {
@@ -1754,7 +1951,12 @@
 
       let lastErr = null;
       const maxRetries = getMaxRetries(action);
+      const epochAtCall = _userEpoch; // v49: deteksi ganti sesi selama request jalan
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        // v51: guard di AWAL setiap attempt. v50 hanya memeriksa SEBELUM delay backoff —
+        // kalau user logout SELAMA jeda 1,5-5 dtk, attempt berikutnya tetap ditembakkan
+        // ke server memakai kredensial sesi lama. Sekarang request itu tidak pernah dikirim.
+        if (action !== "login" && epochAtCall !== _userEpoch) throw _sessionChangedErr_();
         try {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
@@ -1770,9 +1972,20 @@
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const json = await res.json();
           if (json.ok === false) throw new Error(json.error || "API error");
+          // v50: GUARD TERPUSAT. Respons yang selesai SETELAH sesi berganti (logout /
+          // ganti user) TIDAK BOLEH keluar dari api() — di-throw sebagai SESSION_CHANGED.
+          // Ini menutup SELURUH kelas bug sekaligus: wrapper yang menulis cache manual
+          // (apiGetBalBundle, apiOwnerOverride, dst.), render DOM, modal, array global,
+          // dan refreshAfterMutation — semuanya tidak pernah menerima data sesi lama.
+          // "login" dikecualikan (jalur masuk sesi baru itu sendiri).
+          // Catatan: mutasi sesi lama tetap SUKSES di server; hanya continuation
+          // klien-nya yang dibatalkan (UI sesi lama sudah tidak ada).
+          if (action !== "login" && epochAtCall !== _userEpoch) throw _sessionChangedErr_();
           if (cacheKey) _apiCache.set(cacheKey, { data: json.data, expiresAt: Date.now() + ttlMs });
           return json.data;
         } catch (err) {
+          // v50: error sesi-berganti diteruskan apa adanya, tanpa retry & tanpa dibungkus.
+          if (err && err.code === "SESSION_CHANGED") throw err;
           lastErr = err;
           // Network / abort error → retry (jika maxRetries > 0).
           // Business error (json.ok=false) di-throw tanpa retry path.
@@ -1785,6 +1998,9 @@
           // lama" seperti refresh manual, tanpa harus diminta user.
           if (err.name === "AbortError" || /HTTP \d|Failed to fetch|NetworkError/i.test(err.message)) {
             if (attempt < maxRetries) {
+              // v50/v51: sesi sudah berganti → jangan tidur & jangan retry untuk sesi mati.
+              // (Guard di awal loop juga menangkap perubahan yang terjadi SELAMA delay.)
+              if (action !== "login" && epochAtCall !== _userEpoch) throw _sessionChangedErr_();
               await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
               continue;
             }
@@ -2005,25 +2221,35 @@
       }
       // v39.1 force: selalu fetch fresh, jangan nebeng fetch yang sedang jalan.
       if (options.force) {
+        const gen = _balStoreGen; // v48
         const list = await _fetchBalListCompact_(false);
+        if (gen !== _balStoreGen) return _balStoreList(); // v48: store di-invalidate/logout saat fetch jalan → buang hasil
         _balStoreSetAll(list || []);
         return _balStoreList();
       }
-      // v39.1 single-flight: kalau sudah ada fetch listBals jalan, ikut nebeng —
-      // jangan tembak server dua kali (mis. saat login / refresh cepat).
-      if (_balStoreFetchPromise) {
-        await _balStoreFetchPromise;
+      // v39.1 single-flight → v49: hanya nebeng flight yang MASIH SATU generation +
+      // epoch. Flight milik sesi lama (logout/invalidate saat fetch jalan) diabaikan —
+      // user/sesi baru langsung memulai request sendiri, tidak menunggu ±30-90 dtk
+      // untuk hasil yang toh akan dibuang.
+      if (_balStoreFetchFlight &&
+          _balStoreFetchFlight.gen === _balStoreGen &&
+          _balStoreFetchFlight.epoch === _userEpoch) {
+        await _balStoreFetchFlight.promise;
         return _balStoreList();
       }
-      _balStoreFetchPromise = (async () => {
+      const flight = { gen: _balStoreGen, epoch: _userEpoch, promise: null };
+      flight.promise = (async () => {
         try {
           const list = await _fetchBalListCompact_(false);
+          if (flight.gen !== _balStoreGen || flight.epoch !== _userEpoch) return; // sesi berganti saat fetch → buang
           _balStoreSetAll(list || []);
         } finally {
-          _balStoreFetchPromise = null;
+          // identity check: promise lama tidak boleh menghapus reference flight BARU
+          if (_balStoreFetchFlight === flight) _balStoreFetchFlight = null;
         }
       })();
-      await _balStoreFetchPromise;
+      _balStoreFetchFlight = flight;
+      await flight.promise;
       return _balStoreList();
     }
 
@@ -2048,23 +2274,44 @@
     }
 
     function refreshBalStoreInBackground() {
-      if (_balStoreBackgroundRefreshPromise) return _balStoreBackgroundRefreshPromise;
-      _balStoreBackgroundRefreshPromise = (async () => {
+      // v49: flight diikat gen+epoch — refresh latar milik sesi lama tidak boleh
+      // ditumpangi ataupun menulis store/persist saat selesai.
+      if (_balStoreBackgroundRefreshFlight &&
+          _balStoreBackgroundRefreshFlight.gen === _balStoreGen &&
+          _balStoreBackgroundRefreshFlight.epoch === _userEpoch) {
+        return _balStoreBackgroundRefreshFlight.promise;
+      }
+      const flight = { gen: _balStoreGen, epoch: _userEpoch, promise: null };
+      flight.promise = (async () => {
         try {
           const list = await _fetchBalListCompact_(false);
+          if (flight.gen !== _balStoreGen || flight.epoch !== _userEpoch) return; // sesi berganti → buang hasil
           _balStoreSetAll(list || []);
-          if (currentTab === "list") {
-            setTimeout(() => {
-              renderList({ backgroundRefresh: false }).catch(e => console.warn("renderList after background refresh:", e));
-            }, 0);
-          }
+          // v47: setelah refresh latar selesai, render ulang tab AKTIF yang datanya
+          // berbasis bal store — supaya pola SWR benar (instan lalu ter-update), bukan
+          // "instan tapi mentok basi". Data store sekarang fresh, jadi render ulang ini
+          // memakai jalur Fast tanpa memicu refresh latar lagi (tidak ada loop).
+          setTimeout(() => {
+            if (!currentUser || flight.gen !== _balStoreGen || flight.epoch !== _userEpoch) return;
+            const reRender =
+              currentTab === "list"      ? () => renderList({ backgroundRefresh: false }) :
+              currentTab === "dashboard" ? () => renderDashboard() :
+              currentTab === "buku"      ? () => renderBuku() :
+              currentTab === "maklon"    ? () => renderMaklonVendor() :
+              null;
+            if (reRender) {
+              try { Promise.resolve(reRender()).catch(e => console.warn("re-render after background refresh:", e)); }
+              catch (e) { console.warn("re-render after background refresh:", e); }
+            }
+          }, 0);
         } catch (e) {
           console.warn("refreshBalStoreInBackground:", e && e.message ? e.message : e);
         } finally {
-          _balStoreBackgroundRefreshPromise = null;
+          if (_balStoreBackgroundRefreshFlight === flight) _balStoreBackgroundRefreshFlight = null;
         }
       })();
-      return _balStoreBackgroundRefreshPromise;
+      _balStoreBackgroundRefreshFlight = flight;
+      return flight.promise;
     }
 
     async function apiGetBal(bal_id) {
@@ -2123,8 +2370,10 @@
     // v44.8 FAST SCAN: penyegaran 1 bal dari server di latar belakang (tidak memblok UI).
     // Dipakai setelah tampilan instan dari store, supaya status tetap akurat.
     async function refreshOneBalFromServer(id, prevStatus) {
+      const ctx = _captureBalContext(); // v49: tangkap sesi SEBELUM request
       try {
         const res = await api("findQr", { qr_id: id, include_history: false });
+        if (!_balContextValid(ctx)) return; // v49: logout/ganti user selama request → buang hasil
         if (res && res.bal) {
           res.bal = _hydrateBal(res.bal);
           _balStorePatch(res.bal);
@@ -2149,6 +2398,7 @@
 
       const label = `findQr:${id}`;
       if (DEBUG_TIMING) { try { console.time(label); } catch (_) {} }
+      const ctx = _captureBalContext(); // v49: tangkap sesi SEBELUM request server
       const started = performance.now ? performance.now() : Date.now();
       // v38: scan QR juga dibuat ringan; history tidak dibawa saat scan.
       const res = await api("findQr", { qr_id: id, include_history: false });
@@ -2168,7 +2418,10 @@
         res.bal = _hydrateBal(res.bal);
         // v39.1: hasil scan QR = data bal fresh dari server. Masukkan ke store supaya
         // setelah scan, pindah ke list/detail ikut menampilkan data terbaru.
-        _balStorePatch(res.bal);
+        // v49: hanya bila sesi TIDAK berganti selama request (respons scan user lama
+        // tidak boleh masuk ke store user baru). Hasil scan tetap dikembalikan ke
+        // pemanggil (alur sesi lama sudah mati bersama UI-nya).
+        if (_balContextValid(ctx)) _balStorePatch(res.bal);
       }
       if (res && res.ticket && typeof res.ticket.workers_json === "string" && !res.ticket.workers) {
         try { res.ticket.workers = JSON.parse(res.ticket.workers_json || "[]"); } catch (_) { res.ticket.workers = []; }
@@ -2464,13 +2717,25 @@
        LOGIN
        ============================================================ */
 
+    // v51: urutan percobaan login. Dua login yang overlap (mis. Enter ditekan berulang)
+    // bisa selesai TIDAK berurutan — login yang selesai belakangan bisa menimpa sesi yang
+    // sudah terbuka. Hanya percobaan TERAKHIR yang boleh membuka sesi.
+    let _loginAttemptSeq = 0;
+
     async function doLogin() {
       const username = document.getElementById("loginUsername").value.trim();
       const pin = document.getElementById("loginPassword").value;
       if (!username || !pin) { toast("Username dan PIN wajib diisi.", "warn"); return; }
+      const attempt = ++_loginAttemptSeq;
       try {
         showLoading("Login...");
         const user = await apiLogin(username, pin);
+        if (attempt !== _loginAttemptSeq) { hideLoading(); return; } // v51: sudah ada login/logout lebih baru → buang hasil ini
+        // v51: pastikan tidak ada sisa data sesi sebelumnya sebelum sesi baru dibuka.
+        // (Login lewat halaman login setelah logout sudah bersih; ini menjaga jalur lain,
+        // mis. login berulang tanpa logout eksplisit.)
+        clearApiCache();
+        _balStoreInvalidate();
         // Simpan PIN di session supaya request berikutnya bisa attach auth.
         // Catatan keamanan: PIN tersimpan di sessionStorage, hilang saat tab ditutup.
         // Tidak permanen di localStorage. Sama tingkat keamanan dengan cookie session standar.
@@ -2481,17 +2746,79 @@
         toast(`Selamat datang, ${user.nama}!`, "success");
       } catch (e) {
         hideLoading();
+        if (attempt !== _loginAttemptSeq) return; // v51: percobaan usang → jangan tampilkan error
         toast(e.message || "Login gagal", "error", 5000);
       }
+    }
+
+    // v51: RESET STATE INPUT PER-SESI. Ini bukan sekadar soal cache/tampilan — ini
+    // INTEGRITAS DATA PRODUKSI. Skenario nyata: Operator A mengisi form bal + pilih foto,
+    // belum menekan Simpan, lalu logout. Operator B login di tab yang sama dan form milik
+    // A masih terisi → B bisa tanpa sadar menyimpan bal memakai data A.
+    function _resetSessionInputState_() {
+      const ids = [
+        "f_po_id", "f_nomor_bal", "f_halaman_buku", "f_buku_nomor", "f_line", "f_no_mesin",
+        "f_operator_mesin", "f_jenis_barang", "f_jenis_barang_lain", "f_warna", "f_size",
+        "f_jumlah", "f_satuan", "f_catatan"
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      try { resetPhoto(); } catch (_) { pendingPhotoBase64 = ""; }
+
+      // Tutup & kosongkan semua modal — elemen modal berada DI LUAR #appPage, jadi
+      // menyembunyikan appPage saja tidak menghapusnya dari layar/DOM.
+      ["detailModal", "actionModal", "editModal", "splitModal", "outputModal",
+       "labelModal", "ownerOverrideModal", "plastikModal"].forEach(id => {
+        const m = document.getElementById(id);
+        if (m) m.classList.remove("show");
+      });
+
+      // State per-user lain yang tidak boleh bocor ke user berikutnya.
+      pendingPhotoBase64 = "";
+      lastShippedCustomer = "";       // prefill customer milik user sebelumnya
+      currentDetailBalId = "";
+      ownerOverrideActiveBalId = "";
+      ownerOverrideActiveTab = "data";
+      _plastikPhotoBase64 = "";
+      _plastikMasterEditId = "";
+      _plastikExistingFotoUrl = "";
+      lastOwnerHealthReport = null;
+
+      // Autocomplete pegawai: tanpa reset flag, user berikutnya TIDAK fetch ulang
+      // (guard `if (_workerNamesLoaded && !force) return;`) dan memakai daftar user lama.
+      _workerNamesLoaded = false;
+      const dl = document.getElementById("workerNames");
+      if (dl) dl.innerHTML = "";
     }
 
     function logout() {
       stopScan();
       currentUser = null;
+      _userEpoch++; // v49: respons async milik sesi lama harus dibuang saat selesai
+      _loginAttemptSeq++; // v51: batalkan login yang mungkin masih berjalan
       sessionStorage.removeItem(SESSION_KEY);
       clearApiCache(); // bersihkan cache supaya user berikutnya tidak lihat data cached
       _balStoreInvalidate(); // v39: kosongkan store bal juga (device dipakai bergantian antar user)
       if (typeof bulkSelectedBalIds !== "undefined") bulkSelectedBalIds.clear(); // v44.8: jangan bawa pilihan ke user berikutnya
+      // v50: bersihkan SEMUA koleksi global per-sesi. Tanpa ini, data user lama tetap
+      // tinggal di memori/DOM setelah user baru login di device yang sama.
+      archivedBalsCache = [];
+      _bulkShipBals = [];
+      _pengRows = [];
+      _pengBalMap = {};
+      _plastikMasters = [];
+      _plastikStok = [];
+      try { Object.keys(_workRekapCache).forEach(k => { delete _workRekapCache[k]; }); } catch (_) {}
+      try { Object.keys(_workRekapInflight).forEach(k => { delete _workRekapInflight[k]; }); } catch (_) {}
+      // v51: inflight menu di-lepas (epoch-bound; identity check di finally menjaga
+      // request lama tidak mengganggu state request user baru).
+      _archiveInflight = null;
+      _pengInflight = null;
+      _plastikInflight = null;
+      // v51: bersihkan form input, foto, modal, dan state per-user (lihat catatan di atas).
+      try { _resetSessionInputState_(); } catch (e) { console.warn("reset session state:", e); }
       document.getElementById("loginPage").classList.remove("hidden");
       document.getElementById("appPage").classList.add("hidden");
       document.getElementById("loginPassword").value = "";
@@ -2504,6 +2831,13 @@
       setupNavByRole();
       setupStatusFilter();
       populateJenisSelect(document.getElementById("f_jenis_barang"));
+      // v49: epoch naik SETIAP sesi dibuka (login baru maupun restore sesi tersimpan) —
+      // relogin user yang sama pun dianggap sesi baru karena store dibangun ulang.
+      _userEpoch++;
+      // v47: pulihkan _balStore dari sessionStorage SEBELUM render tab pertama.
+      // Setelah update HTML / reload, ini membuat Dashboard/Daftar Bal/Buku/Maklon
+      // tampil instan dari cache lama, lalu jalur Fast menyegarkan dari server di latar.
+      _persistBalStoreRestore();
       // v39.1: switchTab() sudah memanggil refreshAll() untuk tab tujuan. Panggilan
       // refreshAll() kedua di sini redundan dan dulu memicu 2 render/fetch saat login.
       switchTab(defaultTabForRole());
@@ -3314,6 +3648,10 @@
 
 
     async function refreshAfterMutation(bal_id, options = {}) {
+      // v50: guard sesi kini TERPUSAT di api() — mutasi sesi lama di-throw SESSION_CHANGED
+      // sebelum sampai ke sini, jadi fungsi ini dijamin hanya berjalan untuk sesi yang
+      // masih hidup. Cek currentUser dipertahankan sebagai lapis kewarasan murah.
+      if (!currentUser) return;
       clearApiCacheForBal(bal_id, { borongan: !!options.borongan });
 
       const updatedBal = options.bal ? _hydrateBal(options.bal) : null;
@@ -3390,7 +3728,7 @@
     async function renderDashboard() {
       let allBals;
       try {
-        allBals = await apiListBals();
+        allBals = await apiListBalsFast({ backgroundRefresh: true });
       } catch (e) {
         // v44.8: dashboard = tab default operator. Jangan menggantung saat jaringan lambat.
         const host = document.querySelector("#tab-dashboard .dashboard-grid") || document.querySelector("#tab-dashboard");
@@ -3804,7 +4142,10 @@
        ARCHIVE v44.5
        ============================================================ */
 
-    let _archiveInflight = false;
+    // v51: inflight diikat EPOCH (dulu boolean global). Kalau user lama masih fetch dan
+    // user baru login, user baru TIDAK ikut ter-block — dia memulai request sendiri.
+    // finally memakai identity check supaya request lama tidak mereset state request baru.
+    let _archiveInflight = null;
     async function renderArchive() {
       const sum = document.getElementById("archiveSummary");
       const paint = () => {
@@ -3816,15 +4157,19 @@
       if (Array.isArray(archivedBalsCache) && archivedBalsCache.length) paint();
 
       // Single-flight + selalu refresh fresh di latar.
-      if (_archiveInflight) return;
-      _archiveInflight = true;
+      if (_archiveInflight === _userEpoch) return;
+      const myEpoch = _userEpoch;
+      _archiveInflight = myEpoch;
       try {
-        archivedBalsCache = (await apiListArchivedBals()).map(_hydrateBal);
+        const rows = (await apiListArchivedBals()).map(_hydrateBal);
+        if (!currentUser || myEpoch !== _userEpoch) return; // v51: sesi berganti → jangan tulis/render
+        archivedBalsCache = rows;
         paint();
       } catch (e) {
+        if (_isSessionChangedErr_(e)) return; // v51: diam-diam, jangan tampilkan ke user baru
         if (!archivedBalsCache.length) toast("Gagal load arsip: " + (e.message || e), "error");
       } finally {
-        _archiveInflight = false;
+        if (_archiveInflight === myEpoch) _archiveInflight = null;
       }
     }
 
@@ -4690,8 +5035,10 @@ Alasan: ${cleanReason}`)) return;
         // Refresh data bal di background agar cache/store tetap akurat untuk klik berikutnya.
         if (usedStaleLocalDetail && b && b.bal_id) {
           const beforeKey = _balSnapshotKey(b);
+          const ctx = _captureBalContext(); // v49: tangkap sesi SEBELUM request latar
           api("getBalBundle", { bal_id: b.bal_id, include_history: false }, { cache: false })
             .then(fresh => {
+              if (!_balContextValid(ctx)) return; // v49: sesi berganti → buang, jangan tulis store/cache
               if (!fresh || !fresh.bal) return;
               const freshBal = _hydrateBal(fresh.bal);
               _balStorePatch(freshBal);
@@ -7463,7 +7810,7 @@ Alasan: ${cleanReason}`)) return;
 
       let balsFull;
       try {
-        balsFull = await apiListBals();
+        balsFull = await apiListBalsFast({ backgroundRefresh: true });
       } catch (e) {
         chipEl.innerHTML = `<div class="empty">Gagal memuat data: ${safe(e.message || String(e))}</div>`;
         return;
@@ -7935,7 +8282,7 @@ Alasan: ${cleanReason}`)) return;
     function plastikStokByKey(key) { return _plastikStok.find(s => s.key === key) || null; }
 
     // ---- RENDER (dipanggil refreshAll & Refresh) ----
-    let _plastikInflight = false;
+    let _plastikInflight = null; // v51: epoch-bound (dulu boolean)
     async function renderPlastik() {
       const mEl = document.getElementById("plastikMasterList");
       const sEl = document.getElementById("plastikStokList");
@@ -7952,21 +8299,25 @@ Alasan: ${cleanReason}`)) return;
       }
 
       // Single-flight + selalu refresh fresh di latar.
-      if (_plastikInflight) return;
-      _plastikInflight = true;
+      // v51: diikat epoch — user baru tidak ter-block oleh request user lama.
+      if (_plastikInflight === _userEpoch) return;
+      const myEpoch = _userEpoch;
+      _plastikInflight = myEpoch;
       try {
         const [masters, stok] = await Promise.all([apiListPlastikMaster(), apiListPlastikStok()]);
+        if (!currentUser || myEpoch !== _userEpoch) return; // v51: sesi berganti → jangan tulis/render
         _plastikMasters = Array.isArray(masters) ? masters : [];
         _plastikStok = Array.isArray(stok) ? stok : [];
         renderPlastikMasterList();
         renderPlastikStokList();
       } catch (e) {
+        if (_isSessionChangedErr_(e)) return; // v51: pembatalan sengaja, bukan kegagalan
         if (!havePrev) {
           if (mEl) mEl.innerHTML = `<div class="plastik-empty">Gagal memuat: ${safe(e.message)}</div>`;
           if (sEl) sEl.innerHTML = "";
         }
       } finally {
-        _plastikInflight = false;
+        if (_plastikInflight === myEpoch) _plastikInflight = null;
       }
     }
 
@@ -8284,7 +8635,7 @@ Alasan: ${cleanReason}`)) return;
     }
 
 
-    let _pengInflight = false;
+    let _pengInflight = null; // v51: epoch-bound (dulu boolean)
     async function renderPengiriman() {
       const summaryEl = document.getElementById("pengSummary");
 
@@ -8299,22 +8650,27 @@ Alasan: ${cleanReason}`)) return;
       if (Array.isArray(_pengRows) && _pengRows.length) paint();
 
       // Single-flight + selalu refresh fresh di latar (mutasi pengiriman langsung tercermin).
-      if (_pengInflight) return;
-      _pengInflight = true;
+      // v51: diikat epoch — user baru tidak ter-block oleh request user lama.
+      if (_pengInflight === _userEpoch) return;
+      const myEpoch = _userEpoch;
+      _pengInflight = myEpoch;
       try {
         const res = await apiListPengiriman();
+        if (!currentUser || myEpoch !== _userEpoch) return; // v51: sesi berganti → jangan tulis/render
         _pengRows = Array.isArray(res) ? res : [];
         // Ambil bal (cache) untuk foto — petakan bal_id → bal. Gagal pun tidak masalah (placeholder).
         try {
           const bals = await apiListBals();
+          if (!currentUser || myEpoch !== _userEpoch) return;
           _pengBalMap = {};
           (Array.isArray(bals) ? bals : []).forEach(b => { _pengBalMap[b.bal_id] = b; });
         } catch (e) { _pengBalMap = {}; }
         paint();
       } catch (e) {
+        if (_isSessionChangedErr_(e)) return; // v51: pembatalan sengaja, bukan kegagalan
         if (!_pengRows.length && summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger)">Gagal memuat: ${safe(e.message || String(e))}</span>`;
       } finally {
-        _pengInflight = false;
+        if (_pengInflight === myEpoch) _pengInflight = null;
       }
     }
 
@@ -8658,7 +9014,7 @@ Alasan: ${cleanReason}`)) return;
 
     async function renderMaklonVendor() {
       try {
-        const all = await apiListBals();
+        const all = await apiListBalsFast({ backgroundRefresh: true });
         let rows = (all || []).filter(b => !b.deleted && isExternalMaklonBal(b));
         refreshMaklonFilters(rows);
 
@@ -8986,7 +9342,10 @@ Alasan: ${cleanReason}`)) return;
           return { scope: full ? "all" : "role_stage", tahap: targetSub, start_date: start, end_date: end };
         };
         const payload = payloadOf();
-        const cacheKey = JSON.stringify(payload);
+        // v51: cacheKey menyertakan EPOCH — cache hasil & single-flight jadi terisolasi
+        // per sesi. Tanpa ini, user baru bisa (a) melihat hasil rekap user lama dari cache,
+        // atau (b) ter-block oleh inflight milik user lama sampai request itu selesai.
+        const cacheKey = _userEpoch + ":" + JSON.stringify(payload);
 
         const paint = (res) => {
           const jenis = document.getElementById("workFilterJenis")?.value || "";
@@ -9016,12 +9375,14 @@ Alasan: ${cleanReason}`)) return;
         _workRekapInflight[cacheKey] = true;
         try {
           const res = await apiListWorkRekap(payload);
+          if (!currentUser || !cacheKey.startsWith(_userEpoch + ":")) return; // v51: sesi berganti → buang
           _workRekapCache[cacheKey] = { res, at: Date.now() };
-          if (JSON.stringify(payloadOf()) === cacheKey) paint(res);
+          if ((_userEpoch + ":" + JSON.stringify(payloadOf())) === cacheKey) paint(res);
         } finally {
           delete _workRekapInflight[cacheKey];
         }
       } catch (e) {
+        if (_isSessionChangedErr_(e)) return; // v51: pembatalan sengaja, bukan kegagalan
         toast("Gagal load Rekap Produksi: " + e.message, "error");
       }
     }
