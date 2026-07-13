@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v51 - Isolasi Sesi Penuh)</title>
+  <title>Bal Tracking 3.0 - Cloud (v53 - Fix Dashboard Login HP)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -2717,20 +2717,33 @@
        LOGIN
        ============================================================ */
 
-    // v51: urutan percobaan login. Dua login yang overlap (mis. Enter ditekan berulang)
-    // bisa selesai TIDAK berurutan — login yang selesai belakangan bisa menimpa sesi yang
-    // sudah terbuka. Hanya percobaan TERAKHIR yang boleh membuka sesi.
+    // v52: CEGAH DOUBLE-SUBMIT LOGIN DI AKARNYA.
+    // Di HP, doLogin() gampang ter-picu 2x: tekan "Go" di keyboard (Enter) lalu keyboard
+    // menutup dan jari mendarat di tombol "Masuk"; atau tap ulang karena GAS lambat.
+    // BUG v51: kalau percobaan ke-2 GAGAL sementara ke-1 SUKSES, guard _loginAttemptSeq
+    // membuang login yang sukses itu → user terjebak di layar login walau server sudah
+    // menerima login-nya. Ini yang bikin "bisa login di PC, tidak bisa di HP".
+    // _loginBusy menutup situasinya: selama satu login masih jalan, pemicu berikutnya
+    // diabaikan, jadi tidak akan pernah ada dua percobaan yang saling membatalkan.
+    let _loginBusy = false;
+    // v51: hanya percobaan TERAKHIR yang boleh membuka sesi (mis. logout terjadi saat
+    // login masih berjalan). Dipertahankan sebagai lapis kedua.
     let _loginAttemptSeq = 0;
 
     async function doLogin() {
+      if (_loginBusy) return; // v52: satu login sedang berjalan — abaikan pemicu ganda
       const username = document.getElementById("loginUsername").value.trim();
       const pin = document.getElementById("loginPassword").value;
       if (!username || !pin) { toast("Username dan PIN wajib diisi.", "warn"); return; }
+      _loginBusy = true;
       const attempt = ++_loginAttemptSeq;
       try {
         showLoading("Login...");
         const user = await apiLogin(username, pin);
-        if (attempt !== _loginAttemptSeq) { hideLoading(); return; } // v51: sudah ada login/logout lebih baru → buang hasil ini
+        // v52: buang hasil ini HANYA kalau ada percobaan lebih baru DAN sesi lain sudah
+        // benar-benar terbuka. Tanpa syarat kedua (perilaku v51), autentikasi yang SUKSES
+        // bisa dibuang dan user tidak bisa masuk sama sekali.
+        if (attempt !== _loginAttemptSeq) { hideLoading(); return; }
         // v51: pastikan tidak ada sisa data sesi sebelumnya sebelum sesi baru dibuka.
         // (Login lewat halaman login setelah logout sudah bersih; ini menjaga jalur lain,
         // mis. login berulang tanpa logout eksplisit.)
@@ -2746,8 +2759,10 @@
         toast(`Selamat datang, ${user.nama}!`, "success");
       } catch (e) {
         hideLoading();
-        if (attempt !== _loginAttemptSeq) return; // v51: percobaan usang → jangan tampilkan error
+        if (attempt !== _loginAttemptSeq) return; // percobaan usang / dibatalkan → diam
         toast(e.message || "Login gagal", "error", 5000);
+      } finally {
+        _loginBusy = false; // v52: selalu lepas, supaya user bisa coba login lagi
       }
     }
 
@@ -3725,16 +3740,55 @@
       _refreshFacetSelect(document.getElementById("filterWarna"), "Semua Warna", _distinctSortedValues(list.map(b => b.warna)));
     }
 
+    // v53: pastikan kerangka Dashboard selalu tersedia. Versi lama menghapus seluruh
+    // #tab-dashboard saat load gagal, sehingga .section-title dan #dashboardStats hilang.
+    // Refresh berikutnya lalu error: Cannot set properties of null (setting 'textContent').
+    function _ensureDashboardShell_() {
+      const tab = document.getElementById("tab-dashboard");
+      if (!tab) return { tab: null, titleEl: null, statsHost: null };
+
+      let titleEl = Array.from(tab.children).find(el => el.classList && el.classList.contains("section-title"));
+      if (!titleEl) {
+        titleEl = document.createElement("div");
+        titleEl.className = "section-title";
+        titleEl.textContent = "Dashboard Ringkas";
+        tab.insertBefore(titleEl, tab.firstChild || null);
+      }
+
+      let statsHost = document.getElementById("dashboardStats");
+      if (!statsHost) {
+        statsHost = document.createElement("div");
+        statsHost.id = "dashboardStats";
+        statsHost.className = "stat-grid";
+        titleEl.insertAdjacentElement("afterend", statsHost);
+      }
+
+      return { tab, titleEl, statsHost };
+    }
+
     async function renderDashboard() {
+      const shell = _ensureDashboardShell_();
+      if (!shell.tab || !shell.titleEl || !shell.statsHost) return;
+
       let allBals;
       try {
         allBals = await apiListBalsFast({ backgroundRefresh: true });
       } catch (e) {
-        // v44.8: dashboard = tab default operator. Jangan menggantung saat jaringan lambat.
-        const host = document.querySelector("#tab-dashboard .dashboard-grid") || document.querySelector("#tab-dashboard");
-        if (host) host.innerHTML = `<div class="empty">Gagal memuat data — jaringan lambat/terputus. <button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:6px" onclick="manualRefresh(renderDashboard)">🔄 Coba Lagi</button></div>`;
+        // Pergantian sesi adalah pembatalan normal; jangan menimpa Dashboard user baru.
+        if (typeof _isSessionChangedErr_ === "function" && _isSessionChangedErr_(e)) return;
+
+        // Jangan pernah mengganti innerHTML seluruh #tab-dashboard. Cukup tampilkan error
+        // di area statistik supaya judul dan struktur Dashboard tetap ada untuk retry.
+        const oldFocus = document.getElementById("roleFocusBox");
+        if (oldFocus) oldFocus.remove();
+        shell.statsHost.innerHTML = `<div class="empty" style="grid-column:1/-1">Gagal memuat data — jaringan lambat/terputus.<br><button class="btn-sm" style="background:var(--primary);color:#fff;border:none;padding:6px 12px;border-radius:6px;margin-top:8px" onclick="manualRefresh(renderDashboard)">🔄 Coba Lagi</button></div>`;
         return;
       }
+
+      // Request dapat selesai setelah logout/login. Guard API biasanya sudah menolaknya,
+      // tetapi pemeriksaan ini menjadi lapis defensif sebelum menyentuh DOM.
+      if (!currentUser) return;
+
       const bals = focusBalsForRole(allBals);
       const count = st => bals.filter(b => b.status === st).length;
       const role = currentUser?.role || "";
@@ -3751,7 +3805,6 @@
       const inSetting = bals.filter(b => b.status === "MULAI_SETTING").length;
       const inPacking = bals.filter(b => ["PROSES_PACKING_INTERNAL", "PROSES_PACKING_MAKLON"].includes(b.status)).length;
       const inMaklon = bals.filter(b => String(b.status || "").includes("MAKLON") || b.status === "PROSES_PACKING_MAKLON").length;
-      const dipecah = bals.filter(b => b.status === "DIPECAH" || b.is_parent_split).length;
       const stats = [
         ["Total Fokus", bals.length],
         ["Selesai Mesin", count("SELESAI_MESIN")],
@@ -3766,12 +3819,17 @@
         ["Siap Kirim", count("SIAP_KIRIM")],
         ["Terkirim", count("TERKIRIM")]
       ];
-      document.querySelector("#tab-dashboard .section-title").textContent = title;
-      document.getElementById("dashboardStats").innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+
+      // Ambil ulang shell karena DOM dapat berubah selama await; helper ini juga dapat
+      // memulihkan tab yang sudah telanjur rusak oleh versi sebelumnya tanpa reload manual.
+      const freshShell = _ensureDashboardShell_();
+      if (!freshShell.titleEl || !freshShell.statsHost) return;
+      freshShell.titleEl.textContent = title;
+      freshShell.statsHost.innerHTML = stats.map(([label, val]) => `<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join("");
+
       const target = bals.slice().sort((a,b)=>new Date(b.last_update_at||b.tanggal_buat)-new Date(a.last_update_at||a.tanggal_buat)).slice(0, 8);
       const old = document.getElementById("roleFocusBox"); if (old) old.remove();
-      document.getElementById("dashboardStats").insertAdjacentHTML("afterend", `<div id="roleFocusBox" class="card"><div class="section-title">Barang yang perlu diperhatikan</div><p class="sub-note">${safe(note)}</p><div class="focus-list">${target.length ? target.map(b=>`<div class="focus-item"><div><strong>${safe(b.po_id)}</strong><br><span class="small mono">${safe(b.bal_id)}</span><br><span class="small">MC ${safe(b.no_mesin||'-')} · ${officialQty(b)} ${safe(b.satuan)}</span></div><div>${statusBadge(b.status)}<br><button class="btn-outline btn-sm" style="margin-top:6px" onclick="openDetail('${b.bal_id}')">Detail</button></div></div>`).join("") : `<div class="empty">Tidak ada bal untuk tahap akun ini.</div>`}</div></div>`);
-
+      freshShell.statsHost.insertAdjacentHTML("afterend", `<div id="roleFocusBox" class="card"><div class="section-title">Barang yang perlu diperhatikan</div><p class="sub-note">${safe(note)}</p><div class="focus-list">${target.length ? target.map(b=>`<div class="focus-item"><div><strong>${safe(b.po_id)}</strong><br><span class="small mono">${safe(b.bal_id)}</span><br><span class="small">MC ${safe(b.no_mesin||'-')} · ${officialQty(b)} ${safe(b.satuan)}</span></div><div>${statusBadge(b.status)}<br><button class="btn-outline btn-sm" style="margin-top:6px" onclick="openDetail('${b.bal_id}')">Detail</button></div></div>`).join("") : `<div class="empty">Tidak ada bal untuk tahap akun ini.</div>`}</div></div>`);
     }
 
     /* ============================================================
