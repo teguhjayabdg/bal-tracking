@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v53 - Fix Dashboard Login HP)</title>
+  <title>Bal Tracking 3.0 - Cloud (v57 - Vendor Maklon Final Aman)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -1413,6 +1413,7 @@
             <button class="btn-primary" onclick="ownerRunHealthCheck()">🔎 Cek Data</button>
             <button class="btn-primary" onclick="openUserManagement()">👥 Kelola User</button>
             <button class="btn-primary" onclick="openVerifierManagement()">🔎 Kelola Verifier QC</button>
+            <button class="btn-primary" onclick="openVendorManagement()">🏭 Kelola Vendor Maklon</button>
             <button class="btn-outline" onclick="ownerExportBackupJSON()">📥 Export Backup JSON</button>
             <button class="btn-warning" onclick="document.getElementById('ownerImportBackupInput').click()">📤 Import Backup JSON</button>
             <input id="ownerImportBackupInput" type="file" accept="application/json,.json" class="hidden" onchange="ownerImportBackupJSON(event)">
@@ -1472,6 +1473,7 @@
       "startMaklonAntislip", "finishMaklonAntislip",
       "finishSetting",
       "saveVerifier", "deleteVerifier",
+      "saveMaklonVendor", "deleteMaklonVendor",
       "createPlastikMaster", "updatePlastikMaster", "deletePlastikMaster", "plastikStockIn", "plastikStockOut", "deletePlastikMutasi",
       "runArchiveTerkirim", "restoreArchivedBal", "permanentDeleteArchivedBal"
     ]);
@@ -1558,10 +1560,56 @@
       DIPECAH: "Dipecah"
     };
 
-    // Constant untuk Maklon Eksternal. Cermin dari Code.gs MAKLON_VENDORS.
-    // Bisa juga di-fetch via apiListMaklonVendors() supaya tidak perlu sinkron manual,
-    // tapi untuk MVP hardcoded saja. Kalau owner tambah vendor di Code.gs, edit di sini juga.
-    const MAKLON_VENDORS = ["Nanjung", "Margaasih", "Obras NJG"];
+    // v57: Vendor Maklon Eksternal DINAMIS + seed lock/reactivasi/info job aktif — daftar diambil dari server (sheet `vendors`),
+    // bisa ditambah/dihapus dari Sistem → Kelola Vendor Maklon tanpa deploy ulang.
+    // MAKLON_VENDORS tetap ada sebagai variabel (bukan const lagi) supaya semua render
+    // sinkron lama tetap jalan: isinya nama vendor AKTIF, di-refresh dari server saat
+    // login dan setiap habis mutasi vendor. Nilai awal = seed lama (fallback offline).
+    let MAKLON_VENDORS = ["Nanjung", "Margaasih", "Obras NJG", "Baru"];
+    // Record lengkap {id, nama, active, ...} untuk panel Kelola Vendor & dropdown historis.
+    let MAKLON_VENDORS_FULL = [];
+    let _maklonVendorsLoaded = false;
+
+    // Normalisasi respons server: v46+ kirim array of object, backend lama array of string.
+    function normalizeVendorRecords(raw) {
+      return (raw || []).map(v => {
+        if (typeof v === "string") return { id: "", nama: v.trim(), active: true };
+        return {
+          id: String(v.id || ""),
+          nama: String(v.nama || "").trim(),
+          active: v.active === true || v.active === "TRUE" || v.active === "true"
+        };
+      }).filter(v => v.nama);
+    }
+
+    async function refreshMaklonVendors(force) {
+      if (_maklonVendorsLoaded && !force) return MAKLON_VENDORS;
+      try {
+        const raw = await apiListMaklonVendors(!!force);
+        const recs = normalizeVendorRecords(raw);
+        if (recs.length) {
+          MAKLON_VENDORS_FULL = recs;
+          MAKLON_VENDORS = recs.filter(v => v.active).map(v => v.nama);
+        }
+        _maklonVendorsLoaded = true;
+      } catch (e) {
+        // Gagal fetch → tetap pakai daftar terakhir/seed, jangan blokir flow maklon.
+        console.warn("Gagal refresh vendor maklon, pakai daftar lokal:", e.message);
+      }
+      return MAKLON_VENDORS;
+    }
+
+    // Opsi dropdown vendor. includeName: pastikan nama tertentu (mis. vendor lama yang
+    // sudah nonaktif tapi masih tercatat di bal) tetap muncul supaya bisa dipilih ulang
+    // saat repair/rollback.
+    function vendorOptionsHtml(selectedName, includeName) {
+      const names = MAKLON_VENDORS.slice();
+      [includeName, selectedName].forEach(n => {
+        const nm = String(n || "").trim();
+        if (nm && names.indexOf(nm) === -1) names.push(nm);
+      });
+      return names.map(v => `<option value="${safe(v)}" ${selectedName === v ? "selected" : ""}>${safe(v)}</option>`).join("");
+    }
     const MAKLON_EKS_TIPE_LABEL = {
       OBRAS_SETTING_PACKING: "Obras + Setting + Packing",
       OBRAS_SETTING_ONLY: "Obras + Setting saja (Packing internal)",
@@ -2660,10 +2708,19 @@
           return await api("markShipped", payload);
         }
 
-    // Phase 2 — Maklon eksternal (full-stage vendor: Nanjung, Margaasih, dll)
-    async function apiListMaklonVendors() {
-      // Cache di session — list jarang berubah
-      return await api("listMaklonVendors", {}, { cache: true });
+    // Phase 2 — Maklon eksternal (full-stage vendor, v57: dinamis + aman)
+    async function apiListMaklonVendors(force) {
+      // Cache di session — list jarang berubah. force=true dipakai setelah mutasi vendor.
+      if (force) clearApiCache("listMaklonVendors");
+      return await api("listMaklonVendors", {}, { cache: true, cacheTtlMs: 600000 });
+    }
+    async function apiSaveMaklonVendor(payload) {
+      clearApiCache("listMaklonVendors");
+      return await api("saveMaklonVendor", payload);
+    }
+    async function apiDeleteMaklonVendor(payload) {
+      clearApiCache("listMaklonVendors");
+      return await api("deleteMaklonVendor", payload);
     }
     // FIX v17 — Verifier QC names (dropdown + settings page)
     async function apiListVerifiers() {
@@ -2858,6 +2915,9 @@
       switchTab(defaultTabForRole());
       // FIX v17: warm-up autocomplete pegawai. Async, jangan await — biar UI tidak ngeblok.
       refreshWorkerNamesDatalist().catch(e => console.warn("refreshWorkerNamesDatalist:", e.message));
+      // v57: warm-up daftar vendor maklon dari server. Async juga — kalau gagal,
+      // MAKLON_VENDORS tetap berisi seed lokal jadi flow maklon tidak mati.
+      refreshMaklonVendors().catch(e => console.warn("refreshMaklonVendors:", e.message));
     }
 
     // FIX v17: populate <datalist id="workerNames"> dengan daftar unik nama pegawai.
@@ -4737,7 +4797,7 @@
       if (!assertBulkAllStatus(bals, "QTY_TERVERIFIKASI", "Kirim Maklon Eksternal massal")) return;
       if (!assertBulkNoSplit(bals)) return;
 
-      const vendors = MAKLON_VENDORS; // v44.8: identik dengan server; tanpa round-trip
+      const vendors = await refreshMaklonVendors(); // v54: dinamis dari server (fallback lokal kalau gagal)
       const vendorOptions = (vendors || []).map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
       const tipeOptions = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${safe(k)}">${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
 
@@ -6007,7 +6067,7 @@ Alasan: ${cleanReason}`)) return;
           <div class="form-group"><label>Rollback ke Status</label><select id="oo_status_target">${targetOpts}</select></div>
           <div class="form-group">
             <label>Vendor Maklon Eksternal <span class="small">(wajib kalau target MAKLON_*)</span></label>
-            <select id="oo_status_maklon_vendor"><option value="">-- Pilih vendor jika rollback ke maklon --</option>${MAKLON_VENDORS.map(v => `<option value="${safe(v)}" ${b.maklon_eks_vendor === v ? "selected" : ""}>${safe(v)}</option>`).join("")}</select>
+            <select id="oo_status_maklon_vendor"><option value="">-- Pilih vendor jika rollback ke maklon --</option>${vendorOptionsHtml(b.maklon_eks_vendor, b.maklon_eks_vendor)}</select>
           </div>
           <div class="form-group"><label>Alasan Rollback <span class="required">*</span> (min 10 karakter)</label><textarea id="oo_status_reason" rows="2"></textarea></div>
           <button class="btn-warning btn-block" onclick="guardedClick(this, confirmOORollbackStatus, 'Memproses...')">⏮ Rollback Status + Cleanup</button>
@@ -6036,7 +6096,7 @@ Alasan: ${cleanReason}`)) return;
     function renderOOTabMaklon(b) {
       const inferred = String(b.status || "").startsWith("MAKLON_") ? String(b.status).replace(/^MAKLON_/, "") : (b.maklon_eks_tipe || "OBRAS_SETTING_PACKING");
       const tipeOpts = Object.keys(MAKLON_EKS_TIPE_LABEL).map(k => `<option value="${k}" ${inferred === k ? "selected" : ""}>${safe(MAKLON_EKS_TIPE_LABEL[k])}</option>`).join("");
-      const vendorOpts = MAKLON_VENDORS.map(v => `<option value="${safe(v)}" ${b.maklon_eks_vendor === v ? "selected" : ""}>${safe(v)}</option>`).join("");
+      const vendorOpts = vendorOptionsHtml(b.maklon_eks_vendor, b.maklon_eks_vendor); // v54: dinamis + vendor lama bal tetap muncul walau nonaktif
       const defaultQty = Number(b.maklon_eks_qty_kembali || b.qty_verifikasi || b.jumlah || 0) || "";
       const currentHasil = String(b.maklon_eks_hasil_packing || "NON_FINAL").toUpperCase();
       const defaultMode = String(b.status || "").startsWith("MAKLON_") ? "rollback" : "metadata";
@@ -7332,9 +7392,9 @@ Alasan: ${cleanReason}`)) return;
       if (!allowedTipes.length) {
         return alert("Status ini belum bisa dikirim ke maklon eksternal. Sekarang: " + bal.status);
       }
-      // v44.8: vendor list sama persis dengan server (MAKLON_VENDORS hardcoded di kedua sisi),
-      // jadi pakai constant lokal langsung — hemat 1 round-trip Apps Script saat buka modal.
-      const vendors = MAKLON_VENDORS;
+      // v54: vendor dinamis dari server (sheet `vendors`), di-cache di client — buka modal
+      // tetap cepat karena refreshMaklonVendors() hanya round-trip sekali per sesi.
+      const vendors = await refreshMaklonVendors();
 
       const vendorOpts = vendors.map(v => `<option value="${safe(v)}">${safe(v)}</option>`).join("");
       const qtyOff = officialQty(bal);
@@ -10253,6 +10313,189 @@ Alasan: ${cleanReason}`)) return;
         openVerifierManagement();
         try { refreshWorkerNamesDatalist(true); } catch (_) {}
       } catch (e) { toast(e.message, "error"); }
+    }
+
+    /* ============================================================
+       VENDOR MAKLON MANAGEMENT (Owner / Admin Produksi) — v57
+       Daftar vendor maklon eksternal, disimpan di sheet `vendors` di
+       server. Menggantikan hardcode MAKLON_VENDORS — tambah/hapus vendor
+       tidak perlu deploy ulang Apps Script lagi.
+       - Tambah: vendor baru langsung muncul di dropdown kirim maklon.
+       - Nonaktifkan: disembunyikan dari dropdown kirim BARU, tapi tetap
+         dikenali untuk bal historis (repair/rollback/borongan).
+       - Hapus permanen: HANYA kalau vendor belum pernah dipakai sama
+         sekali (mis. salah ketik). Server yang memvalidasi.
+       ============================================================ */
+    async function openVendorManagement() {
+      if (!["Owner", "Admin Produksi"].includes(currentUser?.role)) {
+        return toast("Hanya Owner / Admin Produksi.", "warn");
+      }
+      try {
+        await withLoading("Memuat daftar vendor...", async () => {
+          await refreshMaklonVendors(true);
+          renderVendorPanel(MAKLON_VENDORS_FULL);
+        });
+      } catch (e) {
+        toast("Gagal load vendor: " + e.message, "error");
+      }
+    }
+
+    function getVendorUiById(id) {
+      return (MAKLON_VENDORS_FULL || []).find(v => String(v.id || "") === String(id || "")) || null;
+    }
+
+    function bindVendorPanelActions(panel) {
+      panel.onclick = (event) => {
+        const btn = event.target.closest("[data-vendor-action]");
+        if (!btn || !panel.contains(btn)) return;
+        const id = btn.dataset.vendorId || "";
+        const action = btn.dataset.vendorAction || "";
+        if (action === "edit") return openEditVendorFormById(id);
+        if (action === "toggle") return toggleVendorActive(id, btn.dataset.vendorActive === "true");
+        if (action === "delete") return confirmDeleteVendor(id);
+      };
+    }
+
+    function renderVendorPanel(vendors) {
+      const panel = document.getElementById("ownerHealthPanel");
+      if (!panel) return;
+      const list = vendors || [];
+      const activeCount = list.filter(v => v.active).length;
+      const legacyMode = list.some(v => !v.id); // backend lama: masih return string tanpa id
+      const rows = list.map(v => `
+        <tr>
+          <td><strong>${safe(v.nama)}</strong></td>
+          <td>${v.active
+              ? '<span class="badge tag" style="background:#dcfce7; color:#166534">AKTIF</span>'
+              : '<span class="badge tag" style="background:#fee2e2; color:#991b1b">NONAKTIF</span>'}</td>
+          <td>
+            ${v.id ? `
+            <button class="btn-outline btn-sm" data-vendor-action="edit" data-vendor-id="${safe(v.id)}">Edit</button>
+            <button class="btn-outline btn-sm" data-vendor-action="toggle" data-vendor-id="${safe(v.id)}" data-vendor-active="${v.active ? "false" : "true"}">${v.active ? "Nonaktifkan" : "Aktifkan kembali"}</button>
+            <button class="btn-outline btn-sm" data-vendor-action="delete" data-vendor-id="${safe(v.id)}">🗑 Hapus</button>
+            ` : `<span class="small" style="color:var(--muted)">Deploy backend v57 (Code_gs_57) dulu untuk kelola vendor ini.</span>`}
+          </td>
+        </tr>
+      `).join("");
+      panel.innerHTML = `
+        <div class="card">
+          <div class="section-title">🏭 Kelola Vendor Maklon (${activeCount} aktif)</div>
+          <p class="sub-note">Daftar vendor maklon eksternal untuk dropdown <strong>Kirim Maklon Eksternal</strong>. Vendor baru langsung bisa dipakai tanpa deploy ulang Apps Script.</p>
+          <div class="alert alert-info">
+            <strong>Nonaktifkan ≠ hapus.</strong> Vendor nonaktif disembunyikan dari dropdown kirim baru, tapi tetap dikenali untuk bal & borongan historis. Menambah kembali nama yang sama akan <strong>mengaktifkan ID lama</strong>. <strong>Hapus permanen</strong> hanya bisa untuk vendor yang belum pernah dipakai sama sekali (mis. salah ketik) — server yang memvalidasi.
+          </div>
+          ${legacyMode ? `<div class="alert alert-warn"><strong>Backend belum v57.</strong> Daftar di bawah masih dari kode lama (hardcoded). Deploy ulang Code_gs_57 supaya tambah/hapus vendor aktif.</div>` : ""}
+          <button class="btn-primary" style="margin-bottom:10px" onclick="openCreateVendorForm()">➕ Tambah Vendor</button>
+          ${list.length === 0
+            ? `<div class="alert alert-warn">Belum ada vendor. Tambahkan vendor maklon (mis. Nanjung, Margaasih).</div>`
+            : `<div style="overflow-x:auto"><table class="data-table">
+                <thead><tr><th>Nama</th><th>Status</th><th>Aksi</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table></div>`}
+        </div>
+      `;
+      // v57: handler memakai ID dari data-attribute, bukan menyisipkan nama vendor
+      // ke inline onclick. Aman untuk apostrof, tanda kutip, dan karakter HTML.
+      bindVendorPanelActions(panel);
+    }
+
+    function openCreateVendorForm() {
+      openSimpleModal("Tambah Vendor Maklon", `
+        <div class="form-group">
+          <label>Nama Vendor <span class="required">*</span></label>
+          <input id="vendorNamaInput" type="text" placeholder="Mis. Baru, Nanjung 2" autocomplete="off">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Minimal 2 karakter. Vendor langsung muncul di dropdown Kirim Maklon Eksternal.</div>
+        </div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, confirmCreateVendor, 'Menyimpan...')">💾 Simpan</button>
+      `);
+      setTimeout(() => document.getElementById("vendorNamaInput")?.focus(), 100);
+    }
+
+    async function confirmCreateVendor() {
+      const nama = (document.getElementById("vendorNamaInput")?.value || "").trim();
+      if (!nama) { document.getElementById("vendorNamaInput")?.classList.add("field-error"); return alert("Nama vendor wajib diisi."); }
+      if (nama.length < 2) { document.getElementById("vendorNamaInput")?.classList.add("field-error"); return alert("Nama minimal 2 karakter."); }
+      try {
+        const result = await apiSaveMaklonVendor({ nama, active: true });
+        // v57: pakai nama kanonik dari server (ketik "baru" → tampil "Baru").
+        const namaTampil = String(result?.nama || nama);
+        toast(result?.reactivated
+          ? `Vendor '${namaTampil}' diaktifkan kembali (ID lama dipertahankan).`
+          : `Vendor '${namaTampil}' ditambahkan.`, "success");
+        closeSimpleModal();
+        await openVendorManagement();
+      } catch (e) { alert(e.message); }
+    }
+
+    let _editingVendorId = "";
+
+    function openEditVendorFormById(id) {
+      const vendor = getVendorUiById(id);
+      if (!vendor) return toast("Vendor tidak ditemukan. Refresh daftar vendor.", "error");
+      openEditVendorForm(vendor.id, vendor.nama, vendor.active);
+    }
+
+    function openEditVendorForm(id, currentNama, active) {
+      _editingVendorId = String(id || "");
+      const nm = String(currentNama || "");
+      openSimpleModal("Edit Vendor Maklon", `
+        <div class="form-group">
+          <label>Nama Vendor <span class="required">*</span></label>
+          <input id="vendorNamaEditInput" type="text" value="${safe(nm)}" autocomplete="off">
+          <div class="small" style="margin-top:4px; color:var(--muted)">Catatan: rename hanya bisa untuk vendor yang <strong>belum pernah dipakai</strong>. Kalau sudah pernah dipakai, nonaktifkan lalu tambah vendor baru — supaya riwayat bal/borongan lama tidak putus.</div>
+        </div>
+        <div class="form-group">
+          <label><input id="vendorActiveCheck" type="checkbox" ${active ? "checked" : ""}> Aktif (tampil di dropdown kirim maklon)</label>
+        </div>
+        <button class="btn-primary btn-block" onclick="guardedClick(this, confirmEditVendor, 'Menyimpan...')">💾 Simpan Perubahan</button>
+      `);
+    }
+
+    async function confirmEditVendor() {
+      const id = _editingVendorId;
+      const nama = (document.getElementById("vendorNamaEditInput")?.value || "").trim();
+      const active = !!document.getElementById("vendorActiveCheck")?.checked;
+      if (!id) return alert("ID vendor tidak ditemukan. Tutup lalu buka kembali form edit.");
+      if (!nama) return alert("Nama vendor wajib diisi.");
+      if (nama.length < 2) return alert("Nama minimal 2 karakter.");
+      try {
+        const result = await apiSaveMaklonVendor({ id, nama, active });
+        const namaTampil = String(result?.nama || nama);
+        toast(`Vendor '${namaTampil}' diperbarui.`, "success");
+        _editingVendorId = "";
+        closeSimpleModal();
+        await openVendorManagement();
+      } catch (e) { alert(e.message); }
+    }
+
+    async function toggleVendorActive(id, newActive) {
+      const vendor = getVendorUiById(id);
+      if (!vendor) return toast("Vendor tidak ditemukan. Refresh daftar vendor.", "error");
+      const nama = vendor.nama;
+      const verb = newActive ? "aktifkan kembali" : "nonaktifkan";
+      if (!confirm(`Yakin ${verb} vendor '${nama}'?${newActive ? "" : " Vendor akan hilang dari dropdown kirim maklon baru, tapi bal historis tetap aman."}`)) return;
+      try {
+        const result = await apiSaveMaklonVendor({ id, nama, active: newActive });
+        const namaTampil = String(result?.nama || nama);
+        const activeJobs = Number(result?.active_jobs_count || 0);
+        toast(`Vendor '${namaTampil}' ${newActive ? "diaktifkan" : "dinonaktifkan"}.` +
+          (!newActive && activeJobs > 0 ? ` ${activeJobs} bal masih aktif di vendor dan tetap bisa diselesaikan.` : ""), "success");
+        await openVendorManagement();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function confirmDeleteVendor(id) {
+      const vendor = getVendorUiById(id);
+      if (!vendor) return toast("Vendor tidak ditemukan. Refresh daftar vendor.", "error");
+      const nama = vendor.nama;
+      if (!confirm(`Hapus PERMANEN vendor '${nama}'?
+
+Hanya bisa kalau vendor ini belum pernah dipakai sama sekali. Kalau sudah pernah dipakai di bal/borongan, server akan menolak — gunakan Nonaktifkan.`)) return;
+      try {
+        const result = await apiDeleteMaklonVendor({ id });
+        toast(`Vendor '${String(result?.nama || nama)}' dihapus permanen.`, "success");
+        await openVendorManagement();
+      } catch (e) { alert(e.message); }
     }
 
     /* ============================================================
