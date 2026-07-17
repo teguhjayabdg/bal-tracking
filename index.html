@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v57 - Vendor Maklon Final Aman)</title>
+  <title>Bal Tracking 3.0 - Cloud (v58 - Fix Edit Pegawai Obras)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -6210,7 +6210,7 @@ Alasan: ${cleanReason}`)) return;
           <div class="section-title">Pekerja Obras</div>
           ${b.obras_by ? `
             <div class="grid-2" style="grid-template-columns:1fr auto; gap:8px; align-items:end">
-              <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" list="workerNames" autocomplete="off" value="${safe(b.obras_by)}"></div>
+              <div class="form-group" style="margin:0"><label>Nama (sekarang: <strong>${safe(b.obras_by)}</strong>)</label><input id="oo_pkj_obras" list="workerNames" autocomplete="off" value="${safe(b.obras_by)}">${b.obras_selesai_by && String(b.obras_selesai_by).trim().toLowerCase() !== String(b.obras_by || "").trim().toLowerCase() ? `<div class="small" style="margin-top:4px; color:var(--warn, #b45309)">⚠ Penyelesai obras tercatat <strong>${safe(b.obras_selesai_by)}</strong> (ganti shift). Rekap HR memakai nama penyelesai — edit ini hanya mengganti pemulai.</div>` : ""}</div>
               <button class="btn-outline" onclick="guardedClick(this, () => confirmOOEditPekerja('obras'), 'Menyimpan...')">Simpan</button>
             </div>
             <div class="small" style="color:var(--muted); margin-top:4px">Saat nama diubah, record borongan Obras dengan nama lama akan di-sync ke nama baru.</div>
