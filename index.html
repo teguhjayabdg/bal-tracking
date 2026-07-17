@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bal Tracking 3.0 - Cloud (v58 - Fix Edit Pegawai Obras)</title>
+  <title>Bal Tracking 3.0 - Cloud (v59 - Satu Pegawai Satu Ejaan)</title>
 
   <!-- QR Generator untuk label -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -6317,13 +6317,13 @@ Alasan: ${cleanReason}`)) return;
         try {
           const allBorongan = await apiListBorongan();
           if (target === "obras") {
-            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Obras" && r.pegawai === oldName).length;
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Obras" && workerKeyFe(r.pegawai) === workerKeyFe(oldName)).length; // v59
           } else if (target === "setting") {
-            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Setting" && r.output_id === output_id && r.pegawai === oldName).length;
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Setting" && r.output_id === output_id && workerKeyFe(r.pegawai) === workerKeyFe(oldName)).length; // v59
           } else if (target === "packing") {
-            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing" && r.pegawai === oldName).length;
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing" && workerKeyFe(r.pegawai) === workerKeyFe(oldName)).length; // v59
           } else if (target === "packing_maklon") {
-            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing Maklon" && r.pegawai === oldName).length;
+            affected = (allBorongan || []).filter(r => r.bal_id === b.bal_id && r.tahap === "Packing Maklon" && workerKeyFe(r.pegawai) === workerKeyFe(oldName)).length; // v59
           }
         } catch (_) { /* preview hitungan saja, kalau gagal abaikan */ }
         const syncMsg = affected > 0
@@ -9345,20 +9345,52 @@ Alasan: ${cleanReason}`)) return;
       return rows.filter(r => String(r.jenis || "").toLowerCase().includes(j));
     }
 
+    // v59: "Azka" dan "AZKA" adalah SATU pegawai. Semua pengelompokan/filter nama
+    // pegawai di rekap memakai kunci case-insensitive; nama yang ditampilkan =
+    // varian yang paling sering dipakai di data (tie → yang pertama muncul).
+    function workerKeyFe(name) {
+      return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+    }
+
+    function buildWorkerCanonMap(rows) {
+      // key → { display, byVariant: {variant: count} }
+      const stat = new Map();
+      for (const r of (rows || [])) {
+        const raw = String(r.pegawai || "").trim().replace(/\s+/g, " ");
+        if (!raw) continue;
+        const k = workerKeyFe(raw);
+        if (!stat.has(k)) stat.set(k, new Map());
+        const m = stat.get(k);
+        m.set(raw, (m.get(raw) || 0) + 1);
+      }
+      const canon = new Map();
+      for (const [k, m] of stat) {
+        let best = "", bestCount = -1;
+        for (const [variant, count] of m) {
+          if (count > bestCount) { best = variant; bestCount = count; }
+        }
+        canon.set(k, best);
+      }
+      return canon;
+    }
+
     function fillWorkerOptions(selectId, rows) {
       const sel = document.getElementById(selectId);
       if (!sel) return;
       const cur = sel.value;
-      const workers = [...new Set((rows || []).map(r => r.pegawai).filter(Boolean))].sort();
-      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${cur === n ? "selected" : ""}>${safe(n)}</option>`).join("");
-      if (cur && !workers.includes(cur)) sel.value = "";
+      const curKey = workerKeyFe(cur);
+      // v59: dedup case-insensitive; tampilkan varian kanonik (terbanyak dipakai).
+      const canon = buildWorkerCanonMap(rows);
+      const workers = [...canon.values()].sort((a, b) => a.localeCompare(b, "id"));
+      sel.innerHTML = `<option value="">Semua Pegawai</option>` + workers.map(n => `<option value="${safe(n)}" ${curKey === workerKeyFe(n) ? "selected" : ""}>${safe(n)}</option>`).join("");
+      if (cur && !workers.some(n => workerKeyFe(n) === curKey)) sel.value = "";
     }
 
     function renderWorkSummary(summaryId, rows, showWorkerCount = true) {
       const el = document.getElementById(summaryId);
       if (!el) return;
       const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
-      const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
+      const uniqueWorkers = new Set(rows.map(r => workerKeyFe(r.pegawai)).filter(Boolean)).size; // v59
       const stats = showWorkerCount
         ? [["Pekerjaan", rows.length], ["Pegawai", uniqueWorkers], ["Total Qty", totalQty], ["Tahap", workSubLabel(currentWorkSub)]]
         : [["Pekerjaan", rows.length], ["Total Qty", totalQty], ["Tahap", workSubLabel(workSubForRole())], ["Nama", currentUser?.nama || "-"]];
@@ -9427,10 +9459,11 @@ Alasan: ${cleanReason}`)) return;
     function renderWorkEmployeeRecap(rows) {
       const el = document.getElementById("workRekapPegawai");
       if (!el) return;
+      const canon = buildWorkerCanonMap(rows); // v59
       const map = new Map();
       for (const r of rows) {
-        const k = r.pegawai || "-";
-        if (!map.has(k)) map.set(k, { pegawai: k, qty: 0, count: 0 });
+        const k = workerKeyFe(r.pegawai) || "-";
+        if (!map.has(k)) map.set(k, { pegawai: canon.get(k) || String(r.pegawai || "-"), qty: 0, count: 0 });
         const e = map.get(k);
         e.qty += Number(r.qty || 0);
         e.count += 1;
@@ -9470,7 +9503,7 @@ Alasan: ${cleanReason}`)) return;
           let rows = sanitizeWorkRowsByJenis(res.rows || [], jenis);
           fillWorkerOptions("workFilterWorker", rows);
           const worker = document.getElementById("workFilterWorker")?.value || "";
-          if (worker) rows = rows.filter(r => r.pegawai === worker);
+          if (worker) { const wk = workerKeyFe(worker); rows = rows.filter(r => workerKeyFe(r.pegawai) === wk); } // v59
           const info = document.getElementById("workPeriodInfo");
           if (info) info.textContent = `Periode: ${formatPeriodID(res.start_date, res.end_date)}.`;
           renderWorkSummary("workSummary", rows, true);
@@ -9623,7 +9656,7 @@ Alasan: ${cleanReason}`)) return;
     async function getFilteredBorongan() {
       let rows = await getHrBaseRows();
       const w = document.getElementById("hrFilterWorker")?.value || "";
-      if (w) rows = rows.filter(r => r.pegawai === w);
+      if (w) { const wk = workerKeyFe(w); rows = rows.filter(r => workerKeyFe(r.pegawai) === wk); } // v59
       return rows;
     }
 
@@ -9747,7 +9780,8 @@ Alasan: ${cleanReason}`)) return;
         const baseRows = await getHrBaseRows();
         refreshHrWorkerFilter(baseRows);
         const worker = document.getElementById("hrFilterWorker")?.value || "";
-        const rows = worker ? baseRows.filter(r => r.pegawai === worker) : baseRows;
+        const wkey = worker ? workerKeyFe(worker) : "";
+        const rows = worker ? baseRows.filter(r => workerKeyFe(r.pegawai) === wkey) : baseRows; // v59
 
         updateHrSelectedInfo(rows);
 
@@ -9761,7 +9795,7 @@ Alasan: ${cleanReason}`)) return;
         const totalUntarif = rows.filter(r => !Number(r.tarif)).length;
         const pendingCount = rows.filter(r => isPendingBorongan(r) || isEarlyPaidBorongan(r)).length;
         const finalRows = rows.filter(r => !isPendingBorongan(r));
-        const uniqueWorkers = new Set(rows.map(r => r.pegawai).filter(Boolean)).size;
+        const uniqueWorkers = new Set(rows.map(r => workerKeyFe(r.pegawai)).filter(Boolean)).size; // v59
 
         const summary = document.getElementById("hrSummary");
         if (summary) {
@@ -9777,10 +9811,11 @@ Alasan: ${cleanReason}`)) return;
           ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
         }
 
+        const rekapCanon = buildWorkerCanonMap(rows); // v59
         const rekapMap = new Map();
         for (const r of rows) {
-          const k = r.pegawai || "-";
-          if (!rekapMap.has(k)) rekapMap.set(k, { pegawai: k, qty: 0, total: 0, count: 0 });
+          const k = workerKeyFe(r.pegawai) || "-";
+          if (!rekapMap.has(k)) rekapMap.set(k, { pegawai: rekapCanon.get(k) || String(r.pegawai || "-"), qty: 0, total: 0, count: 0 });
           const e = rekapMap.get(k);
           e.qty += Number(r.qty || 0);
           e.total += Number(r.total || 0);
