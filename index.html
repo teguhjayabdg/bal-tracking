@@ -2633,9 +2633,9 @@
       return await api("listWorkRekap", payload, { cache: false });
     }
 
-    async function apiUpdateBoronganTarif(id, tarif, tahap = "", jenis = "") {
+    async function apiUpdateBoronganTarif(id, tarif, tahap = "", jenis = "", vendor = "") {
       clearApiCache("listBorongan");
-      return await api("updateBoronganTarif", { id, tarif, tahap, jenis });
+      return await api("updateBoronganTarif", { id, tarif, tahap, jenis, vendor });
     }
 
     async function apiSetBoronganPaid(id, paid, note = "") {
@@ -9796,6 +9796,11 @@ Alasan: ${cleanReason}`)) return;
         const pendingCount = rows.filter(r => isPendingBorongan(r) || isEarlyPaidBorongan(r)).length;
         const finalRows = rows.filter(r => !isPendingBorongan(r));
         const uniqueWorkers = new Set(rows.map(r => workerKeyFe(r.pegawai)).filter(Boolean)).size; // v59
+        // v61: total rupiah untuk record yang statusnya BELUM lunas saja — dihitung dari
+        // "rows" yang sama (sudah kena filter tanggal/jenis/pegawai aktif), jadi otomatis
+        // ikut update saat filter berubah, sama seperti kartu lain.
+        const unpaidRows = rows.filter(r => boronganPaidStatus(r) !== "SUDAH");
+        const totalBelumDibayarRp = unpaidRows.reduce((s,r)=>s + Number(r.total||0), 0);
 
         const summary = document.getElementById("hrSummary");
         if (summary) {
@@ -9805,7 +9810,8 @@ Alasan: ${cleanReason}`)) return;
             ["Total Qty", totalQty],
             ["Tahap", hrSubLabel(currentHrSub)],
             ["Total Borongan", rupiah(totalRp)],
-            ["Belum Dibayar", rows.filter(r => boronganPaidStatus(r) !== "SUDAH").length],
+            ["Belum Dibayar (Rp)", rupiah(totalBelumDibayarRp)],
+            ["Belum Dibayar (jumlah)", unpaidRows.length],
             ["Belum QC", pendingCount],
             ["Belum Ada Tarif", totalUntarif]
           ].map(([label, val]) => `<div class="stat-card"><div class="stat-value">${safe(val)}</div><div class="stat-label">${safe(label)}</div></div>`).join("");
@@ -9862,7 +9868,7 @@ Alasan: ${cleanReason}`)) return;
               <td><strong>${safe(r.qty)} ${safe(r.satuan)}</strong></td>
               <td><span class="small">${safe(hrRowCatatan(r))}</span></td>
               <td>
-                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:90px; min-height:32px; padding:4px 6px">
+                <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" data-bor-vendor="${safe(r.pegawai || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis(+vendor utk maklon obras) untuk row live/pending' : 'Tarif record final'}" style="width:90px; min-height:32px; padding:4px 6px">
               </td>
               <td><strong>${rupiah(r.total)}</strong></td>
               <td>${boronganPaidCell(r)}</td>
@@ -9887,7 +9893,7 @@ Alasan: ${cleanReason}`)) return;
                 <div class="small">${safe(hrRowCatatan(r))}</div>
                 <div style="margin-top:6px">
                   <label class="small">Tarif/${safe(r.satuan)}</label>
-                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis untuk row live/pending' : 'Tarif record final'}" style="width:120px; min-height:32px; padding:4px 6px">
+                  <input type="number" step="any" value="${Number(r.tarif || 0)}" data-bor-id="${safe(r.id)}" data-bor-tahap="${safe(r.tahap || hrSubLabel(currentHrSub))}" data-bor-jenis="${safe(r.jenis || '')}" data-bor-vendor="${safe(r.pegawai || '')}" onchange="updateBoronganTarif(this)" title="${isPendingBorongan(r) ? 'Tarif disimpan ke master tarif tahap+jenis(+vendor utk maklon obras) untuk row live/pending' : 'Tarif record final'}" style="width:120px; min-height:32px; padding:4px 6px">
                 </div>
                 <div style="margin-top:4px">Total: <strong>${rupiah(r.total)}</strong></div>
                 <div style="margin-top:6px">${boronganPaidCell(r)}</div>
@@ -9906,11 +9912,12 @@ Alasan: ${cleanReason}`)) return;
       const id = inputEl.getAttribute("data-bor-id");
       const tahap = inputEl.getAttribute("data-bor-tahap") || "";
       const jenis = inputEl.getAttribute("data-bor-jenis") || "";
+      const vendor = inputEl.getAttribute("data-bor-vendor") || ""; // v61: dipakai server hanya untuk tahap Maklon Obras*
       const newTarif = Number(inputEl.value || 0);
       try {
-        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif, tahap, jenis));
+        const res = await withLoading("Update tarif...", async () => await apiUpdateBoronganTarif(id, newTarif, tahap, jenis, vendor));
         if (res?.live_tarif_only) toast("Tarif disimpan ke master tarif. Row belum final akan ikut setelah refresh.", "success");
-        else if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain.`, "success");
+        else if (res?.propagated > 0) toast(`Tarif disimpan. Auto-propagate ke ${res.propagated} record lain (vendor sama).`, "success");
         else toast("Tarif disimpan.", "success");
         renderBorongan();
       } catch (e) { toast(e.message, "error"); }
